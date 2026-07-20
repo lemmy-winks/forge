@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..fitting import epley_e1rm, est_minutes, fit_day, plate_breakdown, warmup_ramp
 from ..models import (EquipmentProfile, Exercise, LoggedSet, Metric, Niggle, Plan,
-                      PlanRevision, Record, User, WorkoutSession, utcnow)
+                      PlanRevision, Record, User, WorkoutSeries, WorkoutSession, utcnow)
 from ..security import current_user
 
 router = APIRouter(prefix="/api", tags=["training"])
@@ -334,6 +334,29 @@ def complete_session(sid: str, body: CompleteIn, user: User = Depends(current_us
     return {"ok": True, "stats": session.stats, "cooldown_status": session.cooldown_status}
 
 
+# Five-zone model as fractions of HR max (Z1 floor is open-ended downward).
+ZONE_EDGES = [(1, 0.0, 0.60), (2, 0.60, 0.70), (3, 0.70, 0.80), (4, 0.80, 0.90), (5, 0.90, 2.0)]
+
+
+def _zone_breakdown(user: User, hr: list[list[float]]) -> dict:
+    """Time per zone from the [[t_s, bpm]] trace. HR max comes from prefs
+    (coach/chat can set it); otherwise the session peak, floored at 190 —
+    flagged as estimated so the UI can say so."""
+    pref_max = (user.prefs or {}).get("hr_max")
+    hr_max = float(pref_max) if pref_max else max(190.0, max(bpm for _, bpm in hr))
+    mins = {z: 0.0 for z, _, _ in ZONE_EDGES}
+    for (t0, bpm), (t1, _) in zip(hr, hr[1:]):
+        dt = min(max(t1 - t0, 0.0), 30.0)  # cap gaps so pauses don't inflate a zone
+        for z, lo, hi in ZONE_EDGES:
+            if lo * hr_max <= bpm < hi * hr_max:
+                mins[z] += dt / 60
+                break
+    return {"hr_max": round(hr_max), "estimated": not pref_max,
+            "zones": [{"zone": z, "low": round(lo * hr_max),
+                       "high": round(hi * hr_max) if hi <= 1 else None,
+                       "min": round(mins[z], 1)} for z, lo, hi in ZONE_EDGES]}
+
+
 @router.get("/sessions/{sid}")
 def session_detail(sid: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
     session = db.get(WorkoutSession, sid)
@@ -349,10 +372,17 @@ def session_detail(sid: str, user: User = Depends(current_user), db: Session = D
             "name": exmap[s.exercise_slug].name if s.exercise_slug in exmap else s.exercise_slug,
             "substituted_for": s.substituted_for, "sets": []})
         g["sets"].append({"set_no": s.set_no, "weight": s.weight, "reps": s.reps, "rpe": s.rpe})
-    return {"id": session.id, "day": str(session.day), "name": session.name, "kind": session.kind,
-            "status": session.status, "stats": session.stats, "notes": session.notes,
-            "cooldown_status": session.cooldown_status, "fitted": session.fitted,
-            "exercises": list(grouped.values())}
+    out = {"id": session.id, "day": str(session.day), "name": session.name, "kind": session.kind,
+           "status": session.status, "stats": session.stats, "notes": session.notes,
+           "cooldown_status": session.cooldown_status, "fitted": session.fitted,
+           "exercises": list(grouped.values())}
+    if session.kind == "cardio":
+        srow = db.query(WorkoutSeries).filter(WorkoutSeries.session_id == sid).first()
+        if srow and srow.data:
+            out["series"] = srow.data
+            if srow.data.get("hr"):
+                out["zones"] = _zone_breakdown(user, srow.data["hr"])
+    return out
 
 
 class NotesIn(BaseModel):

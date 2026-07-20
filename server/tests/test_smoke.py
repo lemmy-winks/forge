@@ -327,6 +327,43 @@ def test_unmatched_workout_stays_unplanned():
     assert swim["status"] == "unplanned" and swim["name"] == "Pool Swim"
 
 
+def test_run_series_zones_and_backfill():
+    """Rich run detail: HR/route series stored at ingest, zones computed on read,
+    and a re-sent workout backfills traces instead of being dropped."""
+    login()
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+    hr = [{"date": f"2026-07-24 07:{i:02d}:00 +0100", "qty": 120 + i * 3} for i in range(10)]
+    route = [{"lat": 51.5 + i * 1e-4, "lon": -0.12 + i * 1e-4} for i in range(5)]
+    payload = {"data": {"workouts": [{
+        "name": "Morning Jog", "start": "2026-07-24 07:00:00 +0100", "duration": 600,
+        "distance": {"qty": 2.0}, "heartRateData": hr, "route": route}]}}
+    r = client.post("/ingest", json=payload, headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 200 and r.json()["stored"] == 1
+    run = next(h for h in client.get("/api/history").json() if h["day"] == "2026-07-24")
+    d = client.get(f"/api/sessions/{run['id']}").json()
+    assert d["series"]["hr"][0] == [0.0, 120.0] and len(d["series"]["hr"]) == 10
+    assert d["series"]["route"][0] == [51.5, -0.12] and len(d["series"]["route"]) == 5
+    assert d["zones"]["estimated"] and d["zones"]["hr_max"] == 190
+    assert sum(z["min"] for z in d["zones"]["zones"]) > 0
+    # duplicate send with series already stored → skipped, not duplicated
+    r = client.post("/ingest", json=payload, headers={"Authorization": f"Bearer {tok}"})
+    assert r.json()["skipped"] == 1
+
+    # a run ingested without traces gains them when HAE re-sends the day
+    bare = {"data": {"workouts": [{
+        "name": "Evening Jog", "start": "2026-07-25 19:00:00 +0100", "duration": 600}]}}
+    client.post("/ingest", json=bare, headers={"Authorization": f"Bearer {tok}"})
+    rich = {"data": {"workouts": [{
+        "name": "Evening Jog", "start": "2026-07-25 19:00:00 +0100", "duration": 600,
+        "heartRateData": [{"date": f"2026-07-25 19:{i:02d}:00 +0100", "qty": 130}
+                          for i in range(10)]}]}}
+    r = client.post("/ingest", json=rich, headers={"Authorization": f"Bearer {tok}"})
+    assert r.json()["stored"] == 1, "re-sent day backfills the series"
+    run = next(h for h in client.get("/api/history").json() if h["day"] == "2026-07-25")
+    d = client.get(f"/api/sessions/{run['id']}").json()
+    assert len(d["series"]["hr"]) == 10 and d["stats"]["hr_samples"] == 10
+
+
 def test_progress_zone2_and_vo2_trend():
     login()
     p = client.get("/api/progress").json()

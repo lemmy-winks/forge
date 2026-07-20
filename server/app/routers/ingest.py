@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import Metric, WorkoutSession, utcnow
+from ..models import Metric, WorkoutSeries, WorkoutSession, utcnow
 from ..security import user_for_ingest_token
 
 router = APIRouter(tags=["ingest"])
@@ -70,12 +70,98 @@ def _hr_values(w: dict) -> list[float]:
     return out
 
 
+def _downsample(pts: list, cap: int) -> list:
+    if len(pts) <= cap:
+        return pts
+    step = len(pts) / cap
+    out = [pts[int(i * step)] for i in range(cap)]
+    out[-1] = pts[-1]  # keep the true endpoint
+    return out
+
+
+def _hr_series(w: dict, start: datetime) -> list[list[float]]:
+    """[[seconds_from_start, bpm], ...] — timestamped where HAE provides dates,
+    else evenly spread across the workout duration."""
+    raw = []
+    for s in w.get("heartRateData", []) or []:
+        v = _first(s, "qty", "Avg", "avg") if isinstance(s, dict) else s
+        ts = _parse_ts(s.get("date")) if isinstance(s, dict) else None
+        try:
+            raw.append((ts, float(v)))
+        except (TypeError, ValueError):
+            continue
+    if not raw:
+        return []
+    try:  # TypeError on missing/naive timestamps → even spacing below
+        pts = [[round((ts - start).total_seconds(), 1), bpm] for ts, bpm in sorted(raw)]
+    except TypeError:
+        dur, wunit = w.get("duration"), ""
+        if isinstance(dur, dict):
+            wunit, dur = str(dur.get("units", "")).lower(), dur.get("qty")
+        try:
+            dur_s = float(dur) * (60.0 if wunit == "min" else 1.0)
+        except (TypeError, ValueError):
+            dur_s = float(len(raw))
+        pts = [[round(i * dur_s / max(1, len(raw) - 1), 1), bpm] for i, (_, bpm) in enumerate(raw)]
+    return _downsample(pts, 600)
+
+
+def _route_points(w: dict) -> list[list[float]]:
+    """[[lat, lon], ...] from HAE route data (present only when the HAE app's
+    'route data' export option is on)."""
+    pts = []
+    for p in w.get("route", []) or []:
+        if not isinstance(p, dict):
+            continue
+        lat, lon = _first(p, "lat", "latitude"), _first(p, "lon", "lng", "longitude")
+        try:
+            pts.append([round(float(lat), 6), round(float(lon), 6)])
+        except (TypeError, ValueError):
+            continue
+    return _downsample(pts, 800)
+
+
 def _minutes_in_band(hrs: list[float], duration_s: float, low: float, high: float) -> float:
     """Samples are ~evenly spaced, so time in band ≈ duration × fraction in band."""
     if not hrs or not duration_s:
         return 0.0
     frac = sum(1 for h in hrs if low <= h <= high) / len(hrs)
     return round(duration_s / 60 * frac, 1)
+
+
+def _series_data(w: dict, start: datetime) -> dict:
+    out = {}
+    hr = _hr_series(w, start)
+    if hr:
+        out["hr"] = hr
+    route = _route_points(w)
+    if route:
+        out["route"] = route
+    return out
+
+
+def _attach_series(db: Session, sess: WorkoutSession, w: dict, start: datetime) -> bool:
+    """Backfill traces onto an already-ingested session. Returns True if stored."""
+    if db.query(WorkoutSeries.id).filter(WorkoutSeries.session_id == sess.id).first():
+        return False
+    series = _series_data(w, start)
+    if not series:
+        return False
+    db.add(WorkoutSeries(session_id=sess.id, user_id=sess.user_id, data=series))
+    hrs = [bpm for _, bpm in series.get("hr", [])]
+    if hrs:  # fill zone stats that predate series capture
+        stats = dict(sess.stats or {})
+        duration = stats.get("duration_s", 0)
+        stats.setdefault("hr_samples", len(hrs))
+        stats.setdefault("zone2_min", _minutes_in_band(hrs, duration, *ZONE2_BAND))
+        target = stats.get("target") or {}
+        low, high = target.get("hr_low"), target.get("hr_high")
+        if low and high and "pct_in_zone" not in stats:
+            zone_min = _minutes_in_band(hrs, duration, low, high)
+            stats["zone_min"] = zone_min
+            stats["pct_in_zone"] = round(100 * zone_min / (duration / 60), 0) if duration else 0
+        sess.stats = stats
+    return True
 
 
 def _match_prescription(db: Session, user_id: str, day, name: str) -> tuple[dict, str] | None:
@@ -170,13 +256,18 @@ async def ingest(request: Request,
         if start is None:
             continue
         name = str(w.get("name", "Workout"))
-        existing = (db.query(WorkoutSession.id)
+        existing = (db.query(WorkoutSession)
                     .filter(WorkoutSession.user_id == tok.user_id,
                             WorkoutSession.kind == "cardio",
                             WorkoutSession.started_at == start)
                     .first())
         if existing:
-            skipped += 1
+            # Re-sent workout (HAE manual export of past days): attach the
+            # series we used to throw away, so history can be backfilled.
+            if _attach_series(db, existing, w, start):
+                stored += 1
+            else:
+                skipped += 1
             continue
         stats = {}
         for key, out in (("duration", "duration_s"), ("distance", "distance"),
@@ -227,9 +318,14 @@ async def ingest(request: Request,
                 stats["zone_min"] = zone_min
                 stats["pct_in_zone"] = round(100 * zone_min / (duration / 60), 0) if duration else 0
             fitted.update({"matched_day": day_key, "target": target})
-        db.add(WorkoutSession(user_id=tok.user_id, day=start.date(), name=name, kind="cardio",
+        sess = WorkoutSession(user_id=tok.user_id, day=start.date(), name=name, kind="cardio",
                               status=status, started_at=start, completed_at=_parse_ts(w.get("end")),
-                              stats=stats, fitted=fitted))
+                              stats=stats, fitted=fitted)
+        db.add(sess)
+        series = _series_data(w, start)
+        if series:
+            db.flush()
+            db.add(WorkoutSeries(session_id=sess.id, user_id=tok.user_id, data=series))
         stored += 1
 
     tok.samples = (tok.samples or 0) + stored

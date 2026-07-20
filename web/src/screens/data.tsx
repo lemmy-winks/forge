@@ -63,6 +63,9 @@ export function DetailScreen() {
         );
       })}
       {d.kind === 'cardio' && <CardioStats d={d} />}
+      {d.series?.route && d.series.route.length > 1 && <RouteTrace pts={d.series.route} />}
+      {d.series?.hr && d.series.hr.length > 1 && <HrTrace d={d} />}
+      {d.zones && <ZoneBars z={d.zones} />}
       {d.notes && <div className="card"><div className="sub" style={{ marginTop: 0 }}><b style={{ color: 'var(--ink)' }}>Note:</b> {d.notes}</div></div>}
       {d.kind === 'cardio' && <AnnotateRow d={d} />}
       <button className="ghost press" onClick={() =>
@@ -109,6 +112,106 @@ function CardioStats({ d }: { d: SessionDetail }) {
         ))}
       </div>
     </>
+  );
+}
+
+/** Tile-free route sketch: equirectangular projection of the GPS trace, volt on
+    the raised surface. Deliberately no map tiles — self-contained and private. */
+function RouteTrace({ pts }: { pts: [number, number][] }) {
+  const W = 320, PAD = 14;
+  const midLat = pts.reduce((a, p) => a + p[0], 0) / pts.length;
+  const kx = Math.cos((midLat * Math.PI) / 180);
+  const xs = pts.map((p) => p[1] * kx), ys = pts.map((p) => -p[0]);
+  const spanX = Math.max(Math.max(...xs) - Math.min(...xs), 1e-6);
+  const spanY = Math.max(Math.max(...ys) - Math.min(...ys), 1e-6);
+  const H = Math.min(300, Math.max(120, ((W - 2 * PAD) * spanY) / spanX + 2 * PAD));
+  const sc = Math.min((W - 2 * PAD) / spanX, (H - 2 * PAD) / spanY);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys);
+  const px = (i: number): [number, number] => [
+    PAD + (xs[i] - x0) * sc + (W - 2 * PAD - spanX * sc) / 2,
+    PAD + (ys[i] - y0) * sc + (H - 2 * PAD - spanY * sc) / 2,
+  ];
+  const path = pts.map((_, i) => px(i));
+  const [sx, sy] = path[0], [ex, ey] = path[path.length - 1];
+  return (
+    <div className="card">
+      <div className="row"><span className="xname">Route</span></div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block', marginTop: 6 }}
+        role="img" aria-label="Route map trace">
+        <path d={path.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join('')}
+          fill="none" stroke="var(--volt)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        <circle cx={sx} cy={sy} r="4" fill="var(--volt)" />
+        <circle cx={ex} cy={ey} r="4" fill="none" stroke="var(--volt)" strokeWidth="2" />
+      </svg>
+      <div className="sub">● start · ○ finish</div>
+    </div>
+  );
+}
+
+/** HR over time with the prescribed band shaded. Single series — no legend. */
+function HrTrace({ d }: { d: SessionDetail }) {
+  const hr = d.series!.hr!;
+  const W = 320, H = 120, PAD = { l: 30, r: 8, t: 8, b: 16 };
+  const t1 = hr[hr.length - 1][0] || 1;
+  const bpms = hr.map((p) => p[1]);
+  const band = d.stats?.target;
+  const lo = Math.floor(Math.min(...bpms, band?.hr_low ?? Infinity) / 10) * 10;
+  const hi = Math.ceil(Math.max(...bpms, band?.hr_high ?? 0) / 10) * 10;
+  const x = (t: number) => PAD.l + ((W - PAD.l - PAD.r) * t) / t1;
+  const y = (v: number) => PAD.t + (H - PAD.t - PAD.b) * (1 - (v - lo) / Math.max(1, hi - lo));
+  const step = Math.max(1, Math.floor(hr.length / 150));
+  const line = smoothPath(hr.filter((_, i) => i % step === 0 || i === hr.length - 1)
+    .map((p) => [x(p[0]), y(p[1])] as [number, number]));
+  const mins = Math.round(t1 / 60);
+  return (
+    <div className="card num">
+      <div className="row"><span className="xname">Heart rate</span>
+        {d.stats?.avg_hr && <span className="target">avg {Math.round(d.stats.avg_hr)} bpm</span>}</div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block', marginTop: 6 }}
+        role="img" aria-label="Heart rate trace">
+        {band?.hr_low && band?.hr_high && (
+          <rect x={PAD.l} y={y(band.hr_high)} width={W - PAD.l - PAD.r}
+            height={Math.max(0, y(band.hr_low) - y(band.hr_high))} fill="var(--volt-dim)" />
+        )}
+        {[lo, hi].map((v) => (
+          <g key={v}>
+            <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke="var(--hair)" />
+            <text x={PAD.l - 5} y={y(v) + 3} textAnchor="end" fontSize="9" fill="var(--mut)">{v}</text>
+          </g>
+        ))}
+        <path d={line} fill="none" stroke="var(--volt)" strokeWidth="2"
+          strokeLinejoin="round" strokeLinecap="round" />
+        <text x={PAD.l} y={H - 4} fontSize="9" fill="var(--mut)">0 min</text>
+        <text x={W - PAD.r} y={H - 4} textAnchor="end" fontSize="9" fill="var(--mut)">{mins} min</text>
+      </svg>
+      {band?.hr_low && <div className="sub">shaded: prescribed {band.hr_low}–{band.hr_high} bpm</div>}
+    </div>
+  );
+}
+
+/** Time in each of five HR-max zones. One hue, deeper = harder; labels carry
+    identity so color is never load-bearing. */
+const ZONE_ALPHA = [0.35, 0.5, 0.65, 0.82, 1];
+function ZoneBars({ z }: { z: NonNullable<SessionDetail['zones']> }) {
+  const total = Math.max(...z.zones.map((r) => r.min), 0.1);
+  return (
+    <div className="card num">
+      <div className="row"><span className="xname">Zones</span>
+        <span className="target">max {z.hr_max}{z.estimated ? ' est' : ''} bpm</span></div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 8 }}>
+        {z.zones.map((r) => (
+          <div key={r.zone} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="sub" style={{ width: 62, margin: 0 }}>Z{r.zone} {r.high ? `${r.low}–${r.high}` : `${r.low}+`}</span>
+            <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--sunken)' }}>
+              <div style={{ width: `${Math.max(2, (100 * r.min) / total)}%`, height: 8, borderRadius: 4,
+                background: 'var(--volt)', opacity: ZONE_ALPHA[r.zone - 1] }} />
+            </div>
+            <span className="sub" style={{ width: 44, textAlign: 'right', margin: 0 }}>{r.min ? `${r.min}m` : '—'}</span>
+          </div>
+        ))}
+      </div>
+      {z.estimated && <div className="sub">Max HR estimated from this run — tell the coach your tested max to refine zones.</div>}
+    </div>
   );
 }
 

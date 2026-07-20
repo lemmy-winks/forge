@@ -11,6 +11,7 @@ reach the sign-in page can open the demo (that's the point) — their session
 sees only Bruce's data, same user-scoping as everyone else.
 """
 
+import math
 import random
 from datetime import date, datetime, time, timedelta, timezone
 
@@ -18,7 +19,8 @@ from sqlalchemy.orm import Session
 
 from .fitting import epley_e1rm
 from .models import (AgentRun, ChatMessage, EquipmentProfile, IngestToken, LabPanel, LabResult,
-                     LoggedSet, Metric, Niggle, Plan, PlanRevision, Record, User, WorkoutSession)
+                     LoggedSet, Metric, Niggle, Plan, PlanRevision, Record, User,
+                     WorkoutSeries, WorkoutSession)
 from .security import new_ingest_token
 from .seed import _week, seed_user_defaults
 
@@ -28,6 +30,29 @@ DEMO_NAME = "Bruce Willis"
 
 def demo_user(db: Session) -> User | None:
     return db.query(User).filter(User.email == DEMO_EMAIL).first()
+
+
+def _run_series(rng: random.Random, dur: int, dist: float, avg_hr: int,
+                intervals: bool) -> dict:
+    """Believable HR trace + a riverside-loop route sized to the run distance."""
+    hr, n = [], max(2, dur // 10)
+    for i in range(n):
+        t = i / (n - 1)
+        ramp = min(1.0, t * 6)  # ~first sixth: warm-up climb
+        bpm = 92 + (avg_hr - 92) * ramp + 3 * math.sin(t * 9) + rng.uniform(-3, 3)
+        if intervals and t > 0.15:
+            bpm += 14 * (1 if int(t * 14) % 2 else -1)  # work/rest surges
+        hr.append([round(t * dur, 1), round(min(bpm, avg_hr + 22), 1)])
+    lat0, lon0 = 53.3388, -6.3699  # Cherry Orchard, Dublin — loop through the park
+    coslat = math.cos(math.radians(lat0))
+    r_km = dist / (2 * math.pi)
+    route, m = [], 240
+    for i in range(m + 1):
+        a = 2 * math.pi * i / m
+        wobble = 1 + 0.16 * math.sin(3 * a) + 0.05 * math.sin(7 * a + 1.3)
+        route.append([round(lat0 + (r_km * wobble / 111.0) * math.sin(a), 6),
+                      round(lon0 + (r_km * wobble * 1.35 / (111.0 * coslat)) * math.cos(a), 6)])
+    return {"hr": hr, "route": route}
 
 
 def _ts(d: date, hh: int, mm: int) -> datetime:
@@ -148,12 +173,18 @@ def seed_demo(db: Session) -> User:
                          "target": {k: c.get(k) for k in ("type", "minutes", "hr_low", "hr_high")},
                          "zone_min": round(dur / 60 * in_zone, 1),
                          "pct_in_zone": round(100 * in_zone, 0)}
-                db.add(WorkoutSession(user_id=bruce.id, day=d, name=entry["name"], kind="cardio",
+                sess = WorkoutSession(user_id=bruce.id, day=d, name=entry["name"], kind="cardio",
                                       status="completed", started_at=_ts(d, 7, 12),
                                       completed_at=_ts(d, 7, 12) + timedelta(seconds=dur),
                                       fitted={"source": "watch", "matched_day": day_key,
                                               "target": c},
-                                      stats=stats))
+                                      stats=stats)
+                db.add(sess)
+                if w >= 40:  # traces only for recent runs — keeps the reset snappy
+                    db.flush()
+                    db.add(WorkoutSeries(session_id=sess.id, user_id=bruce.id,
+                                         data=_run_series(rng, dur, dist, stats["avg_hr"],
+                                                          intervals=c["hr_high"] > 145)))
 
     for slug, kinds in best.items():
         for kind, (value, detail, achieved) in kinds.items():
@@ -242,8 +273,8 @@ def delete_demo(db: Session) -> bool:
     plan_ids = [i for (i,) in db.query(Plan.id).filter_by(user_id=bruce.id)]
     if plan_ids:
         db.query(PlanRevision).filter(PlanRevision.plan_id.in_(plan_ids)).delete(synchronize_session=False)
-    for model in (WorkoutSession, LabPanel, Plan, Metric, Record, Niggle, ChatMessage,
-                  AgentRun, IngestToken, EquipmentProfile):
+    for model in (WorkoutSeries, WorkoutSession, LabPanel, Plan, Metric, Record, Niggle,
+                  ChatMessage, AgentRun, IngestToken, EquipmentProfile):
         db.query(model).filter_by(user_id=bruce.id).delete(synchronize_session=False)
     db.delete(bruce)
     db.commit()

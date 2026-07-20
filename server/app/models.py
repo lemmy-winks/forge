@@ -117,6 +117,18 @@ class WorkoutSession(Base):
     sets: Mapped[list["LoggedSet"]] = relationship(order_by="LoggedSet.ts")
 
 
+class WorkoutSeries(Base):
+    """Per-second-ish traces for a cardio session, kept off WorkoutSession so
+    list queries never drag the blobs along. Separate table (not a column) so
+    create_all provisions it without a migration."""
+    __tablename__ = "workout_series"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    session_id: Mapped[str] = mapped_column(ForeignKey("workout_sessions.id"), unique=True, index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    # {"hr": [[t_s, bpm], ...], "route": [[lat, lon], ...]} — both downsampled at ingest
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class LoggedSet(Base):
     __tablename__ = "logged_sets"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)

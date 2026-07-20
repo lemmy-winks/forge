@@ -135,6 +135,9 @@ export interface SessionDetail {
   cooldown_status: string; fitted: Fitted | Record<string, never>;
   exercises: { slug: string; name: string; substituted_for: string | null;
     sets: { set_no: number; weight: number; reps: number; rpe: number | null }[] }[];
+  series?: { hr?: [number, number][]; route?: [number, number][] };
+  zones?: { hr_max: number; estimated: boolean;
+    zones: { zone: number; low: number; high: number | null; min: number }[] };
 }
 export interface SeriesPoint { d: string; v: number; }
 export interface BodyComp {
