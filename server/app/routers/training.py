@@ -163,8 +163,18 @@ def today(date: str | None = None, budget: int | None = Query(default=None, ge=2
             item["plate"] = f"2 × {e['weight']:g} kg dumbbells"
         out_ex.append(item)
 
+    primary_m, secondary_m = [], []
+    for e in entries:
+        ex = exmap.get(e["slug"])
+        if not ex or fit["sets"][e["slug"]] == 0:
+            continue
+        primary_m += [m for m in (ex.primary_muscles or []) if m not in primary_m]
+        secondary_m += [m for m in (ex.secondary_muscles or []) if m not in secondary_m]
+
     return {**base, "kind": "strength", "name": entry.get("name"),
             "focus": entry.get("focus", []),
+            "muscles": {"primary": primary_m,
+                        "secondary": [m for m in secondary_m if m not in primary_m]},
             "budget": budget, "est": fit["est"], "cd": fit["cd"], "trims": fit["trims"],
             "full_est": est_minutes(entries, {e["slug"]: e["sets"] for e in entries}, "full"),
             "exercises": out_ex,

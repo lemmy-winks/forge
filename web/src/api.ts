@@ -114,6 +114,7 @@ export interface Today {
   // strength
   budget?: number | null; est?: number; cd?: 'full' | 'short'; trims?: string[]; full_est?: number;
   exercises?: TodayExercise[]; cooldown?: CooldownItem[]; profile?: Profile | null; tonnage_est?: number;
+  muscles?: { primary: string[]; secondary: string[] };
   // cardio
   cardio?: { type: string; minutes: number; hr_low: number; hr_high: number; note?: string };
   // rest

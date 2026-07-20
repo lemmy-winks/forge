@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { api, fmtLoad, fmtT, kgDisp, loadUnitFor, todayISO, type Today, type WeekResp } from '../api';
+import { MuscleMap } from '../musclemap';
 import { Back, Chip, Loading, Shell, Title, useApp } from '../ui';
 
 /* ---------------- Plan: the whole week, separated by day ---------------- */
@@ -247,12 +248,21 @@ export function DayScreen() {
       {!done && t.rationale && <Chip>{t.rationale}</Chip>}
       {!done && (
         <div className="card">
-          <div className="row"><span className="xname">Plan for today</span>
-            <span className="target num">~{t.est} min · {exercises.reduce((x, e) => x + e.sets, 0)} sets</span></div>
-          <div className="sub num">
-            Focus <span className="fchips" style={{ display: 'inline-flex', verticalAlign: 'middle', margin: '0 2px' }}>
-              {(t.focus || []).map((f) => <span key={f} className="fchip">{f}</span>)}
-            </span> · {t.tonnage_est} t · {t.cd === 'short' ? '2' : '5'}-min cool-down
+          <div className="mhead">
+            <div>
+              <div className="xname">Plan for today</div>
+              <div className="sub num" style={{ marginTop: 4 }}>
+                {exercises.filter((e) => !e.dropped).length} exercises · {exercises.reduce((x, e) => x + e.sets, 0)} sets
+                {' · '}<b style={{ color: 'var(--volt)' }}>~{t.est} min</b>
+              </div>
+              <div className="fpills" style={{ marginTop: 8 }}>
+                {(t.focus || []).map((f) => <span key={f} className="fpill">{f}</span>)}
+              </div>
+              <div className="sub num">{t.tonnage_est} t · {t.cd === 'short' ? '2' : '5'}-min cool-down</div>
+            </div>
+            {t.muscles && (t.muscles.primary.length > 0 || t.muscles.secondary.length > 0) && (
+              <MuscleMap primary={t.muscles.primary} secondary={t.muscles.secondary} />
+            )}
           </div>
           <div className="row" style={{ marginTop: 10 }}>
             <span className="kick" style={{ fontSize: 11 }}>Time available</span>

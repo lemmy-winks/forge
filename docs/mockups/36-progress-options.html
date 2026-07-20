@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Progress — two options</title>
+<style>
+  :root{ --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
+         --ink:#edeef0; --mut:#8b9096; --dim:#565b61;
+         --volt:#c9f73a; --on-volt:#131602; --volt-dim:rgba(201,247,58,.12); }
+  *{ box-sizing:border-box; margin:0; }
+  body{ background:#0a0b0d; color:var(--ink); font:14px/1.45 -apple-system,Inter,system-ui,sans-serif;
+        display:flex; gap:34px; flex-wrap:wrap; justify-content:center; padding:34px 16px 60px; }
+  .opt{ text-align:center; }
+  .lab{ color:var(--mut); font-size:13px; margin-bottom:14px; }
+  .lab b{ color:var(--volt); }
+  .phone{ width:330px; background:var(--bg); border-radius:34px; padding:20px 14px 26px;
+          box-shadow:0 26px 70px rgba(0,0,0,.55); text-align:left; }
+  .num{ font-variant-numeric:tabular-nums; }
+  .kick{ color:var(--volt); font-size:10.5px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
+  h2{ font-size:22px; letter-spacing:-.01em; margin:2px 0 10px; }
+  .card{ background:var(--raised); border-radius:15px; padding:12px 13px; margin-bottom:8px; }
+  .row{ display:flex; justify-content:space-between; align-items:baseline; }
+  .sub{ color:var(--mut); font-size:11.5px; }
+  .volt{ color:var(--volt); }
+  svg{ display:block; width:100%; }
+
+  /* opt 1: hero + sparkline grid */
+  .segs{ display:flex; gap:6px; margin-bottom:10px; }
+  .seg{ flex:1; text-align:center; background:var(--raised); border-radius:999px; padding:7px 0;
+        font-size:12px; color:var(--mut); }
+  .seg.on{ background:var(--volt); color:var(--on-volt); font-weight:700; }
+  .sparkgrid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .spark{ background:var(--raised); border-radius:14px; padding:10px 11px; }
+  .spark .k{ color:var(--mut); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; }
+  .spark .v{ font-size:17px; font-weight:650; margin:1px 0 4px; }
+  .spark .v small{ font-size:11px; color:var(--mut); font-weight:400; }
+
+  /* opt 2: sectioned story */
+  .sect{ display:flex; align-items:center; gap:8px; color:var(--dim); font-size:10.5px;
+         letter-spacing:.12em; text-transform:uppercase; margin:14px 2px 7px; }
+  .sect::after{ content:""; flex:1; height:1px; background:var(--hair); }
+  .statchips{ display:flex; gap:6px; margin-top:8px; }
+  .sc{ flex:1; background:var(--sunken); border-radius:10px; padding:7px 9px; }
+  .sc .k{ color:var(--mut); font-size:10px; text-transform:uppercase; letter-spacing:.05em; }
+  .sc .v{ font-size:14px; font-weight:650; margin-top:1px; }
+  .ring{ position:relative; width:64px; height:64px; flex:none; }
+  .ring .t{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .ring .t b{ font-size:14px; }
+  .ring .t span{ font-size:9px; color:var(--mut); }
+</style>
+</head>
+<body>
+
+<div class="opt">
+  <div class="lab"><b>Option 1 — Hero chart + sparkline grid</b> · one big switchable chart,<br>everything else a glanceable tile</div>
+  <div class="phone num">
+    <div class="kick">Trends · 12 weeks</div>
+    <h2>Progress</h2>
+    <div class="segs"><span class="seg on">Squat e1RM</span><span class="seg">Weight</span><span class="seg">VO₂max</span></div>
+
+    <div class="card">
+      <div class="row"><b>Back Squat e1RM</b><span class="volt" style="font-weight:700">112 kg</span></div>
+      <svg id="hero" viewBox="0 0 300 110"></svg>
+      <div class="sub">deload dip wk 7 · +9 kg this block</div>
+    </div>
+
+    <div class="sparkgrid">
+      <div class="spark"><div class="k">Zone 2</div><div class="v">86 <small>/ 90 min</small></div><svg class="sp" viewBox="0 0 120 26"></svg></div>
+      <div class="spark"><div class="k">Bodyweight</div><div class="v">91.2 <small>kg → 88</small></div><svg class="sp" viewBox="0 0 120 26"></svg></div>
+      <div class="spark"><div class="k">Resting HR</div><div class="v">54 <small>bpm</small></div><svg class="sp" viewBox="0 0 120 26"></svg></div>
+      <div class="spark"><div class="k">Sleep</div><div class="v">7.1 <small>h avg</small></div><svg class="sp" viewBox="0 0 120 26"></svg></div>
+      <div class="spark"><div class="k">Sessions</div><div class="v">4 <small>/ 4 this wk</small></div><svg class="sp" viewBox="0 0 120 26"></svg></div>
+      <div class="spark"><div class="k">VO₂max</div><div class="v">44.1 <small>smoothed</small></div><svg class="sp" viewBox="0 0 120 26"></svg></div>
+    </div>
+  </div>
+</div>
+
+<div class="opt">
+  <div class="lab"><b>Option 2 — Sectioned story</b> · Strength / Engine / Body sections,<br>one chart each + stat chips, weekly ring</div>
+  <div class="phone num">
+    <div class="kick">Trends · 12 weeks</div>
+    <h2>Progress</h2>
+
+    <div class="card" style="display:flex;gap:12px;align-items:center">
+      <div class="ring">
+        <svg viewBox="0 0 64 64">
+          <circle cx="32" cy="32" r="27" fill="none" stroke="var(--sunken)" stroke-width="7"/>
+          <circle cx="32" cy="32" r="27" fill="none" stroke="var(--volt)" stroke-width="7"
+                  stroke-linecap="round" stroke-dasharray="127 170" transform="rotate(-90 32 32)"/>
+        </svg>
+        <div class="t"><b>3/4</b><span>done</span></div>
+      </div>
+      <div><b>This week</b><div class="sub" style="margin-top:2px">Thu intervals left · 86 of 90 Zone-2 min banked</div></div>
+    </div>
+
+    <div class="sect">Strength</div>
+    <div class="card">
+      <div class="row"><b>Back Squat e1RM</b><span class="volt" style="font-weight:700">112 kg</span></div>
+      <svg id="s1" viewBox="0 0 300 84"></svg>
+      <div class="statchips">
+        <div class="sc"><div class="k">Bench</div><div class="v">72 kg</div></div>
+        <div class="sc"><div class="k">RDL</div><div class="v">96 kg</div></div>
+        <div class="sc"><div class="k">PBs</div><div class="v">3 this mo</div></div>
+      </div>
+    </div>
+
+    <div class="sect">Engine</div>
+    <div class="card">
+      <div class="row"><b>VO₂max</b><span class="sub">raw + smoothed</span></div>
+      <svg id="s2" viewBox="0 0 300 70"></svg>
+      <div class="statchips">
+        <div class="sc"><div class="k">Zone 2</div><div class="v volt">86/90 m</div></div>
+        <div class="sc"><div class="k">Rest HR</div><div class="v">54 bpm</div></div>
+      </div>
+    </div>
+
+    <div class="sect">Body</div>
+    <div class="card">
+      <div class="row"><b>Weight vs goal</b><span class="sub">91.2 → 88 kg</span></div>
+      <svg id="s3" viewBox="0 0 300 70"></svg>
+    </div>
+  </div>
+</div>
+
+<script>
+const line = (el, W, H, pts, opts = {}) => {
+  const P = 6, lo = Math.min(...pts), hi = Math.max(...pts);
+  const X = i => P + (W - 2 * P) * i / (pts.length - 1);
+  const Y = v => P + (H - 2 * P) * (1 - (v - lo) / Math.max(1e-6, hi - lo));
+  const d = pts.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join('');
+  el.innerHTML = `${opts.fill ? `<path d="${d} L${X(pts.length-1)},${H} L${X(0)},${H} Z" fill="var(--volt-dim)"/>` : ''}
+    <path d="${d}" fill="none" stroke="${opts.stroke || 'var(--volt)'}" stroke-width="${opts.wd || 2}" stroke-linejoin="round"/>
+    <circle cx="${X(pts.length - 1)}" cy="${Y(pts[pts.length - 1])}" r="3" fill="var(--volt)"/>`;
+};
+const wob = (n, a, b, f) => Array.from({length: n}, (_, i) => a + (b - a) * i / (n - 1) + f * Math.sin(i * 1.9));
+line(document.getElementById('hero'), 300, 110, wob(30, 103, 112, 1.4).map((v,i)=> i===17? v-5 : v), {fill:1});
+document.querySelectorAll('.sp').forEach((el, k) =>
+  line(el, 120, 26, wob(20, 10 + k, 14 + (k % 3) * 2, .8), {wd: 1.6}));
+const s1 = document.getElementById('s1'); if (s1) line(s1, 300, 84, wob(30, 103, 112, 1.2).map((v,i)=> i===17? v-5 : v), {fill:1});
+const s2 = document.getElementById('s2'); if (s2) line(s2, 300, 70, wob(26, 42.2, 44.1, .5));
+const s3 = document.getElementById('s3'); if (s3) line(s3, 300, 70, wob(26, 94, 91.2, .3));
+</script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proposal — two options</title>
+<style>
+  :root{ --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
+         --ink:#edeef0; --mut:#8b9096; --dim:#565b61;
+         --volt:#c9f73a; --on-volt:#131602; --volt-dim:rgba(201,247,58,.12); --warn:#e8a360; }
+  *{ box-sizing:border-box; margin:0; }
+  body{ background:#0a0b0d; color:var(--ink); font:14px/1.45 -apple-system,Inter,system-ui,sans-serif;
+        display:flex; gap:34px; flex-wrap:wrap; justify-content:center; padding:34px 16px 60px; }
+  .opt{ text-align:center; }
+  .lab{ color:var(--mut); font-size:13px; margin-bottom:14px; }
+  .lab b{ color:var(--volt); }
+  .phone{ width:330px; background:var(--bg); border-radius:34px; padding:20px 14px 0;
+          box-shadow:0 26px 70px rgba(0,0,0,.55); text-align:left; position:relative; overflow:hidden; }
+  .num{ font-variant-numeric:tabular-nums; }
+  .kick{ color:var(--volt); font-size:10.5px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
+  h2{ font-size:22px; letter-spacing:-.01em; margin:2px 0 10px; }
+  .card{ background:var(--raised); border-radius:15px; padding:12px 13px; margin-bottom:8px; font-size:13px; }
+  .row{ display:flex; justify-content:space-between; align-items:baseline; }
+  .sub{ color:var(--mut); font-size:11.5px; margin-top:3px; }
+  .volt{ color:var(--volt); }
+  .note{ color:var(--mut); font-size:12.5px; line-height:1.5; }
+  .note .more{ color:var(--volt); font-weight:600; font-size:12px; }
+  .stickybar{ position:sticky; bottom:0; margin:12px -14px 0; padding:12px 14px calc(14px + 8px);
+              background:linear-gradient(transparent, var(--bg) 30%); display:flex; gap:8px; }
+  .approve{ flex:1; background:var(--volt); color:var(--on-volt); font-weight:700; text-align:center;
+            border-radius:999px; padding:12px; font-size:14px; }
+  .changes{ flex:none; background:var(--raised); color:var(--ink); border-radius:999px; padding:12px 16px; font-size:13px; }
+
+  /* diff rows */
+  .diff{ display:flex; gap:9px; padding:9px 3px; border-top:1px solid var(--hair); font-size:12.5px; align-items:baseline; }
+  .diff:first-child{ border-top:none; }
+  .diff .s{ width:14px; font-weight:800; color:var(--volt); }
+  .diff .s.rm{ color:var(--warn); }
+  .diff .w{ flex:1; }
+  .diff .why{ color:var(--mut); font-size:11.5px; }
+
+  /* week compare strips */
+  .cmp{ display:grid; grid-template-columns:52px 1fr; gap:8px; align-items:center; margin-bottom:6px; }
+  .cmp .t{ color:var(--mut); font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; text-align:right; }
+  .strip{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .strip span{ height:30px; border-radius:6px; background:var(--raised); position:relative; overflow:hidden; }
+  .strip i{ position:absolute; bottom:0; left:0; right:0; background:var(--volt); opacity:.28; border-radius:6px; }
+  .strip.new i{ opacity:.75; }
+  .dlab{ display:grid; grid-template-columns:52px 1fr; gap:8px; margin-bottom:10px; }
+  .dlab .strip{ grid-column:2; }
+  .dlab span{ height:auto; background:none; text-align:center; color:var(--dim); font-size:9.5px; }
+  .daycard{ background:var(--raised); border-radius:13px; padding:10px 12px; margin-bottom:7px; font-size:12.5px; }
+  .daycard .why{ color:var(--mut); font-size:11.5px; margin-top:2px; }
+  .delta{ color:var(--volt); font-weight:700; }
+</style>
+</head>
+<body>
+
+<div class="opt">
+  <div class="lab"><b>Option 1 — Diff-first</b> · what changed leads, rationale clamped,<br>sticky Approve; day cards on demand</div>
+  <div class="phone num">
+    <div class="kick">Proposal · week 41 · Sunday review</div>
+    <h2>Next week</h2>
+
+    <div class="card">
+      <div class="note">This week takes squat to 77.5 kg for the first time and banks 72 aerobic
+      minutes. Keep the easy run under 140… <span class="more">more</span></div>
+    </div>
+
+    <div class="card" style="padding:6px 13px">
+      <div class="diff"><span class="s">+</span><span class="w"><b>Back Squat</b> 75 → <b class="volt">77.5 kg</b></span><span class="why">clean ×2 wks</span></div>
+      <div class="diff"><span class="s">~</span><span class="w"><b>Zone 2</b> 45 → <b class="volt">50 min</b></span><span class="why">drift down</span></div>
+      <div class="diff"><span class="s">~</span><span class="w"><b>Bench</b> holds @ 60</span><span class="why">rebuild 3×8</span></div>
+      <div class="diff"><span class="s rm">−</span><span class="w"><b>Deep lunges</b> out</span><span class="why">knee niggle</span></div>
+    </div>
+
+    <div class="card"><div class="row"><b>Mon · Lower A</b><span class="sub">~50 min</span></div>
+      <div class="sub">Squat earned another 2.5 kg — all reps clean at RPE 7</div></div>
+    <div class="card"><div class="row"><b>Wed · Zone 2</b><span class="sub">50 min · 125–140</span></div>
+      <div class="sub">HR drift is down — extend the base work</div></div>
+    <div class="sub" style="text-align:center;margin:2px 0 4px">+ 2 more days</div>
+
+    <div class="stickybar"><span class="approve">Approve week 41</span><span class="changes">Ask for changes</span></div>
+  </div>
+</div>
+
+<div class="opt">
+  <div class="lab"><b>Option 2 — Week compare</b> · this week vs proposed as twin strips,<br>then per-day cards with deltas inline</div>
+  <div class="phone num">
+    <div class="kick">Proposal · week 41 · Sunday review</div>
+    <h2>Next week</h2>
+
+    <div class="card">
+      <div class="dlab"><span></span><div class="strip">
+        <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div></div>
+      <div class="cmp"><span class="t">now</span>
+        <div class="strip">
+          <span><i style="height:85%"></i></span><span></span><span><i style="height:60%"></i></span>
+          <span></span><span><i style="height:80%"></i></span><span><i style="height:45%"></i></span><span></span>
+        </div></div>
+      <div class="cmp"><span class="t volt">next</span>
+        <div class="strip new">
+          <span><i style="height:92%"></i></span><span></span><span><i style="height:68%"></i></span>
+          <span></span><span><i style="height:80%"></i></span><span><i style="height:45%"></i></span><span></span>
+        </div></div>
+      <div class="sub" style="margin-top:8px">Taller Monday = heavier squats · longer Wednesday = 50-min Zone 2</div>
+    </div>
+
+    <div class="daycard"><div class="row"><b>Mon · Lower A</b><span class="delta">+2.5 kg</span></div>
+      <div class="why">Squat earned it — all reps clean at RPE 7</div></div>
+    <div class="daycard"><div class="row"><b>Wed · Zone 2</b><span class="delta">+5 min</span></div>
+      <div class="why">HR drift is down — extend the base</div></div>
+    <div class="daycard"><div class="row"><b>Fri · Upper A</b><span class="sub">no change</span></div>
+      <div class="why">Bench rebuilds to 3×8 before loading</div></div>
+    <div class="daycard"><div class="row"><b>Sat · Intervals</b><span class="sub">no change</span></div></div>
+
+    <div class="stickybar"><span class="approve">Approve week 41</span><span class="changes">Ask for changes</span></div>
+  </div>
+</div>
+
+</body>
+</html>

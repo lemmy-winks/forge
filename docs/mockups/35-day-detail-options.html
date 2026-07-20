@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Day detail — two options</title>
+<style>
+  :root{ --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
+         --ink:#edeef0; --mut:#8b9096; --dim:#565b61;
+         --volt:#c9f73a; --on-volt:#131602; --volt-dim:rgba(201,247,58,.12); --warn:#e8a360; }
+  *{ box-sizing:border-box; margin:0; }
+  body{ background:#0a0b0d; color:var(--ink); font:14px/1.45 -apple-system,Inter,system-ui,sans-serif;
+        display:flex; gap:34px; flex-wrap:wrap; justify-content:center; padding:34px 16px 60px; }
+  .opt{ text-align:center; }
+  .lab{ color:var(--mut); font-size:13px; margin-bottom:14px; }
+  .lab b{ color:var(--volt); }
+  .phone{ width:330px; background:var(--bg); border-radius:34px; padding:20px 14px 26px;
+          box-shadow:0 26px 70px rgba(0,0,0,.55); text-align:left; }
+  .num{ font-variant-numeric:tabular-nums; }
+  .kick{ color:var(--volt); font-size:10.5px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
+  .kickm{ color:var(--mut); }
+  h2{ font-size:22px; letter-spacing:-.01em; margin:2px 0 10px; }
+  .card{ background:var(--raised); border-radius:15px; padding:12px 13px; margin-bottom:8px; font-size:13px; }
+  .row{ display:flex; justify-content:space-between; align-items:baseline; }
+  .sub{ color:var(--mut); font-size:11.5px; margin-top:3px; }
+  .volt{ color:var(--volt); }
+  .warn{ color:var(--warn); }
+  .pill{ background:var(--volt); color:var(--on-volt); text-align:center; font-weight:700;
+         border-radius:999px; padding:11px; font-size:13.5px; margin-top:6px; }
+
+  /* opt 1: flow */
+  .stagelab{ display:flex; align-items:center; gap:8px; color:var(--dim); font-size:10.5px;
+             letter-spacing:.12em; text-transform:uppercase; margin:12px 2px 6px; }
+  .stagelab::after{ content:""; flex:1; height:1px; background:var(--hair); }
+  .mainlift{ background:var(--raised); border-radius:16px; padding:14px; margin-bottom:8px; }
+  .mainlift .nm{ font-size:17px; font-weight:650; }
+  .setdots{ display:flex; gap:5px; margin:8px 0 2px; }
+  .setdots span{ width:26px; height:26px; border-radius:50%; background:var(--sunken); display:flex;
+                 align-items:center; justify-content:center; font-size:11px; color:var(--mut); }
+  .plates{ display:flex; gap:3px; align-items:flex-end; height:24px; margin-top:8px; }
+  .plate{ width:6px; background:var(--volt); border-radius:2px; opacity:.85; }
+  .acc{ display:flex; align-items:center; gap:10px; padding:9px 3px; border-top:1px solid var(--hair); font-size:13px; }
+  .acc .nm{ flex:1; }
+  .acc .rx{ color:var(--mut); font-size:12px; }
+  .budget{ display:flex; align-items:center; gap:9px; background:var(--raised); border-radius:999px;
+           padding:8px 13px; font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .budget .track{ flex:1; height:4px; border-radius:2px; background:var(--sunken); position:relative; }
+  .budget .track i{ position:absolute; left:0; top:0; bottom:0; width:70%; background:var(--volt); border-radius:2px; }
+
+  /* opt 2: muscle-first */
+  .musclehead{ display:grid; grid-template-columns:1fr 86px; gap:10px; align-items:center;
+               background:var(--raised); border-radius:16px; padding:13px; margin-bottom:10px; }
+  .bodysvg{ width:86px; }
+  .mgroups{ display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+  .mg{ background:var(--volt-dim); color:var(--volt); border-radius:999px; padding:3px 10px; font-size:11px; font-weight:600; }
+  .mg.sec{ background:var(--sunken); color:var(--mut); font-weight:400; }
+  .exrow{ background:var(--raised); border-radius:13px; padding:11px 12px; margin-bottom:7px; }
+  .bar{ height:5px; border-radius:3px; background:var(--sunken); margin-top:8px; position:relative; overflow:hidden; }
+  .bar i{ position:absolute; inset:0; width:var(--w); background:var(--volt); border-radius:3px; opacity:.8; }
+</style>
+</head>
+<body>
+
+<div class="opt">
+  <div class="lab"><b>Option 1 — Session flow</b> · warm-up → main → accessories → cool-down as stages,<br>main lift is the hero with set bubbles + plate math</div>
+  <div class="phone num">
+    <div class="kick kickm">‹ Plan</div>
+    <div class="kick" style="margin-top:8px">Sunday · today</div>
+    <h2>Leg Strength</h2>
+
+    <div class="budget"><span>Time</span><div class="track"><i></i></div><span class="volt" style="font-weight:700">~50 min</span></div>
+
+    <div class="stagelab">Warm-up</div>
+    <div class="card"><div class="row"><span>Ramp: bar ×10 · 40% ×5 · 70% ×3</span><span class="sub">4 min</span></div></div>
+
+    <div class="stagelab">Main lift</div>
+    <div class="mainlift">
+      <div class="row"><span class="nm">Goblet Squat</span><span class="volt" style="font-weight:700;font-size:14px">3×8 @ 16 kg</span></div>
+      <div class="sub">Priority 1 — never trimmed · last time 8/8/8 @ 14</div>
+      <div class="setdots"><span>8</span><span>8</span><span>8</span></div>
+      <div class="plates">
+        <div class="plate" style="height:24px"></div><div class="plate" style="height:18px"></div>
+        <span class="sub" style="margin:0 0 1px 6px">one 16 kg dumbbell</span>
+      </div>
+    </div>
+
+    <div class="stagelab">Accessories · trim first</div>
+    <div class="card" style="padding:3px 13px">
+      <div class="acc"><span class="nm">DB Romanian Deadlift</span><span class="rx">3×10 @ 12 kg</span></div>
+      <div class="acc"><span class="nm">Split Squat</span><span class="rx">2×12 · droppable</span></div>
+      <div class="acc"><span class="nm">Plank</span><span class="rx">3×40 s</span></div>
+    </div>
+
+    <div class="stagelab">Cool-down · never dropped</div>
+    <div class="card"><div class="row"><span>Couch stretch · 90/90 hips</span><span class="sub">5 min</span></div>
+      <div class="sub warn">couch stretch added — knee niggle</div></div>
+
+    <div class="pill">Start session</div>
+  </div>
+</div>
+
+<div class="opt">
+  <div class="lab"><b>Option 2 — Muscle-first</b> · body map + muscle tags up top,<br>every exercise a card with a volume bar</div>
+  <div class="phone num">
+    <div class="kick kickm">‹ Plan</div>
+    <div class="kick" style="margin-top:8px">Sunday · today</div>
+    <h2>Leg Strength</h2>
+
+    <div class="musclehead">
+      <div>
+        <div class="sub" style="margin:0">4 exercises · 11 sets · <b class="volt">~50 min</b></div>
+        <div class="mgroups">
+          <span class="mg">Quads</span><span class="mg">Hams</span><span class="mg">Core</span>
+          <span class="mg sec">glutes</span><span class="mg sec">calves</span>
+        </div>
+      </div>
+      <svg class="bodysvg" viewBox="0 0 60 120">
+        <ellipse cx="30" cy="12" rx="8" ry="9" fill="#1c1e22"/>
+        <rect x="18" y="24" width="24" height="34" rx="9" fill="#1c1e22"/>
+        <rect x="10" y="26" width="7" height="28" rx="3.5" fill="#1c1e22"/>
+        <rect x="43" y="26" width="7" height="28" rx="3.5" fill="#1c1e22"/>
+        <rect x="19" y="60" width="10" height="32" rx="5" fill="var(--volt)" opacity=".9"/>
+        <rect x="31" y="60" width="10" height="32" rx="5" fill="var(--volt)" opacity=".9"/>
+        <rect x="20" y="94" width="8" height="20" rx="4" fill="var(--volt)" opacity=".35"/>
+        <rect x="32" y="94" width="8" height="20" rx="4" fill="var(--volt)" opacity=".35"/>
+        <rect x="22" y="40" width="16" height="14" rx="5" fill="var(--volt)" opacity=".45"/>
+      </svg>
+    </div>
+
+    <div class="exrow"><div class="row"><b>Goblet Squat</b><span class="volt" style="font-weight:700">3×8 @ 16 kg</span></div>
+      <div class="sub">main lift · last 8/8/8 @ 14 · RPE 7</div><div class="bar" style="--w:92%"><i></i></div></div>
+    <div class="exrow"><div class="row"><b>DB Romanian Deadlift</b><span class="sub">3×10 @ 12 kg</span></div>
+      <div class="bar" style="--w:70%"><i></i></div></div>
+    <div class="exrow"><div class="row"><b>Split Squat</b><span class="sub">2×12 · droppable</span></div>
+      <div class="bar" style="--w:44%"><i></i></div></div>
+    <div class="exrow"><div class="row"><b>Plank</b><span class="sub">3×40 s</span></div>
+      <div class="bar" style="--w:30%"><i></i></div></div>
+    <div class="exrow"><div class="row"><b>Cool-down</b><span class="sub">5 min</span></div>
+      <div class="sub warn">couch stretch — knee niggle</div></div>
+
+    <div class="pill">Start session</div>
+  </div>
+</div>
+
+</body>
+</html>

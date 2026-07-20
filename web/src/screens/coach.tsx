@@ -8,6 +8,8 @@ const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 function ProposalCard({ onChanges }: { onChanges: () => void }) {
   const qc = useQueryClient();
   const q = useQuery<ProposalResp>({ queryKey: ['proposal'], queryFn: () => api('/api/proposal') });
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [daysOpen, setDaysOpen] = useState(false);
   const p = q.data?.proposal;
   const decide = useMutation({
     mutationFn: (arg: { id: string; verb: 'approve' | 'reject' }) =>
@@ -38,33 +40,47 @@ function ProposalCard({ onChanges }: { onChanges: () => void }) {
         Proposed {proposedOn.toLocaleDateString(undefined, { weekday: 'short' })} {proposedOn.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
         {' · '}plan revision #{p.num} · awaiting your OK
       </div>
-      <p style={{ fontSize: 14.5, lineHeight: 1.5, margin: '6px 0 8px' }}>{p.rationale}</p>
-      {changes.map((c, i) => (
-        <div key={i} style={{ display: 'flex', gap: 9, padding: '4px 0', fontSize: 14 }} className="num">
-          <b style={{ color: signColor(c.sign), width: 12, flex: 'none', textAlign: 'center' }}>{c.sign}</b>
-          <span>
-            <b>{c.what}</b>
-            {c.why && <span style={{ display: 'block', fontSize: 12.5, color: 'var(--mut)' }}>{c.why}</span>}
-          </span>
-        </div>
-      ))}
-      <div style={{ marginTop: changes.length ? 8 : 0 }}>
-        {days.map(([k, day]) => (
-          <div key={k} style={{ borderTop: '1px solid var(--hair)', padding: '6px 0' }}>
-            <div className="row">
-              <span style={{ fontSize: 14.5, fontWeight: 600 }}>{DAY_NAMES[+k]} · {day.name}</span>
-              <span className="fchips">{(day.focus || []).map((f) => <span key={f} className="fchip">{f}</span>)}</span>
-            </div>
-            <div className="sub num" style={{ margin: 0 }}>{dayLine(day)}</div>
+
+      {/* the diff leads: what's changing, one line each */}
+      <div style={{ margin: '8px 0' }}>
+        {changes.map((c, i) => (
+          <div key={i} style={{ display: 'flex', gap: 9, padding: '5px 0', fontSize: 14,
+            borderTop: i ? '1px solid var(--hair)' : 'none' }} className="num">
+            <b style={{ color: signColor(c.sign), width: 12, flex: 'none', textAlign: 'center' }}>{c.sign}</b>
+            <b style={{ flex: 1 }}>{c.what}</b>
+            {c.why && <span style={{ fontSize: 12, color: 'var(--mut)', textAlign: 'right', maxWidth: '46%' }}>{c.why}</span>}
           </div>
         ))}
       </div>
-      <div className="btnrow" style={{ marginTop: 10 }}>
+
+      {p.rationale && (
+        <button className="coachnote press" onClick={() => setNoteOpen(!noteOpen)}
+          style={{ marginBottom: 10 }}>
+          <div className={noteOpen ? '' : 'clamp'}>{p.rationale}</div>
+          <div className="more">{noteOpen ? 'less' : 'more'}</div>
+        </button>
+      )}
+
+      <div className="btnrow">
         <button className="cta press" style={{ padding: 11 }} disabled={decide.isPending}
           onClick={() => decide.mutate({ id: p.id, verb: 'approve' })}>Approve week</button>
         <button className="ghost press" style={{ flex: '0 0 auto', width: 'auto', padding: '11px 14px' }}
           onClick={onChanges}>Changes…</button>
       </div>
+
+      {/* the full week, tucked behind an expander */}
+      <button className="coachnote press" style={{ marginTop: 10 }} onClick={() => setDaysOpen(!daysOpen)}>
+        <div className="more">{daysOpen ? 'hide the day-by-day' : `day-by-day · ${days.length} days`}</div>
+      </button>
+      {daysOpen && days.map(([k, day]) => (
+        <div key={k} style={{ borderTop: '1px solid var(--hair)', padding: '6px 0' }}>
+          <div className="row">
+            <span style={{ fontSize: 14.5, fontWeight: 600 }}>{DAY_NAMES[+k]} · {day.name}</span>
+            <span className="fchips">{(day.focus || []).map((f) => <span key={f} className="fchip">{f}</span>)}</span>
+          </div>
+          <div className="sub num" style={{ margin: 0 }}>{dayLine(day)}</div>
+        </div>
+      ))}
     </div>
   );
 }

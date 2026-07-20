@@ -296,9 +296,33 @@ export function ProgressScreen() {
   const vLast = p.vo2max.length ? p.vo2max[p.vo2max.length - 1].v : null;
   const bc = p.bodycomp;
   const last = (s: SeriesPoint[]) => (s.length ? s[s.length - 1].v : null);
+  const ringPct = p.week.planned ? Math.min(1, p.week.done / p.week.planned) : 0;
+  const C = 2 * Math.PI * 27;
   return (
     <Shell>
       <Title kick="Trends">Progress</Title>
+
+      {/* this week, at a glance */}
+      <div className="card" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div className="ringwrap num">
+          <svg viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="27" fill="none" stroke="var(--sunken)" strokeWidth="7" />
+            <circle cx="32" cy="32" r="27" fill="none" stroke="var(--volt)" strokeWidth="7"
+              strokeLinecap="round" strokeDasharray={`${C * ringPct} ${C}`} transform="rotate(-90 32 32)" />
+          </svg>
+          <div className="t"><b>{p.week.done}/{p.week.planned}</b><span>done</span></div>
+        </div>
+        <div>
+          <b style={{ fontSize: 15 }}>This week</b>
+          <div className="sub num" style={{ marginTop: 2 }}>
+            {p.zone2.target
+              ? `${Math.round(p.zone2.done)} of ${p.zone2.target} Zone-2 min banked`
+              : 'no cardio prescribed this week'}
+          </div>
+        </div>
+      </div>
+
+      <div className="sect">Strength</div>
       {cur ? (
         <>
           <div className="seg">
@@ -311,13 +335,11 @@ export function ProgressScreen() {
           <div className="card">
             <div className="row">
               <span style={{ fontSize: 13.5, fontWeight: 600 }}>{cur.name} · est. 1RM</span>
-              <span style={{ fontSize: 11.5, color: 'var(--mut)' }}>{liftU}</span>
+              <span className="disp num" style={{ fontSize: 20, color: 'var(--volt)' }}>
+                {cur.points.length ? cur.points[cur.points.length - 1].v.toFixed(1) : '—'}
+                <small style={{ fontSize: 11.5, color: 'var(--mut)', fontWeight: 400 }}> {liftU}</small>
+              </span>
             </div>
-            {cur.points.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '2px 0 4px' }}>
-                <span className="disp num" style={{ fontSize: 22 }}>{cur.points[cur.points.length - 1].v.toFixed(1)}</span>
-              </div>
-            )}
             <LineChart points={cur.points} />
           </div>
         </>
@@ -325,21 +347,35 @@ export function ProgressScreen() {
       <button className="lrow press num" onClick={() => go('records')}>
         <b>Records</b><span className="rsub">all-time bests per lift</span><span className="chev">›</span>
       </button>
-      <div className="tiles">
-        <div className="tile"><div className="k">Bodyweight</div>
-          <div className="v disp num">{wLast != null ? kgDisp(wLast, me.units) : '—'}</div>
-          <div className="d">{p.weight.length} readings</div></div>
-        <div className="tile"><div className="k">Sessions</div>
-          <div className="v disp num">{p.week.done}<small>/{p.week.planned}</small></div>
-          <div className="d">this week</div></div>
-        <div className="tile"><div className="k">Zone 2</div>
-          <div className="v disp num">{Math.round(p.zone2.done)}<small>/{p.zone2.target} min</small></div>
-          <div className="d">{p.zone2.target
-            ? (p.zone2.done >= p.zone2.target ? 'weekly target hit' : 'this week vs target')
-            : 'no cardio prescribed'}</div></div>
-        <div className="tile"><div className="k">Resting HR</div>
-          <div className="v disp num">{p.resting_hr.length ? Math.round(p.resting_hr[p.resting_hr.length - 1].v) : '—'} <small>bpm</small></div>
-          <div className="d">latest</div></div>
+
+      <div className="sect">Engine</div>
+      <div className="card">
+        <div className="row">
+          <span style={{ fontSize: 13.5, fontWeight: 600 }}>VO₂max · raw + trend</span>
+          <span style={{ fontSize: 11.5, color: 'var(--mut)' }}>{vLast != null ? 'ml/kg/min' : ''}</span>
+        </div>
+        <DotTrendChart raw={p.vo2max} smooth={p.vo2max_smooth} />
+        {p.vo2max.length >= 2 &&
+          <div className="sub">Trend over single readings — the coach reads this quarterly.</div>}
+        <div className="statchips num">
+          <div className="statchip"><div className="k">Zone 2</div>
+            <div className="v" style={p.zone2.target && p.zone2.done >= p.zone2.target ? { color: 'var(--volt)' } : undefined}>
+              {Math.round(p.zone2.done)}<small style={{ color: 'var(--mut)', fontWeight: 400 }}>/{p.zone2.target || '—'} m</small></div></div>
+          <div className="statchip"><div className="k">Resting HR</div>
+            <div className="v">{p.resting_hr.length ? Math.round(p.resting_hr[p.resting_hr.length - 1].v) : '—'} <small style={{ color: 'var(--mut)', fontWeight: 400 }}>bpm</small></div></div>
+          <div className="statchip"><div className="k">Sleep</div>
+            <div className="v">{p.sleep_h.length ? p.sleep_h[p.sleep_h.length - 1].v.toFixed(1) : '—'} <small style={{ color: 'var(--mut)', fontWeight: 400 }}>h</small></div></div>
+        </div>
+      </div>
+
+      <div className="sect">Body</div>
+      <div className="card">
+        <div className="row">
+          <span style={{ fontSize: 13.5, fontWeight: 600 }}>Bodyweight</span>
+          <span className="disp num" style={{ fontSize: 20 }}>
+            {wLast != null ? kgDisp(wLast, me.units) : '—'}</span>
+        </div>
+        <LineChart points={p.weight} />
       </div>
       {(bc.fat_pct.length > 0 || bc.muscle.length > 0) && (
         <div className="card num">
@@ -364,16 +400,6 @@ export function ProgressScreen() {
           {bc.fat_pct.length >= 2 && <div className="sub">Body-fat % trend</div>}
         </div>
       )}
-      <div className="card">
-        <div className="row">
-          <span style={{ fontSize: 13.5, fontWeight: 600 }}>VO₂max · raw + trend</span>
-          <span style={{ fontSize: 11.5, color: 'var(--mut)' }}>
-            {vLast != null ? 'ml/kg/min' : ''}</span>
-        </div>
-        <DotTrendChart raw={p.vo2max} smooth={p.vo2max_smooth} />
-        {p.vo2max.length >= 2 &&
-          <div className="sub">Trend over single readings — the coach reads this quarterly.</div>}
-      </div>
     </Shell>
   );
 }
