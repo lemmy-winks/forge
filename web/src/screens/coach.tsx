@@ -5,7 +5,7 @@ import { ChatBubble, Header, Tabs, Title, toast, useApp } from '../ui';
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-function ProposalCard({ onChanges }: { onChanges: () => void }) {
+function ProposalCard({ onChanges, onDecided }: { onChanges: () => void; onDecided?: () => void }) {
   const qc = useQueryClient();
   const q = useQuery<ProposalResp>({ queryKey: ['proposal'], queryFn: () => api('/api/proposal') });
   const [noteOpen, setNoteOpen] = useState(false);
@@ -19,6 +19,7 @@ function ProposalCard({ onChanges }: { onChanges: () => void }) {
       qc.invalidateQueries({ queryKey: ['proposal'] });
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
+      onDecided?.();
     },
   });
   if (!p) return null;
@@ -35,7 +36,7 @@ function ProposalCard({ onChanges }: { onChanges: () => void }) {
   };
 
   return (
-    <div className="card">
+    <div>
       <div className="kick" style={{ fontSize: 11 }}>
         Proposed {proposedOn.toLocaleDateString(undefined, { weekday: 'short' })} {proposedOn.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
         {' · '}plan revision #{p.num} · awaiting your OK
@@ -111,6 +112,7 @@ export function CoachScreen() {
   const propQ = useQuery<ProposalResp>({ queryKey: ['proposal'], queryFn: () => api('/api/proposal') });
   const [pending, setPending] = useState<ChatMsg[]>([]);
   const [reviewing, setReviewing] = useState(false);
+  const [propOpen, setPropOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -170,14 +172,28 @@ export function CoachScreen() {
       await api('/api/coach/run-review', { method: 'POST' });
       qc.invalidateQueries({ queryKey: ['chat'] });
       qc.invalidateQueries({ queryKey: ['proposal'] });
-      toast('Review done — proposal below', true);
+      toast('Review done — proposal ready', true);
     } catch (e) {
       toast(String((e as Error).message));
     }
     setReviewing(false);
   };
 
-  const hasProposal = !!propQ.data?.proposal;
+  const prop = propQ.data?.proposal;
+  const hasProposal = !!prop;
+
+  /** "Today" / "Yesterday" / "Tue 15 Jul" separators between message days. */
+  const sepFor = (at?: string, prev?: string): string | null => {
+    if (!at) return null;
+    const day = at.slice(0, 10);
+    if (prev && prev.slice(0, 10) === day) return null;
+    const today = new Date(); const d = new Date(at);
+    const diff = Math.round((new Date(today.toDateString()).getTime()
+      - new Date(d.toDateString()).getTime()) / 86400000);
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Yesterday';
+    return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+  };
 
   return (
     <>
@@ -188,13 +204,24 @@ export function CoachScreen() {
           <button className="ghost press" style={{ width: 'auto', padding: '7px 12px', fontSize: 12.5 }}
             disabled={reviewing} onClick={runReview}>{reviewing ? 'Reviewing…' : 'Run review'}</button>
         </div>
-        <ProposalCard onChanges={() => {
-          setChatContext({ kind: 'proposal', label: 'the proposed week' });
-          inputRef.current?.focus();
-        }} />
-        {msgs.map((m, i) => <ChatBubble key={i} who={m.who} text={m.text} />)}
-        {thinking && <div className="bub">thinking — checking your data…</div>}
+        {msgs.map((m, i) => {
+          const sep = sepFor(m.at, msgs[i - 1]?.at);
+          return (
+            <div key={i} style={{ display: 'contents' }}>
+              {sep && <div className="daysep">{sep}</div>}
+              <ChatBubble who={m.who} text={m.text} />
+            </div>
+          );
+        })}
+        {thinking && <div className="bub">checking your data<span className="dots"><i /><i /><i /></span></div>}
       </div>
+      {hasProposal && (
+        <button className="propbar press" onClick={() => setPropOpen(true)}>
+          <span className="pulse" />
+          <b>Next week proposed — rev #{prop!.num}</b>
+          <span style={{ color: 'var(--volt)', fontWeight: 700, fontSize: 13 }}>Review ›</span>
+        </button>
+      )}
       {!thinking && (
         <div className="sugg">
           {suggestionsFor(hasProposal, msgs.length).map((s) => (
@@ -219,6 +246,20 @@ export function CoachScreen() {
           style={thinking ? { opacity: 0.5 } : undefined}>Send</button>
       </div>
       <Tabs />
+      {propOpen && (
+        <div className="overlay" onClick={() => setPropOpen(false)}>
+          <div className="sheet" style={{ maxHeight: '78vh', overflowY: 'auto' }}
+            onClick={(e) => e.stopPropagation()}>
+            <ProposalCard
+              onDecided={() => setPropOpen(false)}
+              onChanges={() => {
+                setPropOpen(false);
+                setChatContext({ kind: 'proposal', label: 'the proposed week' });
+                inputRef.current?.focus();
+              }} />
+          </div>
+        </div>
+      )}
     </>
   );
 }

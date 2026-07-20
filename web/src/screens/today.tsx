@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
-import { api, fmtLoad, fmtT, kgDisp, loadUnitFor, todayISO, type Today, type WeekResp } from '../api';
+import { api, fmtLoad, fmtT, kgDisp, loadUnitFor, todayISO, type ProposalResp, type Today, type WeekResp } from '../api';
 import { MuscleMap } from '../musclemap';
 import { Back, Chip, Loading, Shell, Title, useApp } from '../ui';
 
@@ -28,10 +28,12 @@ const dayMinutes = (d: WeekResp['days'][number]): number =>
   d.kind === 'strength' ? (d.est ?? 45) : d.kind === 'cardio' ? (d.minutes ?? 30) : 0;
 
 export function PlanScreen() {
-  const { go } = useApp();
+  const { go, openTab } = useApp();
   const q = useQuery<WeekResp>({ queryKey: ['week'], queryFn: () => api('/api/week') });
+  const pq = useQuery<ProposalResp>({ queryKey: ['proposal'], queryFn: () => api('/api/proposal') });
   const [noteOpen, setNoteOpen] = useState(false);
   const w = q.data;
+  const prop = pq.data?.proposal;
   if (!w) return <Shell><Loading /></Shell>;
 
   const right = (d: WeekResp['days'][number]): string => {
@@ -56,6 +58,14 @@ export function PlanScreen() {
   return (
     <Shell>
       <Title kick="Today + the six days ahead">Plan</Title>
+
+      {prop && (
+        <button className="propbanner press" onClick={() => openTab('coach')}>
+          <span className="pulse" />
+          <b>Next week proposed — awaiting your approval</b>
+          <span style={{ color: 'var(--volt)', fontWeight: 700, fontSize: 13 }}>Review ›</span>
+        </button>
+      )}
 
       {/* the week's shape at a glance — bar height = time, solid = done */}
       <div className="weekstrip">
