@@ -29,6 +29,9 @@ export function SettingsScreen() {
     ['Labs', 'lipid panels', () => go('set-labs')],
     ['Exercise library', 'browse all', () => go('library')],
     ['Notifications', 'three kinds, no more', () => go('set-notif')],
+    ...(me.role === 'admin'
+      ? [['Server', 'coach key · withings · push · users', () => go('set-server')] as [string, string, () => void]]
+      : []),
   ];
   return (
     <Shell>
@@ -554,6 +557,153 @@ export function NotifScreen() {
           </span>
         </button>
       ))}
+    </Shell>
+  );
+}
+
+/* ---------------- server (admin) ---------------- */
+interface AdminSetting { set: boolean; value: string; source: 'app' | 'env' | null }
+type AdminSettings = Record<string, AdminSetting>;
+interface AdminUser { id: string; email: string; name: string; role: string }
+
+function ServerField({ k, label, secret, placeholder, data, onSave }: {
+  k: string; label: string; secret?: boolean; placeholder?: string;
+  data: AdminSettings; onSave: (values: Record<string, string>) => Promise<void>;
+}) {
+  const [v, setV] = useState('');
+  const cur = data[k];
+  const status = cur?.set
+    ? (secret ? `set ${cur.value}` : cur.value) + (cur.source === 'env' ? ' · from env' : '')
+    : 'not set';
+  return (
+    <div className="field">
+      <label>{label} <span style={{ textTransform: 'none', letterSpacing: 0 }}>· {status}</span></label>
+      <div className="btnrow">
+        <input type={secret ? 'password' : 'text'} value={v} autoComplete="off"
+          placeholder={placeholder || (cur?.set ? 'replace…' : 'paste here…')}
+          onChange={(e) => setV(e.target.value)} />
+        <button className="ghost" style={{ padding: '0 18px' }} disabled={!v.trim()}
+          onClick={() => onSave({ [k]: v.trim() }).then(() => setV(''))}>Save</button>
+      </div>
+    </div>
+  );
+}
+
+function UserCard({ u, onSaved }: { u: AdminUser; onSaved: () => void }) {
+  const [name, setName] = useState(u.name);
+  const [email, setEmail] = useState(u.email);
+  const dirty = name.trim() !== u.name || email.trim().toLowerCase() !== u.email;
+  const save = () =>
+    api(`/api/admin/users/${u.id}`, { method: 'PATCH', body: { name: name.trim(), email: email.trim() } })
+      .then(() => { toast('User saved', true); onSaved(); })
+      .catch((e) => toast(e?.message || 'Could not save'));
+  return (
+    <div className="card">
+      <div className="field"><label>Name · {u.role}</label>
+        <input value={name} onChange={(e) => setName(e.target.value)} /></div>
+      <div className="field" style={{ marginTop: 8 }}><label>Email (sign-in identity)</label>
+        <input type="email" value={email} autoCapitalize="none"
+          onChange={(e) => setEmail(e.target.value)} /></div>
+      {dirty && <button className="cta" style={{ marginTop: 10, width: '100%' }} onClick={save}>Save user</button>}
+    </div>
+  );
+}
+
+export function ServerScreen() {
+  const { go } = useApp();
+  const qc = useQueryClient();
+  const q = useQuery<AdminSettings>({ queryKey: ['admin-settings'], queryFn: () => api('/api/admin/settings') });
+  const uq = useQuery<AdminUser[]>({ queryKey: ['admin-users'], queryFn: () => api('/api/admin/users') });
+  const [newName, setNewName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+
+  const save = (values: Record<string, string>) =>
+    api('/api/admin/settings', { method: 'PUT', body: { values } })
+      .then((d) => {
+        qc.setQueryData(['admin-settings'], d);
+        qc.invalidateQueries({ queryKey: ['connections'] });
+        toast('Saved', true);
+      })
+      .catch((e) => { toast(e?.message || 'Could not save'); throw e; });
+
+  const genVapid = () => {
+    if (q.data?.vapid_public_key.set &&
+        !confirm('Replace the existing push keys? Everyone must re-enable notifications.')) return;
+    api('/api/admin/settings/vapid', { method: 'POST' })
+      .then(() => { qc.invalidateQueries({ queryKey: ['admin-settings'] }); toast('Push keys generated', true); })
+      .catch((e) => toast(e?.message || 'Failed'));
+  };
+
+  const addUser = () =>
+    api('/api/admin/users', { method: 'POST', body: { name: newName.trim(), email: newEmail.trim() } })
+      .then(() => { setNewName(''); setNewEmail(''); toast('User added', true);
+        qc.invalidateQueries({ queryKey: ['admin-users'] }); })
+      .catch((e) => toast(e?.message || 'Could not add'));
+
+  if (!q.data || !uq.data) return <Shell><Back label="Settings" onClick={() => go('settings')} /><Loading /></Shell>;
+  const vapidSet = q.data.vapid_public_key.set && q.data.vapid_private_key.set;
+
+  return (
+    <Shell>
+      <Back label="Settings" onClick={() => go('settings')} />
+      <Title kick="Admin">Server</Title>
+
+      <div className="card">
+        <b style={{ fontSize: 14 }}>Coach</b>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+          <ServerField k="anthropic_api_key" label="Anthropic API key" secret
+            placeholder="sk-ant-…" data={q.data} onSave={save} />
+          <ServerField k="coach_model" label="Model"
+            placeholder={q.data.coach_model.value || 'claude-sonnet-5'} data={q.data} onSave={save} />
+        </div>
+        <div className="rsub" style={{ marginTop: 8 }}>
+          Key from console.anthropic.com. Applies immediately — chat and the Sunday review use it
+          on their next run.
+        </div>
+      </div>
+
+      <div className="card">
+        <b style={{ fontSize: 14 }}>Withings</b>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+          <ServerField k="withings_client_id" label="Client ID" data={q.data} onSave={save} />
+          <ServerField k="withings_client_secret" label="Client secret" secret data={q.data} onSave={save} />
+        </div>
+        <div className="rsub" style={{ marginTop: 8 }}>
+          From developer.withings.com. Each of you then links your own account under
+          Settings → Connections.
+        </div>
+      </div>
+
+      <div className="card">
+        <b style={{ fontSize: 14 }}>Web push</b>
+        <div className="rsub" style={{ margin: '6px 0 10px' }}>
+          {vapidSet ? `Keys set — public …${q.data.vapid_public_key.value.slice(-8)}`
+            : 'No keys yet — generate once, then everyone enables notifications on their phone.'}
+        </div>
+        <button className={vapidSet ? 'ghost' : 'cta'} style={{ width: '100%' }} onClick={genVapid}>
+          {vapidSet ? 'Re-generate keys' : 'Generate keys'}
+        </button>
+      </div>
+
+      <h3 className="title" style={{ fontSize: 16, margin: '10px 2px 0' }}>Users</h3>
+      {uq.data.map((u) => <UserCard key={u.id} u={u}
+        onSaved={() => qc.invalidateQueries({ queryKey: ['admin-users'] })} />)}
+      {uq.data.length < 2 && (
+        <div className="card">
+          <b style={{ fontSize: 14 }}>Add the second user</b>
+          <div className="field" style={{ marginTop: 8 }}><label>Name</label>
+            <input value={newName} onChange={(e) => setNewName(e.target.value)} /></div>
+          <div className="field" style={{ marginTop: 8 }}><label>Email</label>
+            <input type="email" value={newEmail} autoCapitalize="none"
+              onChange={(e) => setNewEmail(e.target.value)} /></div>
+          <button className="cta" style={{ marginTop: 10, width: '100%' }}
+            disabled={!newName.trim() || !newEmail.trim()} onClick={addUser}>Add user</button>
+        </div>
+      )}
+      <div className="rsub" style={{ padding: '0 2px' }}>
+        Google sign-in credentials stay in the server's compose file — they have to exist before
+        anyone can log in.
+      </div>
     </Shell>
   );
 }

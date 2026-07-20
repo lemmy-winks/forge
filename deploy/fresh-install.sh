@@ -59,11 +59,11 @@ curl -sf "localhost:$PORT/healthz" && echo "  ← healthz OK"
 cat <<EOF
 
 Done — clean install, empty database (users + exercise library seeded on boot).
-Next steps:
+Next steps (all in-app except the last):
   · Open http://<this-host>:$PORT, sign in with a dev button, run onboarding.
-  · Fix ALLOWED_USERS in docker-compose.override.yml if the placeholder email
-    is still there, then: docker compose up -d
+  · Settings → Server (admin): fix user emails/names, add the Anthropic API key
+    to wake the coach, Withings credentials, and push keys — applies live.
   · Settings → Connections → ROTATE to mint your Health Auto Export token.
-  · Add ANTHROPIC_API_KEY to the override file to wake the coach.
-  · When you have a domain: Google OAuth creds + BASE_URL=https://... (README).
+  · When you have a domain: Google OAuth creds + BASE_URL=https://... in the
+    override file (README) — the one thing that must live in compose.
 EOF

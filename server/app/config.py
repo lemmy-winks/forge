@@ -65,3 +65,51 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+# Settings the admin can manage in-app (Settings → Server). Stored in the
+# app_settings table; a stored value overrides the environment on the cached
+# singleton, so every get_settings() call site sees it without a restart.
+# Google OAuth is deliberately NOT here — it must exist before anyone can sign in.
+OVERRIDABLE = (
+    "anthropic_api_key",
+    "coach_model",
+    "withings_client_id",
+    "withings_client_secret",
+    "vapid_public_key",
+    "vapid_private_key",
+)
+
+_env_defaults: dict[str, str] = {}
+
+
+def apply_overrides(db) -> None:
+    """Load stored overrides onto the settings singleton (startup)."""
+    from .models import AppSetting
+
+    s = get_settings()
+    for key in OVERRIDABLE:
+        _env_defaults.setdefault(key, getattr(s, key))
+    for row in db.query(AppSetting).filter(AppSetting.key.in_(OVERRIDABLE)):
+        setattr(s, row.key, row.value)
+
+
+def set_override(db, key: str, value: str) -> None:
+    """Persist one override and apply it live. Empty value reverts to the env."""
+    from .models import AppSetting
+
+    if key not in OVERRIDABLE:
+        raise KeyError(key)
+    s = get_settings()
+    _env_defaults.setdefault(key, getattr(s, key))
+    row = db.get(AppSetting, key)
+    if value:
+        if row is None:
+            db.add(AppSetting(key=key, value=value))
+        else:
+            row.value = value
+        setattr(s, key, value)
+    else:
+        if row is not None:
+            db.delete(row)
+        setattr(s, key, _env_defaults[key])

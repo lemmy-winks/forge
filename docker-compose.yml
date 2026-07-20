@@ -32,20 +32,20 @@ services:
       # --- required ---
       - DATABASE_URL=postgresql+psycopg://forge:change-me-long-random@db:5432/forge
       - SESSION_SECRET=change-me-to-a-long-random-string
-      - ALLOWED_USERS=you@example.com:You,partner@example.com:Partner # the entire allowlist; first user is admin
+      - ALLOWED_USERS=you@example.com:You,partner@example.com:Partner # bootstrap only: seeds an empty database (first user is admin); manage users in-app afterwards
       # --- ingress ---
       - BASE_URL=http://localhost:33524 # set to your public URL once behind a reverse proxy
-      # --- Google sign-in (optional; while empty, dev sign-in buttons show — LAN use only) ---
+      # --- Google sign-in (optional; while empty, dev sign-in buttons show — LAN use only).
+      #     Stays here by design: it must exist before anyone can log in. ---
       - GOOGLE_CLIENT_ID=
       - GOOGLE_CLIENT_SECRET=
-      # --- the coach (optional; chat + weekly reviews stay idle until a key is set) ---
+      # --- Everything below is optional AND manageable in-app (admin: Settings → Server).
+      #     Values set in the app are stored in the database and override these. ---
       - ANTHROPIC_API_KEY=
       - COACH_MODEL=claude-sonnet-5
       - COACH_TZ=Europe/London
-      # --- Withings direct OAuth (optional; webhooks need public ingress) ---
       - WITHINGS_CLIENT_ID=
       - WITHINGS_CLIENT_SECRET=
-      # --- web push (optional; generate with: docker exec forge python -m app.vapid) ---
       - VAPID_PUBLIC_KEY=
       - VAPID_PRIVATE_KEY=
       - VAPID_SUBJECT=mailto:forge@localhost

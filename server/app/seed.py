@@ -351,17 +351,18 @@ def _week(scale: float = 1.0) -> dict:
 def run_seed(db: Session) -> None:
     settings = get_settings()
 
-    # users + ingest tokens
-    first = True
-    for email, name in settings.allowlist.items():
-        user = db.query(User).filter(User.email == email).first()
-        if not user:
+    # users + ingest tokens — ALLOWED_USERS is bootstrap only: it seeds an empty
+    # table, then the users table is the source of truth (managed in-app by the
+    # admin under Settings → Server), so edits there survive restarts.
+    if db.query(User).first() is None:
+        first = True
+        for email, name in settings.allowlist.items():
             user = User(email=email, name=name, role="admin" if first else "member",
                         prefs={"notif_proposal": True, "notif_reminder": True, "notif_film": True})
             db.add(user)
             db.flush()
             db.add(IngestToken(user_id=user.id, token=new_ingest_token()))
-        first = False
+            first = False
     db.commit()
 
     # exercise library — insert any missing entry, so expansions reach existing DBs

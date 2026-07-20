@@ -173,7 +173,7 @@ def _subscribe_notify(db: Session, link: WithingsLink) -> None:
 def connect(user: User = Depends(current_user)):
     if not _configured():
         raise HTTPException(status_code=503, detail="Withings credentials not configured — "
-                            "set WITHINGS_CLIENT_ID / WITHINGS_CLIENT_SECRET")
+                            "add them in Settings → Server")
     state = _state_signer().dumps({"uid": user.id})
     url = AUTHORIZE_URL + "?" + urlencode({
         "response_type": "code", "client_id": get_settings().withings_client_id,

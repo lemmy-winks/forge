@@ -188,8 +188,8 @@ def _run_chat_bg(user_id: str, text: str, extra_context: str) -> None:
         try:
             reply = run_chat(db, user, text, extra_context)
         except CoachUnavailable:
-            reply = ("Saved — but the coach isn't configured yet: set ANTHROPIC_API_KEY on the "
-                     "server and restart. Your messages and data are all stored meanwhile.")
+            reply = ("Saved — but the coach isn't configured yet: add an Anthropic API key in "
+                     "Settings → Server. Your messages and data are all stored meanwhile.")
         except Exception as e:
             if "credit balance" in str(e).lower():
                 reply = ("The coach's API account is out of credits — top up at "
@@ -261,7 +261,7 @@ def _withings_status(user: User, db: Session) -> dict:
                     if link and link.status == "refresh_failed" else None),
         "note": ("linked" if link else
                  "link your account" if configured else
-                 "set WITHINGS_CLIENT_ID / WITHINGS_CLIENT_SECRET"),
+                 "add Withings API credentials in Settings → Server"),
     }
 
 
@@ -279,7 +279,7 @@ def connections(user: User = Depends(current_user), db: Session = Depends(get_db
         "withings": _withings_status(user, db),
         "coach_mcp": {"active": bool(get_settings().anthropic_api_key),
                       "note": ("agent live" if get_settings().anthropic_api_key
-                               else "set ANTHROPIC_API_KEY")},
+                               else "add an API key in Settings → Server")},
     }
 
 

@@ -205,7 +205,7 @@ def test_coach_unconfigured_fallbacks():
     assert r.json()["pending"] is True
     data = _wait_chat()
     assert data["messages"][-1]["who"] == "coach"
-    assert "ANTHROPIC_API_KEY" in data["messages"][-1]["text"]
+    assert "Anthropic API key" in data["messages"][-1]["text"]
     assert client.post("/api/coach/run-review").status_code == 503
 
 
@@ -559,3 +559,58 @@ def test_user_segregation():
     squat = next(e for e in t["exercises"] if e["slug"] == "back-squat")
     assert squat["weight"] < 60, "Shelby's seeded plan is scaled independently"
     assert not any(c.get("why") for c in t["cooldown"]), "James's niggle must not leak"
+
+
+def test_admin_settings_and_user_management():
+    # member is locked out entirely
+    login("shelby@test.dev")
+    assert client.get("/api/admin/settings").status_code == 403
+    assert client.get("/api/admin/users").status_code == 403
+
+    login()  # james is the admin (first in ALLOWED_USERS)
+    s = client.get("/api/admin/settings").json()
+    assert s["anthropic_api_key"]["set"] is False
+    assert s["coach_model"]["value"] == "claude-sonnet-5"
+
+    # secrets are stored but only a masked tail ever comes back
+    r = client.put("/api/admin/settings",
+                   json={"values": {"anthropic_api_key": "sk-ant-test-1234567890"}})
+    assert r.status_code == 200
+    got = r.json()["anthropic_api_key"]
+    assert got["set"] is True and got["source"] == "app"
+    assert "sk-ant-test" not in got["value"] and got["value"].endswith("7890")
+    # live: the coach status flips without a restart
+    assert client.get("/api/connections").json()["coach_mcp"]["active"] is True
+
+    # unknown keys are rejected; google stays compose-only
+    assert client.put("/api/admin/settings",
+                      json={"values": {"google_client_id": "x"}}).status_code == 422
+
+    # clearing reverts to the env (empty here)
+    client.put("/api/admin/settings", json={"values": {"anthropic_api_key": ""}})
+    assert client.get("/api/admin/settings").json()["anthropic_api_key"]["set"] is False
+
+    # vapid generation wires push end to end
+    pub = client.post("/api/admin/settings/vapid").json()["public_key"]
+    assert client.get("/api/push/config").json() == {"enabled": True, "public_key": pub}
+
+    # user management: fix the second seat's email, then sign in with it
+    users = client.get("/api/admin/users").json()
+    assert [u["role"] for u in users] == ["admin", "member"]
+    shelby = users[1]
+    r = client.patch(f"/api/admin/users/{shelby['id']}",
+                     json={"email": "shelby@example.org", "name": "Shel"})
+    assert r.status_code == 200
+    assert client.patch(f"/api/admin/users/{shelby['id']}",
+                        json={"email": "james@test.dev"}).status_code == 409
+    assert client.patch(f"/api/admin/users/{shelby['id']}",
+                        json={"email": "nonsense"}).status_code == 422
+    login("shelby@example.org")  # the users table IS the allowlist now
+    assert client.get("/auth/me").json()["name"] == "Shel"
+    # both seats taken → no third user
+    login()
+    assert client.post("/api/admin/users",
+                       json={"email": "third@test.dev", "name": "Third"}).status_code == 409
+    # put shelby back so earlier-run state stays consistent for other tests
+    client.patch(f"/api/admin/users/{shelby['id']}",
+                 json={"email": "shelby@test.dev", "name": "Shelby"})

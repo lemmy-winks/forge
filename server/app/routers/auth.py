@@ -49,8 +49,7 @@ def dev_login(body: DevLogin, db: Session = Depends(get_db)):
     if not s.dev_login_enabled:
         raise HTTPException(status_code=403, detail="dev sign-in disabled")
     email = body.email.strip().lower()
-    if email not in s.allowlist:
-        raise HTTPException(status_code=403, detail="not on the list")
+    # the users table IS the allowlist (env ALLOWED_USERS only seeds it once)
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(status_code=403, detail="not on the list")
@@ -74,8 +73,6 @@ async def callback(request: Request, db: Session = Depends(get_db)):
     token = await _google().authorize_access_token(request)
     info = token.get("userinfo") or {}
     email = (info.get("email") or "").lower()
-    if email not in get_settings().allowlist:
-        return RedirectResponse("/?denied=" + email)
     user = db.query(User).filter(User.email == email).first()
     if not user:
         return RedirectResponse("/?denied=" + email)

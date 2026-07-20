@@ -76,6 +76,13 @@ the tracked compose carries placeholders only), builds and starts the stack, gen
 VAPID push keys, and health-checks it. Clean database — users, exercise library, starter
 plans and equipment profiles are seeded on first boot; do onboarding in the app.
 
+Only the essentials live in compose. After first boot, the admin manages the rest in-app
+under **Settings → Server**: the Anthropic API key and coach model, Withings API
+credentials, web-push key generation, and both user accounts (names, sign-in emails,
+adding the second seat). App-managed values are stored in the database, override the
+compose environment, and apply live — no restart. Google OAuth is the one exception: it
+has to exist before anyone can sign in, so it stays in compose.
+
 To set up by hand instead: edit the values at the top of [docker-compose.yml](docker-compose.yml)
 (`POSTGRES_PASSWORD` in both places, `SESSION_SECRET`, your `ALLOWED_USERS` emails), then
 
@@ -96,12 +103,9 @@ While the repo is private its image is too — either make the package public
 **Registries → Add registry** → `ghcr.io`, your GitHub username, and a PAT with
 `read:packages`.
 
-After the first deploy, generate web-push keys inside the running container, paste the two
-lines into the stack's environment, and redeploy:
-
-```bash
-docker exec forge python -m app.vapid
-```
+After the first deploy, sign in as the admin and finish setup in **Settings → Server**
+(coach API key, Withings credentials, push keys, the second user's real email) — none of
+that needs a redeploy.
 
 With no Google credentials configured, the sign-in page shows **dev sign-in buttons** for the
 allowlisted users — fine on your LAN, do not expose publicly like that. The database schema

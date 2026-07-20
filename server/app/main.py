@@ -12,10 +12,10 @@ from sqlalchemy.exc import OperationalError
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import models  # noqa: F401  (register tables)
-from .config import get_settings
+from .config import apply_overrides, get_settings
 from .db import Base, SessionLocal, engine
 from .notify import push_enabled, send_push
-from .routers import auth, coach_api, ingest, misc, push, training, withings
+from .routers import admin, auth, coach_api, ingest, misc, push, training, withings
 from .seed import run_seed
 
 log = logging.getLogger("forge")
@@ -143,6 +143,7 @@ async def lifespan(_app: FastAPI):
     db = SessionLocal()
     try:
         run_seed(db)
+        apply_overrides(db)  # app-managed settings (Settings → Server) beat the env
     finally:
         db.close()
     task = asyncio.create_task(_review_scheduler())
@@ -159,6 +160,7 @@ def healthz():
     return {"ok": True}
 
 
+app.include_router(admin.router)
 app.include_router(auth.router)
 app.include_router(ingest.router)
 app.include_router(training.router)
