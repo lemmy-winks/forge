@@ -72,7 +72,11 @@ TOOLS: list[dict] = [
                      "changes = the diff vs the current active week, each {sign:'+'|'-'|'~', what:'Bench Press 62.5 → 57.5 kg', "
                      "why:'deload after 2 stalled weeks'} — every meaningful change gets a row ('+' added/increased, "
                      "'-' removed/reduced, '~' swapped/moved). Only library slugs; cooldown slugs must be mobility kind; "
-                     "cooldown never empty on strength days. rationale = 2-3 plain sentences referencing real numbers."),
+                     "cooldown never empty on strength days. rationale = 2-3 plain sentences on what THIS "
+                     "WEEK ACHIEVES, written forward: the load/volume milestones it reaches, the weekly cardio "
+                     "minutes it banks, what it sets up next ('Bench moves to 60 kg for the first time; 90 min "
+                     "of Zone 2 keeps the aerobic block on track'). Real numbers, future tense. Do NOT restate "
+                     "the diff — changes[] already carries per-change whys."),
      "input_schema": {"type": "object", "properties": {"content": {"type": "object"}, "rationale": {"type": "string"}},
                       "required": ["content", "rationale"]}},
     {"name": "log_niggle", "description": "Record a new niggle after the user confirms. Args: body_part, severity (mild/moderate), note, avoid_patterns (e.g. ['deep_lunge','overhead_press']), mobility_slug (optional cool-down stretch to inject).",
@@ -295,6 +299,7 @@ Rules:
 - Place hard cardio away from heavy lower days. Zone 2 volume ramps gently.
 - Writes need consent: for labs and niggles, echo what you parsed and get a yes BEFORE calling the tool (if the user already clearly confirmed, proceed).
 - Hard boundary: you are not a doctor. Never advise on medication or dosing. Lab trends: describe the data, connect it to training/weight changes, and suggest discussing decisions with their GP.
+- Plan rationales sell the week ahead, not the edit log: lead with what the athlete will achieve by Sunday (loads reached, minutes banked, what it unlocks). The changes list handles the diff.
 - Mid-week changes use amend_week (only the affected days); full next-week plans use propose_revision. When the user asks to tweak a pending proposal, read get_proposal first, then propose the revised version.
 - Messages may end with a bracketed context tag like "[re: session 2026-07-21 · Lower A]" — attached data for that item follows the message; treat it as what the user is looking at.
 - Voice: short, concrete, warm, zero fluff. You're read on a phone between sets."""
@@ -490,8 +495,9 @@ REVIEW_INSTRUCTION = """Run my weekly review. Steps:
 1. Read the week: get_history (and get_session on this week's sessions), get_progress, get_niggles, get_today's active plan via get_active_plan, get_records, get_equipment. Check recovery trends (sleep, resting HR, weight) and cool-down/substitution patterns. Cover cardio too: Watch-synced runs vs their prescriptions (time, pace, % in zone), and Zone-2 minutes vs the weekly target — coach the inputs weekly; treat VO2max as a quarterly trend only, never week-to-week deltas.
 2. Decide next week: progress what was earned, hold or deload what wasn't, respect every rule.
 3. Call propose_revision with the full week, per-day why lines, the changes diff vs the
-   current week (every load change, swap, and volume move gets a row), and a rationale
-   grounded in the actual numbers.
+   current week (every load change, swap, and volume move gets a row), and a rationale that
+   says what next week achieves — the loads it reaches, the minutes it banks, what it sets
+   up — in real numbers, not a recap of the edits.
 4. Reply with a summary I can read in 30 seconds: what went well, what changes and why, anything you're watching. Mention that the proposal is waiting in the app (unless auto mode applied it)."""
 
 

@@ -111,8 +111,10 @@ def seed_demo(db: Session) -> User:
     ]
     db.add(PlanRevision(plan_id=plan.id, num=len(rev_weeks) + 1, status="proposed",
                         content=next_content,
-                        rationale="Strong fortnight: squat moved, weight trending to goal, "
-                                  "Zone 2 drift improving. One more base block before intensity."))
+                        rationale="This week takes squat to 77.5 kg for the first time and banks "
+                                  "72 aerobic minutes across the easy run and intervals. Keep the "
+                                  "Zone-2 run under 140 bpm and the base block stays on schedule "
+                                  "for the spring half."))
 
     # a year of sessions + sets
     best: dict[str, dict[str, tuple[float, str, date]]] = {}
