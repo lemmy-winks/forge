@@ -751,3 +751,35 @@ def test_demo_account_lifecycle():
     # and the real seats still exist untouched
     emails = {u["email"] for u in client.get("/api/admin/users").json()}
     assert {"james@test.dev", "shelby@test.dev"} <= emails
+
+
+def test_demo_cannot_reach_member_data():
+    """The demo seat is a stranger to member rows on every surface: direct API,
+    chat context attachment, coach tools, and the admin API."""
+    login()
+    client.post("/api/admin/demo")
+    james_hist = client.get("/api/history").json()
+    sid = james_hist[0]["id"]
+
+    client.post("/auth/demo")
+    assert client.get(f"/api/sessions/{sid}").status_code == 404, "direct object reference"
+    assert not ({h["id"] for h in client.get("/api/history").json()}
+                & {h["id"] for h in james_hist}), "history overlap"
+    assert client.get("/api/admin/settings").status_code == 403
+    assert client.post("/api/admin/demo").status_code == 403, "demo can't reset itself"
+
+    # coach-side: the context attach and the tool read both refuse James's session
+    from app.coach import _exec_tool
+    from app.db import SessionLocal
+    from app.models import User
+    from app.routers.misc import _chat_context
+    db = SessionLocal()
+    try:
+        bruce = db.query(User).filter(User.role == "demo").first()
+        assert _chat_context(db, bruce, {"kind": "session", "id": sid}) == ("", "")
+        assert _exec_tool(db, bruce, "get_session", {"session_id": sid}).get("error")
+    finally:
+        db.close()
+
+    login()
+    client.delete("/api/admin/demo")
