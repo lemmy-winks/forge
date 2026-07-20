@@ -8,6 +8,9 @@ const backend = {
 };
 
 export default defineConfig({
+  define: {
+    __BUILD_ID__: JSON.stringify(new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC'),
+  },
   plugins: [
     react(),
     VitePWA({

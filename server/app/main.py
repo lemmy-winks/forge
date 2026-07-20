@@ -162,7 +162,14 @@ app.add_middleware(SessionMiddleware, secret_key=get_settings().session_secret, 
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True}
+    return {"ok": True, "build": _build_id()}
+
+
+def _build_id() -> str:
+    try:  # written by the Dockerfile; absent in dev/tests
+        return (Path(__file__).resolve().parent.parent / "build_id").read_text().strip()
+    except OSError:
+        return "dev"
 
 
 app.include_router(admin.router)

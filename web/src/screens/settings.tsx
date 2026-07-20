@@ -623,6 +623,7 @@ export function ServerScreen() {
   const qc = useQueryClient();
   const q = useQuery<AdminSettings>({ queryKey: ['admin-settings'], queryFn: () => api('/api/admin/settings') });
   const uq = useQuery<AdminUser[]>({ queryKey: ['admin-users'], queryFn: () => api('/api/admin/users') });
+  const hq = useQuery<{ ok: boolean; build?: string }>({ queryKey: ['healthz'], queryFn: () => api('/healthz') });
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
 
@@ -714,6 +715,10 @@ export function ServerScreen() {
       <div className="rsub" style={{ padding: '0 2px' }}>
         Google sign-in credentials stay in the server's compose file — they have to exist before
         anyone can log in.
+      </div>
+      <div className="rsub" style={{ padding: '0 2px' }}>
+        Server build {hq.data?.build ?? '…'} · app build {__BUILD_ID__}. If the app build looks
+        old after a deploy, fully close and reopen the PWA.
       </div>
     </Shell>
   );

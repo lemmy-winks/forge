@@ -17,6 +17,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY server/app ./app
 COPY --from=webbuild /w/dist ./static
+# Layer cache keeps the stamp until app/ or static/ actually change.
+RUN date -u +"%Y-%m-%d %H:%M UTC" > ./build_id
 
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s \
