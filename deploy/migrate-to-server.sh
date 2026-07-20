@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 [ $# -ge 1 ] || { echo "Usage: $0 user@host"; exit 1; }
 TARGET="$1"
 HOST="${TARGET#*@}"
-PORT="$(sed -n 's/^FORGE_PORT=//p' .env)"; PORT="${PORT:-33524}"
+PORT="$(sed -n 's/.*"\([0-9]*\):8000".*/\1/p' docker-compose.yml)"; PORT="${PORT:-33524}"
 CTX=forge-server
 
 echo "== 1/6  Docker context → $TARGET"
@@ -20,13 +20,11 @@ echo "== 2/6  Snapshot local database"
 docker compose exec -T db pg_dump -U forge -d forge --clean --if-exists > /tmp/forge-migrate.sql
 echo "   $(wc -l < /tmp/forge-migrate.sql) lines dumped"
 
-echo "== 3/6  Point BASE_URL at the server (old value kept as comment)"
-if ! grep -q "BASE_URL=http://$HOST:$PORT" .env; then
-  sed -i '' "s|^BASE_URL=|#BASE_URL=|" .env
-  printf '\nBASE_URL=http://%s:%s\n' "$HOST" "$PORT" >> .env
-fi
+echo "== 3/6  Point BASE_URL at the server"
+sed -i '' "s|- BASE_URL=.*|- BASE_URL=http://$HOST:$PORT|" docker-compose.override.yml 2>/dev/null \
+  || sed -i '' "s|- BASE_URL=.*|- BASE_URL=http://$HOST:$PORT|" docker-compose.yml
 
-echo "== 4/6  Build + start on the server (env values injected from this Mac's .env)"
+echo "== 4/6  Build + start on the server (compose + override values from this Mac)"
 docker --context $CTX compose -p forge up -d --build
 echo "   waiting for Postgres…"
 for i in $(seq 1 30); do

@@ -1,51 +1,67 @@
 services:
   db:
     image: postgres:16-alpine
-    restart: unless-stopped
+    container_name: forge-db
     environment:
-      POSTGRES_DB: forge
-      POSTGRES_USER: forge
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      - POSTGRES_DB=forge
+      - POSTGRES_USER=forge
+      - POSTGRES_PASSWORD=change-me-long-random # must match the password inside DATABASE_URL below
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U forge -d forge"]
-      interval: 5s
+      test: pg_isready -U forge -d forge || exit 1
+      start_period: 5s
       timeout: 3s
+      interval: 5s
       retries: 12
+    restart: unless-stopped
 
   api:
+    image: ghcr.io/lemmy-winks/forge:latest
     build:
       context: .
       dockerfile: server/Dockerfile
-    restart: unless-stopped
+    init: true
+    container_name: forge
     depends_on:
       db:
         condition: service_healthy
+    ports:
+      - "33524:8000"
     environment:
-      DATABASE_URL: postgresql+psycopg://forge:${POSTGRES_PASSWORD}@db:5432/forge
-      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
-      ALLOWED_USERS: ${ALLOWED_USERS}
-      BASE_URL: ${BASE_URL:-http://localhost:8000}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      DEV_AUTH: ${DEV_AUTH:-false}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      COACH_MODEL: ${COACH_MODEL:-claude-sonnet-5}
-      COACH_TZ: ${COACH_TZ:-Europe/London}
-      # Phase 4+ — these only reach the container via this list, never via .env in the image
-      WITHINGS_CLIENT_ID: ${WITHINGS_CLIENT_ID:-}
-      WITHINGS_CLIENT_SECRET: ${WITHINGS_CLIENT_SECRET:-}
-      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
-      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
-      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:forge@localhost}
-      REMINDER_HOUR: ${REMINDER_HOUR:-16}
-      QUIET_START: ${QUIET_START:-8}
-      QUIET_END: ${QUIET_END:-21}
+      # --- required ---
+      - DATABASE_URL=postgresql+psycopg://forge:change-me-long-random@db:5432/forge
+      - SESSION_SECRET=change-me-to-a-long-random-string
+      - ALLOWED_USERS=you@example.com:You,partner@example.com:Partner # the entire allowlist; first user is admin
+      # --- ingress ---
+      - BASE_URL=http://localhost:33524 # set to your public URL once behind a reverse proxy
+      # --- Google sign-in (optional; while empty, dev sign-in buttons show — LAN use only) ---
+      - GOOGLE_CLIENT_ID=
+      - GOOGLE_CLIENT_SECRET=
+      # --- the coach (optional; chat + weekly reviews stay idle until a key is set) ---
+      - ANTHROPIC_API_KEY=
+      - COACH_MODEL=claude-sonnet-5
+      - COACH_TZ=Europe/London
+      # --- Withings direct OAuth (optional; webhooks need public ingress) ---
+      - WITHINGS_CLIENT_ID=
+      - WITHINGS_CLIENT_SECRET=
+      # --- web push (optional; generate with: docker exec forge python -m app.vapid) ---
+      - VAPID_PUBLIC_KEY=
+      - VAPID_PRIVATE_KEY=
+      - VAPID_SUBJECT=mailto:forge@localhost
+      # --- workout reminder window, 24h clock ---
+      - REMINDER_HOUR=16
+      - QUIET_START=8
+      - QUIET_END=21
     volumes:
       - media:/data/media
-    ports:
-      - "${FORGE_PORT:-33524}:8000"
+    healthcheck:
+      test: python -c "import urllib.request;urllib.request.urlopen('http://localhost:8000/healthz')" || exit 1
+      start_period: 20s
+      timeout: 3s
+      interval: 30s
+      retries: 3
+    restart: unless-stopped
 
 volumes:
   pgdata:

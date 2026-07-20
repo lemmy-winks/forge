@@ -71,104 +71,36 @@ git clone <this repo> forge && cd forge
 ALLOWED_USERS="you@example.com:You,her@example.com:Her" ./deploy/fresh-install.sh
 ```
 
-The script writes a `.env` with generated secrets, builds and starts the stack, generates
+The script writes the generated secrets into `docker-compose.override.yml` (gitignored —
+the tracked compose carries placeholders only), builds and starts the stack, generates
 VAPID push keys, and health-checks it. Clean database — users, exercise library, starter
 plans and equipment profiles are seeded on first boot; do onboarding in the app.
 
-To set up by hand instead:
+To set up by hand instead: edit the values at the top of [docker-compose.yml](docker-compose.yml)
+(`POSTGRES_PASSWORD` in both places, `SESSION_SECRET`, your `ALLOWED_USERS` emails), then
 
 ```bash
-cp .env.example .env
-# edit .env: set POSTGRES_PASSWORD, SESSION_SECRET, your ALLOWED_USERS emails
 docker compose up -d --build
 open http://localhost:33524
 ```
 
 ### Deploy with Portainer
 
-Easiest path — **Stacks → Add stack → Repository**, so Portainer clones the repo and the
-relative `build:` context works:
+Every push to `main` publishes a ready-built multi-arch image to
+`ghcr.io/lemmy-winks/forge:latest` (GitHub Actions), so Portainer never needs to build
+anything: **Stacks → Add stack → Web editor**, paste [docker-compose.yml](docker-compose.yml),
+and edit the `change-me` values and `ALLOWED_USERS` right in the editor before deploying.
 
-- Repository URL: `https://github.com/lemmy-winks/forge` · reference `refs/heads/main`
-- Compose path: `docker-compose.yml`
-- Authentication: on (GitHub username + a fine-grained PAT with read access — private repo)
-- Environment variables (the stack reads these instead of `.env`):
+While the repo is private its image is too — either make the package public
+(GitHub → Packages → forge → settings → visibility), or give Portainer pull access:
+**Registries → Add registry** → `ghcr.io`, your GitHub username, and a PAT with
+`read:packages`.
 
-| Variable | Required | Value |
-| --- | --- | --- |
-| `POSTGRES_PASSWORD` | yes | long random string |
-| `SESSION_SECRET` | yes | long random string |
-| `ALLOWED_USERS` | yes | `you@example.com:You,partner@example.com:Partner` |
-| `BASE_URL` | recommended | `http://<host>:33524` until you have a domain |
-| `FORGE_PORT` | no | host port, default `33524` |
-| `ANTHROPIC_API_KEY` | no | enables the coach |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | no | enables web push (see below) |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | no | real sign-in (dev buttons until set) |
-| `WITHINGS_CLIENT_ID` / `WITHINGS_CLIENT_SECRET` | no | direct Withings link |
-
-If you'd rather paste into the **Web editor**, this is the same stack with the build
-context pointed at the repo (works as-is for a public repo; for a private one use the
-Repository method above instead):
-
-```yaml
-services:
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: forge
-      POSTGRES_USER: forge
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U forge -d forge"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-
-  api:
-    build:
-      context: https://github.com/lemmy-winks/forge.git#main
-      dockerfile: server/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql+psycopg://forge:${POSTGRES_PASSWORD}@db:5432/forge
-      SESSION_SECRET: ${SESSION_SECRET:?required}
-      ALLOWED_USERS: ${ALLOWED_USERS:?required}
-      BASE_URL: ${BASE_URL:-http://localhost:33524}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      DEV_AUTH: ${DEV_AUTH:-false}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      COACH_MODEL: ${COACH_MODEL:-claude-sonnet-5}
-      COACH_TZ: ${COACH_TZ:-Europe/London}
-      WITHINGS_CLIENT_ID: ${WITHINGS_CLIENT_ID:-}
-      WITHINGS_CLIENT_SECRET: ${WITHINGS_CLIENT_SECRET:-}
-      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
-      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
-      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:forge@localhost}
-      REMINDER_HOUR: ${REMINDER_HOUR:-16}
-      QUIET_START: ${QUIET_START:-8}
-      QUIET_END: ${QUIET_END:-21}
-    volumes:
-      - media:/data/media
-    ports:
-      - "${FORGE_PORT:-33524}:8000"
-
-volumes:
-  pgdata:
-  media:
-```
-
-After the first deploy, generate web-push keys inside the running container and add them
-to the stack's environment variables, then redeploy:
+After the first deploy, generate web-push keys inside the running container, paste the two
+lines into the stack's environment, and redeploy:
 
 ```bash
-docker exec $(docker ps -qf name=api) python -m app.vapid
+docker exec forge python -m app.vapid
 ```
 
 With no Google credentials configured, the sign-in page shows **dev sign-in buttons** for the
@@ -180,7 +112,8 @@ first boot; everything persists in the `pgdata` volume.
 
 1. Google Cloud Console → OAuth consent screen (External, add both emails as test users).
 2. Create OAuth client (Web application), authorized redirect URI: `https://your-domain/auth/callback`.
-3. Put the client ID/secret + your public `BASE_URL` in `.env`, `docker compose up -d`.
+3. Put the client ID/secret + your public `BASE_URL` in the compose environment
+   (override file or Portainer editor), `docker compose up -d`.
 
 ### Apple Health in (Health Auto Export)
 
