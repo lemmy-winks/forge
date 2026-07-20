@@ -181,9 +181,23 @@ def _exec_tool(db: Session, user: User, name: str, args: dict) -> object:
         if name == "get_today":
             return training.today(date=args.get("date"), budget=None, user=user, db=db)
         if name == "get_progress":
-            return training.progress(user=user, db=db)
+            out = training.progress(user=user, db=db)
+            # Year-long series inflate every later loop iteration's input — trim
+            # to what a weekly coaching decision needs (trends still visible).
+            for k in ("weight", "vo2max", "vo2max_smooth", "resting_hr", "sleep_h"):
+                if isinstance(out.get(k), list):
+                    out[k] = out[k][-60:]
+            for series in (out.get("e1rm") or {}).values():
+                if isinstance(series.get("points"), list):
+                    series["points"] = series["points"][-26:]
+            bc = out.get("bodycomp")
+            if isinstance(bc, dict):
+                for k, v in bc.items():
+                    if isinstance(v, list):
+                        bc[k] = v[-60:]
+            return out
         if name == "get_history":
-            return training.history(user=user, db=db)
+            return training.history(user=user, db=db)[:30]
         if name == "get_session":
             return training.session_detail(args["session_id"], user=user, db=db)
         if name == "get_records":
@@ -269,7 +283,25 @@ def _week_so_far(db: Session, user: User) -> str:
             + (" A proposed plan revision is awaiting their approval (get_proposal)." if pending else ""))
 
 
+# Static half of the system prompt: identical for every user and every request,
+# so the prompt cache can share it (together with the TOOLS schemas that render
+# before it). Anything user- or day-specific belongs in _system_prompt below.
+STATIC_SYSTEM = """You are the Forge coach — the athlete's personal strength & conditioning coach inside the Forge app. Their profile and current context follow these rules.
+
+Rules:
+- Read before you speak: use tools to check real data before answering training questions; cite actual numbers ("bench 8/8/8 at 57.5 twice"), never invent them.
+- Progression: hold or increase the main lift only when the last exposure was clean (all reps, RPE <= 8). Stalls two weeks running -> deload ~10% and rebuild. The athlete's progression style (in their profile) sets how eagerly you add load.
+- Respect niggle avoid_patterns absolutely; inject their mobility work into cool-downs. Cool-downs are never removed.
+- Place hard cardio away from heavy lower days. Zone 2 volume ramps gently.
+- Writes need consent: for labs and niggles, echo what you parsed and get a yes BEFORE calling the tool (if the user already clearly confirmed, proceed).
+- Hard boundary: you are not a doctor. Never advise on medication or dosing. Lab trends: describe the data, connect it to training/weight changes, and suggest discussing decisions with their GP.
+- Mid-week changes use amend_week (only the affected days); full next-week plans use propose_revision. When the user asks to tweak a pending proposal, read get_proposal first, then propose the revised version.
+- Messages may end with a bracketed context tag like "[re: session 2026-07-21 · Lower A]" — attached data for that item follows the message; treat it as what the user is looking at.
+- Voice: short, concrete, warm, zero fluff. You're read on a phone between sets."""
+
+
 def _system_prompt(db: Session, user: User) -> str:
+    """The dynamic half: athlete profile + today's context. Stable within a run."""
     from .routers import training
     plan = db.query(Plan).filter(Plan.user_id == user.id).first()
     nigs = [n for n in db.query(Niggle).filter(Niggle.user_id == user.id, Niggle.status == "active")]
@@ -291,25 +323,24 @@ what they actually have. When you have goal + schedule + experience + the injury
 propose_revision with their real first week: conservative starting loads (this week is
 calibration — say so in the rationale), their equipment only, cool-downs included. Then tell
 them it's waiting on the Today screen for approval. Do not lecture; keep it light."""
-    return f"""You are the Forge coach for {user.name} — their personal strength & conditioning coach.
-Today is {local_today().isoformat()}. Display units: {user.units}.{intake}
+    return f"""Athlete: {user.name}. Today is {local_today().isoformat()}. Display units: {user.units}.{intake}
 
 Goal: {plan.goal if plan else 'not set'}
 {_week_so_far(db, user)}
 Active niggles: {nig_txt}
 Active equipment profile: {prof.name if prof else 'unknown'} — prescribe only what get_equipment shows available.
-Progression style: {style}. Plan changes: {approval} mode{' — your proposals apply immediately, so be conservative' if approval == 'auto' else ' — proposals wait for approval in the app'}.
+Progression style: {style}. Plan changes: {approval} mode{' — your proposals apply immediately, so be conservative' if approval == 'auto' else ' — proposals wait for approval in the app'}."""
 
-Rules:
-- Read before you speak: use tools to check real data before answering training questions; cite actual numbers ("bench 8/8/8 at 57.5 twice"), never invent them.
-- Progression: hold or increase the main lift only when the last exposure was clean (all reps, RPE <= 8). Stalls two weeks running -> deload ~10% and rebuild. Style '{style}' sets how eagerly you add load.
-- Respect niggle avoid_patterns absolutely; inject their mobility work into cool-downs. Cool-downs are never removed.
-- Place hard cardio away from heavy lower days. Zone 2 volume ramps gently.
-- Writes need consent: for labs and niggles, echo what you parsed and get a yes BEFORE calling the tool (if the user already clearly confirmed, proceed).
-- Hard boundary: you are not a doctor. Never advise on medication or dosing. Lab trends: describe the data, connect it to training/weight changes, and suggest discussing decisions with their GP.
-- Mid-week changes use amend_week (only the affected days); full next-week plans use propose_revision. When the user asks to tweak a pending proposal, read get_proposal first, then propose the revised version.
-- Messages may end with a bracketed context tag like "[re: session 2026-07-21 · Lower A]" — attached data for that item follows the message; treat it as what the user is looking at.
-- Voice: short, concrete, warm, zero fluff. You're read on a phone between sets."""
+
+def _system_blocks(db: Session, user: User) -> list[dict]:
+    """Cached system prompt: marking the static block also caches the TOOLS
+    schemas that render before it; marking the dynamic block extends the cached
+    prefix per user/day. Built once per run so it stays byte-identical across
+    loop iterations even if a tool writes mid-run."""
+    return [
+        {"type": "text", "text": STATIC_SYSTEM, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": _system_prompt(db, user), "cache_control": {"type": "ephemeral"}},
+    ]
 
 
 class CoachUnavailable(RuntimeError):
@@ -331,15 +362,22 @@ def run_agent(db: Session, user: User, messages: list[dict], kind: str) -> str:
                    input_tokens=0, output_tokens=0, tool_calls=0, ok=1)
     text = ""
     last_text = ""
+    # Built once per run: byte-identical system across iterations is what lets the
+    # prompt cache do its job (the marked blocks also cover the TOOLS prefix).
+    system = _system_blocks(db, user)
+    cache_read = cache_write = 0
+    marked: dict | None = None  # the tool_result currently carrying the rolling cache marker
     try:
         resp = None
         for loop_n in range(MAX_LOOPS):
             resp = client.messages.create(
                 model=settings.coach_model, max_tokens=MAX_TOKENS,
-                system=_system_prompt(db, user), tools=TOOLS, messages=messages,
+                system=system, tools=TOOLS, messages=messages,
             )
             run.input_tokens += resp.usage.input_tokens
             run.output_tokens += resp.usage.output_tokens
+            cache_read += getattr(resp.usage, "cache_read_input_tokens", 0) or 0
+            cache_write += getattr(resp.usage, "cache_creation_input_tokens", 0) or 0
             log.debug("coach %s loop %d: stop=%s blocks=%s out=%d", kind, loop_n,
                       resp.stop_reason, [b.type for b in resp.content], resp.usage.output_tokens)
             text = "".join(b.text for b in resp.content if b.type == "text")
@@ -354,6 +392,13 @@ def run_agent(db: Session, user: User, messages: list[dict], kind: str) -> str:
                     out = _exec_tool(db, user, block.name, dict(block.input or {}))
                     results.append({"type": "tool_result", "tool_use_id": block.id,
                                     "content": json.dumps(out, default=str)[:20000]})
+            # Roll the transcript cache marker forward (max 4 breakpoints per
+            # request: 2 on system + this one). Next iteration then re-reads the
+            # whole prior transcript from cache instead of re-processing it.
+            if marked is not None:
+                marked.pop("cache_control", None)
+            results[-1]["cache_control"] = {"type": "ephemeral"}
+            marked = results[-1]
             messages = messages + [{"role": "assistant", "content": resp.content},
                                    {"role": "user", "content": results}]
         # Tool budget exhausted mid-thought: force a plain-text wrap-up so the user
@@ -366,7 +411,7 @@ def run_agent(db: Session, user: User, messages: list[dict], kind: str) -> str:
             log.info("coach %s: tool budget (%d loops) exhausted — forcing wrap-up", kind, MAX_LOOPS)
             resp = client.messages.create(
                 model=settings.coach_model, max_tokens=2000,
-                system=_system_prompt(db, user), tools=TOOLS,
+                system=system, tools=TOOLS,
                 tool_choice={"type": "none"},
                 messages=messages + [{"role": "assistant", "content": resp.content},
                                      {"role": "user", "content": cancelled}],
@@ -391,7 +436,7 @@ def run_agent(db: Session, user: User, messages: list[dict], kind: str) -> str:
                 recovery.append({"role": "user", "content": nudge})
             resp = client.messages.create(
                 model=settings.coach_model, max_tokens=2000,
-                system=_system_prompt(db, user), tools=TOOLS,
+                system=system, tools=TOOLS,
                 tool_choice={"type": "none"}, messages=recovery,
             )
             run.input_tokens += resp.usage.input_tokens
@@ -416,8 +461,9 @@ def run_agent(db: Session, user: User, messages: list[dict], kind: str) -> str:
         raise
     db.add(run)
     db.commit()
-    log.info("coach %s for user %s: ok=%d tools=%d tokens=%d/%d stop=%s", kind, user.id, run.ok,
-             run.tool_calls, run.input_tokens, run.output_tokens, getattr(resp, "stop_reason", None))
+    log.info("coach %s for user %s: ok=%d tools=%d tokens=%d/%d cache_read=%d cache_write=%d stop=%s",
+             kind, user.id, run.ok, run.tool_calls, run.input_tokens, run.output_tokens,
+             cache_read, cache_write, getattr(resp, "stop_reason", None))
     return text or "(no reply)"
 
 

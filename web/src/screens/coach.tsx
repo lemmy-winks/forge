@@ -90,7 +90,7 @@ export function CoachScreen() {
     queryKey: ['chat'], queryFn: () => api('/api/chat'),
     // while the coach is thinking, poll — the reply lands in history even if
     // the phone locks or the user wanders off mid-thought
-    refetchInterval: (query) => (query.state.data?.pending ? 2000 : false),
+    refetchInterval: (query) => (query.state.data?.pending ? 1000 : false),
   });
   const propQ = useQuery<ProposalResp>({ queryKey: ['proposal'], queryFn: () => api('/api/proposal') });
   const [pending, setPending] = useState<ChatMsg[]>([]);

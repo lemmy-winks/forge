@@ -285,7 +285,7 @@ function IntakeStep({ name, onNext }: { name: string; onNext: () => void }) {
   const [confirmSkip, setConfirmSkip] = useState(false);
   const chatQ = useQuery<ChatResp>({
     queryKey: ['chat'], queryFn: () => api('/api/chat'),
-    refetchInterval: (q) => (q.state.data?.pending ? 2000 : false),
+    refetchInterval: (q) => (q.state.data?.pending ? 1000 : false),
   });
   const propQ = useQuery<ProposalResp>({
     queryKey: ['proposal'], queryFn: () => api('/api/proposal'), refetchInterval: 6000,
