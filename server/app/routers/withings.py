@@ -179,7 +179,10 @@ def connect(user: User = Depends(current_user)):
         "response_type": "code", "client_id": get_settings().withings_client_id,
         "scope": "user.metrics", "redirect_uri": _redirect_uri(), "state": state,
     })
-    return {"url": url}
+    # 302 instead of returning the URL: iOS opens the native Withings app
+    # (universal link) on direct navigations to account.withings.com, killing
+    # the OAuth flow — server-side redirects don't trigger the intercept.
+    return RedirectResponse(url)
 
 
 @router.get("/api/withings/callback")

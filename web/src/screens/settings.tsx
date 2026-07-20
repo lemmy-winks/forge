@@ -241,12 +241,9 @@ export function ConnectionsScreen() {
         {c.withings.configured && (
           <div className="btnrow" style={{ marginTop: 8 }}>
             {!c.withings.linked || c.withings.warning ? (
-              <button className="ghost press" style={{ flex: 1 }} onClick={async () => {
-                try {
-                  const r = await api<{ url: string }>('/api/withings/connect');
-                  location.href = r.url;
-                } catch (e) { toast(String((e as Error).message)); }
-              }}>{c.withings.linked ? 'Re-link Withings' : 'Link Withings'}</button>
+              <button className="ghost press" style={{ flex: 1 }}
+                onClick={() => { location.href = '/api/withings/connect'; }}
+              >{c.withings.linked ? 'Re-link Withings' : 'Link Withings'}</button>
             ) : (
               <>
                 <button className="ghost press" style={{ flex: 1 }} onClick={async () => {
