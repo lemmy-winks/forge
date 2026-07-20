@@ -229,3 +229,21 @@ input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%;
 .sugg .fchip{ white-space:nowrap; flex:none; color:var(--ink); }
 .ctxchip{ display:flex; align-items:center; gap:8px; margin:4px 16px 0; padding:7px 11px;
   background:var(--sunken); border-radius:10px; font-size:11.5px; color:var(--mut); }
+
+/* ---------------- onboarding ---------------- */
+.obstep{ display:flex; gap:11px; align-items:flex-start; }
+.obstep .n{ width:26px; height:26px; border-radius:50%; background:var(--volt-dim); color:var(--volt);
+            font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center;
+            flex:none; margin-top:1px; }
+.obstep .t{ font-size:13px; line-height:1.5; color:var(--mut); }
+.obstep .t b{ color:var(--ink); font-weight:600; }
+.sugg{ display:flex; flex-wrap:wrap; gap:7px; }
+.sugg button{ border:1px solid var(--hair); border-radius:999px; padding:8px 13px; font-size:12.5px;
+              color:var(--ink); background:var(--raised); }
+.overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:60;
+          display:flex; align-items:flex-end; justify-content:center; }
+.sheet{ width:100%; max-width:520px; background:var(--raised); border-radius:22px 22px 0 0;
+        padding:20px 18px calc(18px + env(safe-area-inset-bottom));
+        display:flex; flex-direction:column; gap:10px; }
+.sheet h3{ font-size:18px; font-weight:650; letter-spacing:-.01em; }
+.sheet .sub{ margin-top:0; }
