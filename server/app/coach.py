@@ -8,6 +8,7 @@ nothing goes live without approval unless the user opted into auto-apply).
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -15,8 +16,13 @@ from sqlalchemy.orm import Session
 from .config import get_settings, local_today
 from .models import AgentRun, ChatMessage, Exercise, Niggle, Plan, PlanRevision, User
 
+log = logging.getLogger("forge.coach")
+
 MAX_LOOPS = 12
 HISTORY_MSGS = 24
+# Big enough for propose_revision's full-week JSON: at 2000 the response used to
+# truncate mid-tool-call (stop_reason=max_tokens, zero text blocks → "(no reply)").
+MAX_TOKENS = 8000
 
 TOOLS: list[dict] = [
     {"name": "get_today", "description": "Today's (or a given date's) plan with targets, last-time context and cool-down. Args: date (YYYY-MM-DD, optional).",
@@ -327,13 +333,15 @@ def run_agent(db: Session, user: User, messages: list[dict], kind: str) -> str:
     last_text = ""
     try:
         resp = None
-        for _ in range(MAX_LOOPS):
+        for loop_n in range(MAX_LOOPS):
             resp = client.messages.create(
-                model=settings.coach_model, max_tokens=2000,
+                model=settings.coach_model, max_tokens=MAX_TOKENS,
                 system=_system_prompt(db, user), tools=TOOLS, messages=messages,
             )
             run.input_tokens += resp.usage.input_tokens
             run.output_tokens += resp.usage.output_tokens
+            log.debug("coach %s loop %d: stop=%s blocks=%s out=%d", kind, loop_n,
+                      resp.stop_reason, [b.type for b in resp.content], resp.usage.output_tokens)
             text = "".join(b.text for b in resp.content if b.type == "text")
             if text.strip():
                 last_text = text
@@ -355,8 +363,9 @@ def run_agent(db: Session, user: User, messages: list[dict], kind: str) -> str:
                           "content": "(tool budget reached — stop reading and reply to the user "
                                      "in plain text now, summarising what you found and did)"}
                          for b in resp.content if b.type == "tool_use"]
+            log.info("coach %s: tool budget (%d loops) exhausted — forcing wrap-up", kind, MAX_LOOPS)
             resp = client.messages.create(
-                model=settings.coach_model, max_tokens=1200,
+                model=settings.coach_model, max_tokens=2000,
                 system=_system_prompt(db, user), tools=TOOLS,
                 tool_choice={"type": "none"},
                 messages=messages + [{"role": "assistant", "content": resp.content},
@@ -365,8 +374,37 @@ def run_agent(db: Session, user: User, messages: list[dict], kind: str) -> str:
             run.input_tokens += resp.usage.input_tokens
             run.output_tokens += resp.usage.output_tokens
             text = "".join(b.text for b in resp.content if b.type == "text")
+        # Truncated by the output limit with nothing readable (classic case: a big
+        # tool call swallowed the whole budget): ask again for a short plain-text
+        # reply. The partial turn is dropped — its tool_use JSON is incomplete.
+        if resp is not None and resp.stop_reason == "max_tokens" and not text.strip():
+            log.warning("coach %s: truncated at max_tokens with no text — recovering", kind)
+            nudge = ("(system: your previous reply was cut off by the output limit before any "
+                     "text reached the user. Reply now in plain text only — a short summary of "
+                     "where you got to; no tool calls.)")
+            recovery = list(messages)
+            last = recovery[-1]
+            if last["role"] == "user":  # merge — roles must alternate
+                extra = [{"type": "text", "text": nudge}] if isinstance(last["content"], list) else "\n\n" + nudge
+                recovery[-1] = {**last, "content": last["content"] + extra}
+            else:
+                recovery.append({"role": "user", "content": nudge})
+            resp = client.messages.create(
+                model=settings.coach_model, max_tokens=2000,
+                system=_system_prompt(db, user), tools=TOOLS,
+                tool_choice={"type": "none"}, messages=recovery,
+            )
+            run.input_tokens += resp.usage.input_tokens
+            run.output_tokens += resp.usage.output_tokens
+            text = "".join(b.text for b in resp.content if b.type == "text")
         if not text.strip():
             text = last_text
+        if not text.strip():
+            run.ok = 0
+            run.note = f"empty reply (stop={getattr(resp, 'stop_reason', None)})"
+            log.warning("coach %s for user %s: empty reply — stop=%s blocks=%s after %d tool calls",
+                        kind, user.id, getattr(resp, "stop_reason", None),
+                        [b.type for b in resp.content] if resp else [], run.tool_calls)
     except CoachUnavailable:
         raise
     except Exception as e:
@@ -374,9 +412,12 @@ def run_agent(db: Session, user: User, messages: list[dict], kind: str) -> str:
         run.note = str(e)[:500]
         db.add(run)
         db.commit()
+        log.exception("coach %s for user %s failed after %d tool calls", kind, user.id, run.tool_calls)
         raise
     db.add(run)
     db.commit()
+    log.info("coach %s for user %s: ok=%d tools=%d tokens=%d/%d stop=%s", kind, user.id, run.ok,
+             run.tool_calls, run.input_tokens, run.output_tokens, getattr(resp, "stop_reason", None))
     return text or "(no reply)"
 
 

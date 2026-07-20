@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -18,6 +19,10 @@ from .notify import push_enabled, send_push
 from .routers import admin, auth, coach_api, ingest, misc, push, training, withings
 from .seed import run_seed
 
+# uvicorn only configures its own loggers — without this, forge.* INFO logs
+# (coach runs, ingest, scheduler) never reach the container output at all.
+logging.basicConfig(level=os.environ.get("FORGE_LOG_LEVEL", "INFO"),
+                    format="%(levelname)s:%(name)s: %(message)s")
 log = logging.getLogger("forge")
 
 

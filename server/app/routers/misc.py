@@ -1,3 +1,4 @@
+import logging
 import threading
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,6 +10,8 @@ from ..models import (ChatMessage, EquipmentProfile, IngestToken, LabPanel, LabR
                       Metric, Niggle, User, utcnow)
 from ..db import get_db
 from ..security import current_user, new_ingest_token
+
+log = logging.getLogger("forge.coach")
 
 router = APIRouter(prefix="/api", tags=["misc"])
 
@@ -191,13 +194,14 @@ def _run_chat_bg(user_id: str, text: str, extra_context: str) -> None:
             reply = ("Saved — but the coach isn't configured yet: add an Anthropic API key in "
                      "Settings → Server. Your messages and data are all stored meanwhile.")
         except Exception as e:
+            log.exception("coach chat failed for user %s", user_id)
             if "credit balance" in str(e).lower():
                 reply = ("The coach's API account is out of credits — top up at "
                          "console.anthropic.com → Billing, then just message me again "
                          "(no restart needed).")
             else:
                 reply = ("The coach hit an error mid-thought — your message is saved, try again in a "
-                         "moment. (Details are in the server's agent-run log.)")
+                         "moment. (Details are in the server logs.)")
         db.add(ChatMessage(user_id=user_id, who="coach", text=reply))
         db.commit()
     finally:
