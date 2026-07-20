@@ -46,6 +46,24 @@ units (lb/kg, with per-exercise overrides) over always-canonical metric storage.
 Installable PWA, hand-written design system, exactly two users by design — every row is
 user-scoped and the allowlist is the whole auth model.
 
+## Mockups
+
+> **These are design mockups, not live screenshots** — Forge is in active development.
+> They're concept renders from the visual spec the app is being built against; the shipped
+> screens track them closely. The full set (33 screens, including onboarding, settings and
+> a light-theme variant) is in [docs/mockups/](docs/mockups/).
+
+| | | | |
+|---|---|---|---|
+| ![Today](docs/mockups/02-today-s-session.png) | ![Logging](docs/mockups/04-back-squat.png) | ![Plate math](docs/mockups/06-load-82-5-kg.png) | ![Cardio](docs/mockups/05-zone-2-run.png) |
+| Today's session | Set-by-set logging | Plate math + warm-ups | Zone-2 reconciliation |
+| ![Learn](docs/mockups/03-romanian-deadlift.png) | ![Progress](docs/mockups/09-progress.png) | ![Coach](docs/mockups/10-coach.png) | ![Proposal](docs/mockups/11-week-13-plan.png) |
+| Exercise form guide | Progress trends | Weekly coach review | Plan proposal to approve |
+
+The desktop dashboard (`/dashboard`, same server):
+
+![Dashboard](docs/mockups/00-dashboard.png)
+
 ## Fresh install on a new server
 
 ```bash
