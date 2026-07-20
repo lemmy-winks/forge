@@ -56,7 +56,7 @@ function regionsFor(labels: string[]): Set<string> {
 function Silhouette({ x }: { x: number }) {
   // head, torso, arms, legs — soft blocky humanoid in a quiet tone
   return (
-    <g transform={`translate(${x},0)`} fill="#17191d">
+    <g transform={`translate(${x},0)`} fill="var(--map-base)">
       <circle cx="30" cy="11" r="7.5" />
       <rect x="26.5" y="17" width="7" height="6" rx="2" />
       <rect x="17" y="22" width="26" height="42" rx="9" />

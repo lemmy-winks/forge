@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo, useReducer, useState, type JSX } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState, type JSX } from 'react';
 import {
   api, ApiError, kgToDisp, loadStep, loadUnitFor, setUnauthorizedHandler, todayISO,
   type Fitted, type Me, type SessionDetail, type StartSessionResp, type Today,
@@ -17,7 +17,7 @@ import {
 } from './screens/settings';
 import { DayScreen, PlanScreen } from './screens/today';
 import {
-  AppCtx, curTarget, toast,
+  AppCtx, applyTheme, curTarget, storedTheme, toast,
   type AppCtxType, type LogAction, type LogState, type LogTarget, type Screen, type SummaryData, type Tab,
 } from './ui';
 
@@ -227,6 +227,11 @@ function Gate() {
   setUnauthorizedHandler(() => qc.setQueryData(['me'], null));
 
   if (denied) return <DeniedScreen email={denied} />;
+  const themePref = meQ.data?.prefs?.theme;
+  useEffect(() => {
+    if (themePref && themePref !== storedTheme()) applyTheme(themePref);
+  }, [themePref]);
+
   if (meQ.isLoading) return <div className="boot">FORGE<span>.</span></div>;
   if (!meQ.data) return <AuthScreen onSignedIn={() => meQ.refetch()} />;
   if (!meQ.data.prefs?.onboarded) return <OnboardingFlow me={meQ.data} onDone={() => meQ.refetch()} />;

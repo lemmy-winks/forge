@@ -206,3 +206,32 @@ export function ChatBubble({ who, text }: { who: 'me' | 'coach'; text: string })
     </div>
   );
 }
+
+/* ---------------- theme (Void × Volt / Paper × Moss) ---------------- */
+export type ThemePref = 'dark' | 'light' | 'system';
+const THEME_KEY = 'forge-theme';
+let systemWatch: MediaQueryList | null = null;
+
+function setTheme(mode: 'dark' | 'light') {
+  document.documentElement.dataset.theme = mode;
+  document.querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', mode === 'light' ? '#f4f5f2' : '#060708');
+}
+
+/** Apply a theme preference now and keep following the OS when it's 'system'. */
+export function applyTheme(pref: ThemePref) {
+  localStorage.setItem(THEME_KEY, pref);
+  if (systemWatch) { systemWatch.onchange = null; systemWatch = null; }
+  if (pref === 'system') {
+    systemWatch = window.matchMedia('(prefers-color-scheme: light)');
+    setTheme(systemWatch.matches ? 'light' : 'dark');
+    systemWatch.onchange = (e) => setTheme(e.matches ? 'light' : 'dark');
+  } else {
+    setTheme(pref);
+  }
+}
+
+export function storedTheme(): ThemePref {
+  const v = localStorage.getItem(THEME_KEY);
+  return v === 'light' || v === 'system' ? v : 'dark';
+}

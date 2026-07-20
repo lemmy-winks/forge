@@ -4,12 +4,19 @@ import {
   api, enablePush, heightDisp, lipidDisp, lipidToMmol, todayISO,
   type Connections, type EquipmentData, type LabPanelRow, type Me, type NiggleRow, type Progress,
 } from '../api';
-import { Back, Chip, Loading, Shell, Title, toast, useApp } from '../ui';
+import { applyTheme, Back, Chip, Loading, Shell, storedTheme, Title, toast, useApp, type ThemePref } from '../ui';
 
 /* ---------------- settings home ---------------- */
 export function SettingsScreen() {
   const { me, go, tab, openTab, signOut } = useApp();
+  const qc = useQueryClient();
   const connQ = useQuery<Connections>({ queryKey: ['connections'], queryFn: () => api('/api/connections') });
+  const theme: ThemePref = me.prefs?.theme || storedTheme();
+  const pickTheme = (v: string) => {
+    applyTheme(v as ThemePref);
+    qc.setQueryData<Me>(['me'], (old) => old && { ...old, prefs: { ...old.prefs, theme: v } });
+    api('/api/prefs', { method: 'PATCH', body: { prefs: { theme: v } } }).catch(() => toast('Offline — not saved'));
+  };
   const nigQ = useQuery<NiggleRow[]>({ queryKey: ['niggles'], queryFn: () => api('/api/niggles') });
   const activeN = (nigQ.data || []).filter((n) => n.status === 'active').length;
   const exportData = async () => {
@@ -45,6 +52,11 @@ export function SettingsScreen() {
           <span style={{ marginLeft: 'auto', fontSize: 9, padding: '2px 8px', borderRadius: 999,
             border: '1px solid var(--hair)', color: 'var(--volt)', fontWeight: 700 }}>ADMIN</span>
         )}
+      </div>
+      <div className="card">
+        <div className="lab" style={{ marginBottom: 8 }}>Appearance</div>
+        <UnitSeg value={theme} onPick={pickTheme}
+          options={[['dark', 'Dark'], ['light', 'Light'], ['system', 'Auto']]} />
       </div>
       {rows.map(([label, sub, onClick]) => (
         <button key={label} className="lrow press" onClick={onClick}>

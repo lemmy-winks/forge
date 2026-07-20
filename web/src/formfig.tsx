@@ -735,9 +735,9 @@ export function FormFig({ slug, name, cues }: { slug: string; name: string; cues
             ))}
           </g>
         )}
-        {tpl.floor && <rect x="8" y="84" width="84" height="5" rx="1" fill="#15161a" />}
+        {tpl.floor && <rect x="8" y="84" width="84" height="5" rx="1" fill="var(--fig-floor)" />}
         {tpl.bench && (
-          <g fill="#1a1c20">
+          <g fill="var(--fig-rack)">
             <rect x={tpl.bench[0]} y={tpl.bench[1]} width={tpl.bench[2]} height={tpl.bench[3]} rx="1.5" />
             <rect x={tpl.bench[0] + 4} y={tpl.bench[1] + tpl.bench[3]} width="3" height={84 - tpl.bench[1] - tpl.bench[3]} />
             <rect x={tpl.bench[0] + tpl.bench[2] - 7} y={tpl.bench[1] + tpl.bench[3]} width="3" height={84 - tpl.bench[1] - tpl.bench[3]} />
@@ -745,7 +745,7 @@ export function FormFig({ slug, name, cues }: { slug: string; name: string; cues
         )}
         {tpl.barline && (
           <line x1={tpl.barline[0][0]} y1={tpl.barline[0][1]} x2={tpl.barline[1][0]} y2={tpl.barline[1][1]}
-            stroke="#2a2d33" strokeWidth="1.6" strokeLinecap="round" />
+            stroke="var(--fig-edge2)" strokeWidth="1.6" strokeLinecap="round" />
         )}
         {[...(tpl.cable ? [tpl.cable] : []), ...(tpl.cables || [])].map((c, i) => (
           <line key={'c' + i} x1={P(c.from)[0]} y1={P(c.from)[1]} x2={c.to[0]} y2={c.to[1]}
@@ -759,10 +759,10 @@ export function FormFig({ slug, name, cues }: { slug: string; name: string; cues
           const e2: Pt = [b[0] + u[0] * 6, b[1] + u[1] * 6];
           return (
             <g>
-              <line x1={e1[0]} y1={e1[1]} x2={e2[0]} y2={e2[1]} stroke="#26292e" strokeWidth="2"
+              <line x1={e1[0]} y1={e1[1]} x2={e2[0]} y2={e2[1]} stroke="var(--fig-edge)" strokeWidth="2"
                 strokeLinecap="round" />
-              <circle cx={e1[0]} cy={e1[1]} r="2.6" fill="#141518" stroke="#26292e" strokeWidth="0.8" />
-              <circle cx={e2[0]} cy={e2[1]} r="2.6" fill="#141518" stroke="#26292e" strokeWidth="0.8" />
+              <circle cx={e1[0]} cy={e1[1]} r="2.6" fill="var(--fig-fill)" stroke="var(--fig-edge)" strokeWidth="0.8" />
+              <circle cx={e2[0]} cy={e2[1]} r="2.6" fill="var(--fig-fill)" stroke="var(--fig-edge)" strokeWidth="0.8" />
             </g>
           );
         })()}
@@ -776,26 +776,26 @@ export function FormFig({ slug, name, cues }: { slug: string; name: string; cues
           const [px, py] = P(prop.at);
           if (prop.type === 'plate') return (
             <g key={pi}>
-              <circle cx={px} cy={py} r="7.5" fill="#141518" stroke="#26292e" strokeWidth="1" />
-              <circle cx={px} cy={py} r="4.2" fill="none" stroke="#26292e" strokeWidth="0.8" />
-              <circle cx={px} cy={py} r="1.4" fill="#3a3e45" />
+              <circle cx={px} cy={py} r="7.5" fill="var(--fig-fill)" stroke="var(--fig-edge)" strokeWidth="1" />
+              <circle cx={px} cy={py} r="4.2" fill="none" stroke="var(--fig-edge)" strokeWidth="0.8" />
+              <circle cx={px} cy={py} r="1.4" fill="var(--fig-dot)" />
             </g>
           );
           if (prop.type === 'db') return (
             <g key={pi}>
-              <rect x={px - 3.4} y={py - 1.4} width="6.8" height="2.8" rx="1.2" fill="#26292e" />
-              <rect x={px - 4.4} y={py - 2.4} width="2" height="4.8" rx="0.8" fill="#141518" />
-              <rect x={px + 2.4} y={py - 2.4} width="2" height="4.8" rx="0.8" fill="#141518" />
+              <rect x={px - 3.4} y={py - 1.4} width="6.8" height="2.8" rx="1.2" fill="var(--fig-edge)" />
+              <rect x={px - 4.4} y={py - 2.4} width="2" height="4.8" rx="0.8" fill="var(--fig-fill)" />
+              <rect x={px + 2.4} y={py - 2.4} width="2" height="4.8" rx="0.8" fill="var(--fig-fill)" />
             </g>
           );
           if (prop.type === 'kb') return (
             <g key={pi}>
-              <circle cx={px} cy={py + 1} r="3.2" fill="#141518" stroke="#26292e" strokeWidth="0.9" />
+              <circle cx={px} cy={py + 1} r="3.2" fill="var(--fig-fill)" stroke="var(--fig-edge)" strokeWidth="0.9" />
               <path d={`M${px - 1.8},${py - 1.4} a1.8,1.8 0 0 1 3.6,0`}
-                fill="none" stroke="#26292e" strokeWidth="1.1" />
+                fill="none" stroke="var(--fig-edge)" strokeWidth="1.1" />
             </g>
           );
-          return <circle key={pi} cx={px} cy={py} r="3.4" fill="#141518" stroke="#26292e" strokeWidth="1" />;
+          return <circle key={pi} cx={px} cy={py} r="3.4" fill="var(--fig-fill)" stroke="var(--fig-edge)" strokeWidth="1" />;
         })}
         {cue && (
           <g>
