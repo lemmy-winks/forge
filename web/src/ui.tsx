@@ -202,7 +202,7 @@ export function ChatBubble({ who, text }: { who: 'me' | 'coach'; text: string })
   return (
     <div className="bub me num">
       {m ? m[1] : text}
-      {m && <div style={{ fontSize: 10.5, opacity: 0.65, marginTop: 3 }}>{m[2]}</div>}
+      {m && <div style={{ fontSize: 11.5, opacity: 0.65, marginTop: 3 }}>{m[2]}</div>}
     </div>
   );
 }

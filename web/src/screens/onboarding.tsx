@@ -27,7 +27,7 @@ export function OnboardingFlow({ me, onDone }: { me: Me; onDone: () => void }) {
     <>
       <div className="hdr">
         <span className="wm">FORGE<i>.</i></span><span className="sp" />
-        <span className="kick" style={{ fontSize: 9.5 }}>Step {step + 1} of {STEPS.length}</span>
+        <span className="kick" style={{ fontSize: 10.5 }}>Step {step + 1} of {STEPS.length}</span>
       </div>
       <div style={{ display: 'flex', gap: 5, padding: '0 18px 8px' }}>
         {STEPS.map((_, i) => (
@@ -55,7 +55,7 @@ function SkipSheet({ title, consequences, later, onStay, onSkip }: {
     <div className="overlay" onClick={onStay}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <h3>{title}</h3>
-        <div className="sub" style={{ fontSize: 13, lineHeight: 1.55 }}>
+        <div className="sub" style={{ fontSize: 14, lineHeight: 1.55 }}>
           Nothing breaks — the app fully works. But until you come back to this:
         </div>
         {consequences.map((c) => (
@@ -63,7 +63,7 @@ function SkipSheet({ title, consequences, later, onStay, onSkip }: {
             background: 'var(--warn-dim, rgba(232,163,96,.2))', color: 'var(--warn)' }}>·</span>
             <span className="t">{c}</span></div>
         ))}
-        <div className="banner" style={{ fontSize: 12.5 }}>You can do this any time later — {later}</div>
+        <div className="banner" style={{ fontSize: 13.5 }}>You can do this any time later — {later}</div>
         <button className="cta press" onClick={onStay}>Stay and finish this step</button>
         <button className="ghost press" onClick={onSkip}>Skip for now</button>
       </div>
@@ -81,13 +81,13 @@ function BasicsStep({ me, onNext }: { me: Me; onNext: () => void }) {
   return (
     <div className="scroll">
       <h2 className="title">Welcome, {me.name} 👋</h2>
-      <p className="sub" style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+      <p className="sub" style={{ fontSize: 14.5, lineHeight: 1.6 }}>
         Forge plans your training week, you log what actually happens, and your coach
         adjusts the plan every Sunday. A few quick questions and you're in — nothing here
         is permanent, everything can be changed later in Settings.
       </p>
       <div className="card">
-        <div className="kick" style={{ fontSize: 10, marginBottom: 8 }}>One question: how do you talk about your body weight?</div>
+        <div className="kick" style={{ fontSize: 11, marginBottom: 8 }}>One question: how do you talk about your body weight?</div>
         <div className="seg">
           <button className={units === 'kg' ? 'sel' : ''} onClick={() => setUnits('kg')}>in kilograms</button>
           <button className={units === 'lb' ? 'sel' : ''} onClick={() => setUnits('lb')}>in pounds</button>
@@ -152,7 +152,7 @@ function DataStep({ onNext }: { onNext: () => void }) {
   return (
     <div className="scroll">
       <h2 className="title">Let your watch do the typing</h2>
-      <p className="sub" style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+      <p className="sub" style={{ fontSize: 14.5, lineHeight: 1.6 }}>
         Forge can read your workouts, sleep and weight automatically, so your coach sees
         how you're really doing. It flows like this:
       </p>
@@ -161,7 +161,7 @@ function DataStep({ onNext }: { onNext: () => void }) {
         <div className="banner">✓ It's working — {ah!.samples} readings have arrived</div>
       ) : (
         <>
-          <p className="sub" style={{ fontSize: 13, lineHeight: 1.6 }}>
+          <p className="sub" style={{ fontSize: 14, lineHeight: 1.6 }}>
             The bridge is an iPhone app called <b style={{ color: 'var(--ink)' }}>Health Auto
             Export</b> (App Store — its auto-send feature is a small one-off purchase).
             Five minutes, once, on the phone that has your health data:
@@ -173,11 +173,11 @@ function DataStep({ onNext }: { onNext: () => void }) {
               Tap <b>Automations → + → REST API</b></span></div>
             <div className="obstep"><span className="n">3</span><span className="t">
               Where it asks for a URL, type exactly:<br />
-              <b style={{ fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 12, wordBreak: 'break-all' }}>
+              <b style={{ fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 13, wordBreak: 'break-all' }}>
                 {location.origin}/ingest?token={revealed || 'YOUR-KEY'}</b></span></div>
             <div className="obstep"><span className="n">4</span><span className="t">
               Your personal key — like a password, just for this{revealed ? '' : ' (tap the button to create it)'}:</span></div>
-            <div className="num" style={{ fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 12,
+            <div className="num" style={{ fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 13,
               background: 'var(--sunken)', borderRadius: 10, padding: '9px 11px',
               display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ flex: 1, wordBreak: 'break-all' }}>{revealed || ah?.token_masked || '· · · · · ·'}</span>
@@ -238,7 +238,7 @@ function EquipStep({ onNext }: { onNext: () => void }) {
   return (
     <div className="scroll">
       <h2 className="title">What's in your gym?</h2>
-      <p className="sub" style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+      <p className="sub" style={{ fontSize: 14.5, lineHeight: 1.6 }}>
         Tap anything that's wrong — green means you have it, grey means you don't. Your
         coach will only ever plan exercises you can actually do. Guessing is fine;
         change it any time in Settings → Equipment.
@@ -327,7 +327,7 @@ function IntakeStep({ name, onNext }: { name: string; onNext: () => void }) {
     <>
       <div className="scroll" ref={scrollRef} style={{ paddingBottom: 8 }}>
         <h2 className="title">Say hi to your coach</h2>
-        <p className="sub" style={{ fontSize: 13, lineHeight: 1.55 }}>
+        <p className="sub" style={{ fontSize: 14, lineHeight: 1.55 }}>
           This is a real conversation — plain words, no fitness-speak needed. Tell it what
           you want and it builds your first week around you.
         </p>
@@ -405,16 +405,16 @@ function DoneStep({ name, onFinish }: { name: string; onFinish: () => void }) {
   return (
     <div className="scroll">
       <h2 className="title">You're set, {name} 🎉</h2>
-      <p className="sub" style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+      <p className="sub" style={{ fontSize: 14.5, lineHeight: 1.6 }}>
         Here's the whole rhythm — this is all there is to it:
       </p>
       <LoopArt />
-      <div className="card"><div className="sub" style={{ marginTop: 0, fontSize: 12.5, lineHeight: 1.6 }}>
+      <div className="card"><div className="sub" style={{ marginTop: 0, fontSize: 13.5, lineHeight: 1.6 }}>
         <b style={{ color: 'var(--ink)' }}>Honesty beats perfection.</b> Skip a day, cut a session
         short, swap an exercise — all fine, just log it. The coach plans around real life,
         not the plan you wish you'd done.
       </div></div>
-      <div className="card"><div className="sub" style={{ marginTop: 0, fontSize: 12.5, lineHeight: 1.6 }}>
+      <div className="card"><div className="sub" style={{ marginTop: 0, fontSize: 13.5, lineHeight: 1.6 }}>
         <b style={{ color: 'var(--ink)' }}>One boundary:</b> the coach talks about your training
         and trends, but never gives medical advice — anything clinical gets a
         "talk to your GP", nothing more.

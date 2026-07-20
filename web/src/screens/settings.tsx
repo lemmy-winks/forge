@@ -46,10 +46,10 @@ export function SettingsScreen() {
       <h2 className="title">Settings</h2>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '2px 2px 4px' }}>
         <span className="avatar" style={{ width: 42, height: 42, fontSize: 17 }}>{me.name[0]}</span>
-        <span><b style={{ fontSize: 14.5 }}>{me.name}</b>
-          <div style={{ fontSize: 11, color: 'var(--mut)' }}>{me.email} · {me.units}</div></span>
+        <span><b style={{ fontSize: 15.5 }}>{me.name}</b>
+          <div style={{ fontSize: 12, color: 'var(--mut)' }}>{me.email} · {me.units}</div></span>
         {me.role === 'admin' && (
-          <span style={{ marginLeft: 'auto', fontSize: 9, padding: '2px 8px', borderRadius: 999,
+          <span style={{ marginLeft: 'auto', fontSize: 10, padding: '2px 8px', borderRadius: 999,
             border: '1px solid var(--hair)', color: 'var(--volt)', fontWeight: 700 }}>ADMIN</span>
         )}
       </div>
@@ -124,7 +124,7 @@ export function UnitsScreen() {
       <Back label="Settings" onClick={() => go('settings')} />
       <h2 className="title">Units</h2>
       <div className="card">
-        <div className="kick" style={{ fontSize: 10, marginBottom: 6 }}>Lifting loads</div>
+        <div className="kick" style={{ fontSize: 11, marginBottom: 6 }}>Lifting loads</div>
         <UnitSeg value={prefs.unit_load === 'kg' ? 'kg' : 'lb'}
           options={[['lb', 'Pounds'], ['kg', 'Kilograms']]}
           onPick={(v) => savePrefs({ unit_load: v })} />
@@ -138,11 +138,11 @@ export function UnitsScreen() {
         )}
       </div>
       <div className="card">
-        <div className="kick" style={{ fontSize: 10, marginBottom: 6 }}>Bodyweight</div>
+        <div className="kick" style={{ fontSize: 11, marginBottom: 6 }}>Bodyweight</div>
         <UnitSeg value={units} options={[['kg', 'Kilograms'], ['lb', 'Pounds']]} onPick={saveBodyUnits} />
       </div>
       <div className="card">
-        <div className="kick" style={{ fontSize: 10, marginBottom: 6 }}>Height</div>
+        <div className="kick" style={{ fontSize: 11, marginBottom: 6 }}>Height</div>
         <UnitSeg value={heightU} options={[['cm', 'Centimetres'], ['ftin', 'Feet & inches']]}
           onPick={(v) => savePrefs({ unit_height: v })} />
         <div className="sub num">{heightCm != null ? `On record: ${heightDisp(heightCm, heightU)}` : 'No height on record yet'}</div>
@@ -162,7 +162,7 @@ export function UnitsScreen() {
         </div>
       </div>
       <div className="card">
-        <div className="kick" style={{ fontSize: 10, marginBottom: 6 }}>Cholesterol & lipids</div>
+        <div className="kick" style={{ fontSize: 11, marginBottom: 6 }}>Cholesterol & lipids</div>
         <UnitSeg value={prefs.unit_lipids === 'mgdl' ? 'mgdl' : 'mmol'}
           options={[['mmol', 'mmol/L'], ['mgdl', 'mg/dL']]}
           onPick={(v) => savePrefs({ unit_lipids: v })} />
@@ -197,7 +197,7 @@ export function ConnectionsScreen() {
       <h2 className="title">Connections</h2>
       <div className="card">
         <div className="row"><span className="xname">Apple Health</span>
-          <span className={ah.last_push ? 'up' : 'warn'} style={{ fontSize: 11 }}>
+          <span className={ah.last_push ? 'up' : 'warn'} style={{ fontSize: 12 }}>
             ● {ah.last_push ? 'Live' : 'Waiting for first push'}</span></div>
         <div className="sub">
           {ah.last_push
@@ -227,7 +227,7 @@ export function ConnectionsScreen() {
       <div className="card">
         <div className="row"><span className="xname">Withings</span>
           <span className={c.withings.linked ? (c.withings.warning ? 'warn' : 'up') : 'sub'}
-            style={{ fontSize: 11, margin: 0 }}>
+            style={{ fontSize: 12, margin: 0 }}>
             {c.withings.linked ? (c.withings.warning ? '● Needs re-link' : '● Linked') : c.withings.note}
           </span></div>
         {c.withings.warning && <div className="sub warn" style={{ fontWeight: 400 }}>{c.withings.warning}</div>}
@@ -368,7 +368,7 @@ export function NigglesScreen() {
         </div>
       ))}
       <div className="card">
-        <div className="kick" style={{ fontSize: 10, marginBottom: 8 }}>Log a niggle</div>
+        <div className="kick" style={{ fontSize: 11, marginBottom: 8 }}>Log a niggle</div>
         <div className="field"><label>Body part</label><input ref={partRef} placeholder="Left knee" /></div>
         <div className="field" style={{ marginTop: 8 }}><label>Note</label><input ref={noteRef} placeholder="Grumbles in deep lunges" /></div>
         <button className="ghost press" style={{ marginTop: 10 }} onClick={add}>Add</button>
@@ -411,7 +411,7 @@ export function LabsScreen() {
       {!panels.length && <Chip>No panels yet — add your latest lipid results below.</Chip>}
       {panels.map((p) => (
         <div key={p.id} className="card num">
-          <div className="kick" style={{ fontSize: 10, marginBottom: 6 }}>{p.drawn_on}</div>
+          <div className="kick" style={{ fontSize: 11, marginBottom: 6 }}>{p.drawn_on}</div>
           {p.results.map((r) => {
             const inRange = (r.ref_high == null || r.value <= r.ref_high) && (r.ref_low == null || r.value >= r.ref_low);
             return (
@@ -426,7 +426,7 @@ export function LabsScreen() {
         </div>
       ))}
       <div className="card">
-        <div className="kick" style={{ fontSize: 10, marginBottom: 8 }}>Add lipid panel</div>
+        <div className="kick" style={{ fontSize: 11, marginBottom: 8 }}>Add lipid panel</div>
         <div className="field"><label>Drawn on</label><input ref={dateRef} defaultValue={todayISO()} /></div>
         <div className="tiles" style={{ marginTop: 8 }}>
           {MARKERS.map((m) => (
@@ -483,7 +483,7 @@ export function CoachSettingsScreen() {
       <h2 className="title">Coach</h2>
       <div className="lrow"><b>Weekly review</b><span className="rsub">Sunday · from 20:00 · automatic</span></div>
       <div className="card">
-        <div className="kick" style={{ fontSize: 10, marginBottom: 6 }}>Plan changes</div>
+        <div className="kick" style={{ fontSize: 11, marginBottom: 6 }}>Plan changes</div>
         <div className="seg">
           {(['propose', 'auto'] as const).map((v) => (
             <button key={v} className={approval === v ? 'sel' : ''}
@@ -494,7 +494,7 @@ export function CoachSettingsScreen() {
         </div>
       </div>
       <div className="card">
-        <div className="kick" style={{ fontSize: 10, marginBottom: 6 }}>Progression style</div>
+        <div className="kick" style={{ fontSize: 11, marginBottom: 6 }}>Progression style</div>
         <div className="seg">
           {(['steady', 'standard', 'aggressive'] as const).map((v) => (
             <button key={v} className={style === v ? 'sel' : ''}
@@ -555,7 +555,7 @@ export function NotifScreen() {
       <button className="lrow press" onClick={enable}>
         <b>Push on this device</b>
         <span className="rsub">{pushState === 'on' ? 'enabled — tap to re-subscribe' : 'tap to enable'}</span>
-        <span style={{ fontSize: 11, fontWeight: 700,
+        <span style={{ fontSize: 12, fontWeight: 700,
           color: pushState === 'on' ? 'var(--volt)' : 'var(--dim)' }}>
           {pushState === 'on' ? 'ON' : 'OFF'}
         </span>
@@ -563,7 +563,7 @@ export function NotifScreen() {
       {NOTIF_DEFS.map(([key, label, sub]) => (
         <button key={key} className="lrow press" onClick={() => flip(key)}>
           <b>{label}</b><span className="rsub">{sub}</span>
-          <span style={{ fontSize: 11, fontWeight: 700,
+          <span style={{ fontSize: 12, fontWeight: 700,
             color: prefs[key] !== false ? 'var(--volt)' : 'var(--dim)' }}>
             {prefs[key] !== false ? 'ON' : 'OFF'}
           </span>
@@ -661,7 +661,7 @@ export function ServerScreen() {
       <Title kick="Admin">Server</Title>
 
       <div className="card">
-        <b style={{ fontSize: 14 }}>Coach</b>
+        <b style={{ fontSize: 15 }}>Coach</b>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
           <ServerField k="anthropic_api_key" label="Anthropic API key" secret
             placeholder="sk-ant-…" data={q.data} onSave={save} />
@@ -675,7 +675,7 @@ export function ServerScreen() {
       </div>
 
       <div className="card">
-        <b style={{ fontSize: 14 }}>Withings</b>
+        <b style={{ fontSize: 15 }}>Withings</b>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
           <ServerField k="withings_client_id" label="Client ID" data={q.data} onSave={save} />
           <ServerField k="withings_client_secret" label="Client secret" secret data={q.data} onSave={save} />
@@ -687,7 +687,7 @@ export function ServerScreen() {
       </div>
 
       <div className="card">
-        <b style={{ fontSize: 14 }}>Web push</b>
+        <b style={{ fontSize: 15 }}>Web push</b>
         <div className="rsub" style={{ margin: '6px 0 10px' }}>
           {vapidSet ? `Keys set — public …${q.data.vapid_public_key.value.slice(-8)}`
             : 'No keys yet — generate once, then everyone enables notifications on their phone.'}
@@ -704,7 +704,7 @@ export function ServerScreen() {
         onSaved={() => qc.invalidateQueries({ queryKey: ['admin-users'] })} />)}
       {uq.data.length < 2 && (
         <div className="card">
-          <b style={{ fontSize: 14 }}>Add the second user</b>
+          <b style={{ fontSize: 15 }}>Add the second user</b>
           <div className="field" style={{ marginTop: 8 }}><label>Name</label>
             <input value={newName} onChange={(e) => setNewName(e.target.value)} /></div>
           <div className="field" style={{ marginTop: 8 }}><label>Email</label>
@@ -738,7 +738,7 @@ function DemoCard() {
   const exists = q.data?.exists;
   return (
     <div className="card">
-      <b style={{ fontSize: 14 }}>Demo account</b>
+      <b style={{ fontSize: 15 }}>Demo account</b>
       <div className="rsub" style={{ margin: '6px 0 10px' }}>
         {exists
           ? 'Live — "Try the demo" shows on the sign-in screen. Bruce Willis, a year of history, real coach.'

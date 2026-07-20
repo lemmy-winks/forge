@@ -40,7 +40,7 @@ export function PlanScreen() {
             onClick={() => go('day', { dayDate: d.is_today ? null : d.date })}>
             <span>
               <b>{d.day_name}{d.is_today ? ' · today' : ''}</b>
-              <span style={{ display: 'block', fontSize: 12, color: 'var(--mut)', marginTop: 2 }}>
+              <span style={{ display: 'block', fontSize: 13, color: 'var(--mut)', marginTop: 2 }}>
                 {d.name || 'Rest'}{d.focus.length ? ' · ' + d.focus.join(' · ') : ''}
               </span>
             </span>
@@ -108,7 +108,7 @@ export function DayScreen() {
       </div>
       <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
         {isOther && (
-          <button className="press" style={{ fontSize: 11, color: 'var(--volt)', fontWeight: 700 }}
+          <button className="press" style={{ fontSize: 12, color: 'var(--volt)', fontWeight: 700 }}
             onClick={() => setViewDate(null)}>today</button>
         )}
         <button className="ghost press" aria-label="Previous day"
@@ -136,7 +136,7 @@ export function DayScreen() {
             <div className="v disp num">{r.resting_hr ? Math.round(r.resting_hr.value) + ' bpm' : '—'}</div>
             <div className="d">latest</div></div>
           <div className="tile"><div className="k">Tomorrow</div>
-            <div className="v disp" style={{ fontSize: 15, lineHeight: 1.3, marginTop: 6 }}>{t.tomorrow?.name || '—'}</div>
+            <div className="v disp" style={{ fontSize: 16, lineHeight: 1.3, marginTop: 6 }}>{t.tomorrow?.name || '—'}</div>
             <div className="d">{t.tomorrow?.day_name || ''}</div></div>
         </div>
       </Shell>
@@ -191,7 +191,7 @@ export function DayScreen() {
             </span> · {t.tonnage_est} t · {t.cd === 'short' ? '2' : '5'}-min cool-down
           </div>
           <div className="row" style={{ marginTop: 10 }}>
-            <span className="kick" style={{ fontSize: 10 }}>Time available</span>
+            <span className="kick" style={{ fontSize: 11 }}>Time available</span>
             <b className="num">{bud} min</b>
           </div>
           <input type="range" min={25} max={75} step={5} value={bud}

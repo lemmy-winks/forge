@@ -91,7 +91,7 @@ export function LogScreen() {
         <span className="kick">Exercise {log.idx + 1} of {log.targets.length}</span>
         <h2 className="title">
           <button className="press" onClick={() => go('learn', { learnSlug: t.slug, learnFrom: 'log' })}>
-            {t.name} <span style={{ fontSize: 13, color: 'var(--volt)' }}>▶</span>
+            {t.name} <span style={{ fontSize: 14, color: 'var(--volt)' }}>▶</span>
           </button>
         </h2>
       </div>
@@ -101,18 +101,18 @@ export function LogScreen() {
       </div>
       <div style={{ display: 'flex', gap: 16 }}>
         <button className="press" onClick={() => go('swap')}
-          style={{ fontSize: 11.5, color: 'var(--volt)', fontWeight: 600, padding: '0 2px' }}>
+          style={{ fontSize: 12.5, color: 'var(--volt)', fontWeight: 600, padding: '0 2px' }}>
           Equipment taken? Swap ↺{log.swaps[orig.slug] ? ' · substituted' : ''}
         </button>
         <button className="press" onClick={toggleForm}
-          style={{ fontSize: 11.5, color: showForm ? 'var(--mut)' : 'var(--volt)', fontWeight: 600, padding: '0 2px' }}>
+          style={{ fontSize: 12.5, color: showForm ? 'var(--mut)' : 'var(--volt)', fontWeight: 600, padding: '0 2px' }}>
           {showForm ? 'Hide form ✕' : 'Show form ▶'}
         </button>
       </div>
       {showForm && <FormFig slug={t.slug} name={t.name} cues={exQ.data?.cues || []} />}
       {wu && (
         <div className="card">
-          <div className="kick" style={{ fontSize: 9.5, marginBottom: 6 }}>Warm-up ramp</div>
+          <div className="kick" style={{ fontSize: 10.5, marginBottom: 6 }}>Warm-up ramp</div>
           {wu.map(([w, r], i) => (
             <div key={i} className="row num" style={{ padding: '3px 0' }}>
               <span className="sub" style={{ margin: 0 }}>{fmtLoad(w, t.unit)}</span>
@@ -137,7 +137,7 @@ export function LogScreen() {
                 <span className="seg" style={{ padding: 2 }}>
                   {(['lb', 'kg'] as const).map((u) => (
                     <button key={u} className={t.unit === u ? 'sel' : ''}
-                      style={{ fontSize: 11, padding: '3px 10px', flex: 'none' }}
+                      style={{ fontSize: 12, padding: '3px 10px', flex: 'none' }}
                       onClick={() => setUnit(u)}>{u}</button>
                   ))}
                 </span>

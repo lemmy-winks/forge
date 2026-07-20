@@ -6,7 +6,7 @@ import { Back, Chip, Loading, Shell, Title, useApp } from '../ui';
 
 function Dots({ n }: { n: number }) {
   return (
-    <span style={{ letterSpacing: 2, color: 'var(--volt)', fontSize: 10 }}>
+    <span style={{ letterSpacing: 2, color: 'var(--volt)', fontSize: 11 }}>
       {'●'.repeat(n)}<i style={{ color: 'var(--dim)', fontStyle: 'normal' }}>{'○'.repeat(3 - n)}</i>
     </span>
   );
@@ -45,7 +45,7 @@ export function LearnScreen() {
                 style={{ width: '50%', minWidth: 0, borderRadius: 10, display: 'block' }} />
             ))}
           </div>
-          <div className="sub" style={{ textAlign: 'center', margin: '6px 0 2px', fontSize: 10.5 }}>
+          <div className="sub" style={{ textAlign: 'center', margin: '6px 0 2px', fontSize: 11.5 }}>
             Start → end · free-exercise-db (public domain)
           </div>
         </div>
@@ -55,11 +55,11 @@ export function LearnScreen() {
       {/* 3 — explanation: why + how */}
       {e.benefit && (
         <div className="card">
-          <div className="kick" style={{ fontSize: 10, marginBottom: 5 }}>Why it's in the library</div>
-          <p style={{ fontSize: 13, lineHeight: 1.55 }}>{e.benefit}</p>
+          <div className="kick" style={{ fontSize: 11, marginBottom: 5 }}>Why it's in the library</div>
+          <p style={{ fontSize: 14, lineHeight: 1.55 }}>{e.benefit}</p>
         </div>
       )}
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: 12.5 }}>
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: 13.5 }}>
         {e.cues.map((c, i) => (
           <div key={i} style={{ display: 'flex', gap: 9 }}>
             <b style={{ color: 'var(--volt)' }}>{i + 1}</b><span>{c}</span>
@@ -73,7 +73,7 @@ export function LearnScreen() {
       </div>
       {/* 4 — muscles worked */}
       <div className="card">
-        <div className="kick" style={{ fontSize: 10, marginBottom: 8 }}>Muscles worked</div>
+        <div className="kick" style={{ fontSize: 11, marginBottom: 8 }}>Muscles worked</div>
         <MuscleMap primary={e.primary_muscles} secondary={e.secondary_muscles} />
         {e.primary_muscles.map((m) => <div key={m} className="mrow"><span>{m}</span><Dots n={3} /></div>)}
         {e.secondary_muscles.map((m) => <div key={m} className="mrow"><span>{m}</span><Dots n={1} /></div>)}
@@ -81,7 +81,7 @@ export function LearnScreen() {
       {/* 5 — good alternatives */}
       {alts.length > 0 && (
         <div>
-          <div className="kick" style={{ fontSize: 10, margin: '4px 2px 2px' }}>Good alternatives</div>
+          <div className="kick" style={{ fontSize: 11, margin: '4px 2px 2px' }}>Good alternatives</div>
           {alts.map((a) => (
             <button key={a.slug} className="lrow press"
               onClick={() => go('learn', { learnSlug: a.slug, learnFrom })}>

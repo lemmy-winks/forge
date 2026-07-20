@@ -161,8 +161,8 @@ function Panel({ title, sub, children, wide }: {
   return (
     <section className={'panel' + (wide ? ' wide' : '')}>
       <div className="row">
-        <span className="xname" style={{ fontSize: 13 }}>{title}</span>
-        {sub && <span style={{ fontSize: 10.5, color: 'var(--mut)' }}>{sub}</span>}
+        <span className="xname" style={{ fontSize: 15 }}>{title}</span>
+        {sub && <span style={{ fontSize: 12.5, color: 'var(--mut)' }}>{sub}</span>}
       </div>
       {children}
     </section>
@@ -195,7 +195,7 @@ function DashInner() {
     <div className="dash">
       <header className="dash-hdr">
         <span className="wm">FORGE<i>.</i></span>
-        <span className="kick" style={{ fontSize: 12 }}>{d.name} · Dashboard</span>
+        <span className="kick" style={{ fontSize: 14 }}>{d.name} · Dashboard</span>
         <span className="sp" />
         <a href="/" className="back" style={{ alignSelf: 'center' }}>‹ App</a>
       </header>

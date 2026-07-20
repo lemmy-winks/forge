@@ -66,7 +66,7 @@ export function DeniedScreen({ email }: { email: string }) {
         <h2 className="title" style={{ marginTop: 6 }}>Not on the list</h2>
       </div>
       <div className="card" style={{ textAlign: 'left' }}>
-        <p style={{ fontSize: 13, lineHeight: 1.5 }}>
+        <p style={{ fontSize: 14, lineHeight: 1.5 }}>
           This Forge is private — your Google account verified fine, it just isn't allowed here.
           Ask the admin to add you to ALLOWED_USERS.
         </p>

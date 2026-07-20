@@ -207,8 +207,8 @@ export function ProgressScreen() {
           </div>
           <div className="card">
             <div className="row">
-              <span style={{ fontSize: 12.5, fontWeight: 600 }}>{cur.name} · est. 1RM</span>
-              <span style={{ fontSize: 10.5, color: 'var(--mut)' }}>{liftU}</span>
+              <span style={{ fontSize: 13.5, fontWeight: 600 }}>{cur.name} · est. 1RM</span>
+              <span style={{ fontSize: 11.5, color: 'var(--mut)' }}>{liftU}</span>
             </div>
             {cur.points.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '2px 0 4px' }}>
@@ -241,8 +241,8 @@ export function ProgressScreen() {
       {(bc.fat_pct.length > 0 || bc.muscle.length > 0) && (
         <div className="card num">
           <div className="row">
-            <span style={{ fontSize: 12.5, fontWeight: 600 }}>Body composition</span>
-            <span style={{ fontSize: 10.5, color: 'var(--mut)' }}>scale readings</span>
+            <span style={{ fontSize: 13.5, fontWeight: 600 }}>Body composition</span>
+            <span style={{ fontSize: 11.5, color: 'var(--mut)' }}>scale readings</span>
           </div>
           <div className="row" style={{ marginTop: 6 }}>
             {([['Fat', last(bc.fat_pct), '%'],
@@ -263,8 +263,8 @@ export function ProgressScreen() {
       )}
       <div className="card">
         <div className="row">
-          <span style={{ fontSize: 12.5, fontWeight: 600 }}>VO₂max · raw + trend</span>
-          <span style={{ fontSize: 10.5, color: 'var(--mut)' }}>
+          <span style={{ fontSize: 13.5, fontWeight: 600 }}>VO₂max · raw + trend</span>
+          <span style={{ fontSize: 11.5, color: 'var(--mut)' }}>
             {vLast != null ? 'ml/kg/min' : ''}</span>
         </div>
         <DotTrendChart raw={p.vo2max} smooth={p.vo2max_smooth} />
@@ -301,7 +301,7 @@ export function RecordsScreen() {
         return (
           <div key={slug} className="lrow num"><b>{g.name}</b>
             <span className="rsub">
-              {g.e1rm && <><span style={{ color: 'var(--ink)', fontSize: 13 }}>{fmtLoad(g.e1rm.value, u)} e1RM</span> · {g.e1rm.achieved_on}</>}
+              {g.e1rm && <><span style={{ color: 'var(--ink)', fontSize: 14 }}>{fmtLoad(g.e1rm.value, u)} e1RM</span> · {g.e1rm.achieved_on}</>}
               {g.best_set && <><br />best set {fmtLoad(g.best_set.value, u)} × {g.best_set.detail.split('×')[1]?.trim() || '?'}</>}
               {g.e1rm && <><br /><span style={{ color: 'var(--volt)' }}>next: {milestone(kgToDisp(g.e1rm.value, u))} {u}</span></>}
             </span></div>

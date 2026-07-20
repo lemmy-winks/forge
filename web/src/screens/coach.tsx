@@ -34,17 +34,17 @@ function ProposalCard({ onChanges }: { onChanges: () => void }) {
 
   return (
     <div className="card">
-      <div className="kick" style={{ fontSize: 10 }}>
+      <div className="kick" style={{ fontSize: 11 }}>
         Proposed {proposedOn.toLocaleDateString(undefined, { weekday: 'short' })} {proposedOn.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
         {' · '}plan revision #{p.num} · awaiting your OK
       </div>
-      <p style={{ fontSize: 13.5, lineHeight: 1.5, margin: '6px 0 8px' }}>{p.rationale}</p>
+      <p style={{ fontSize: 14.5, lineHeight: 1.5, margin: '6px 0 8px' }}>{p.rationale}</p>
       {changes.map((c, i) => (
-        <div key={i} style={{ display: 'flex', gap: 9, padding: '4px 0', fontSize: 13 }} className="num">
+        <div key={i} style={{ display: 'flex', gap: 9, padding: '4px 0', fontSize: 14 }} className="num">
           <b style={{ color: signColor(c.sign), width: 12, flex: 'none', textAlign: 'center' }}>{c.sign}</b>
           <span>
             <b>{c.what}</b>
-            {c.why && <span style={{ display: 'block', fontSize: 11.5, color: 'var(--mut)' }}>{c.why}</span>}
+            {c.why && <span style={{ display: 'block', fontSize: 12.5, color: 'var(--mut)' }}>{c.why}</span>}
           </span>
         </div>
       ))}
@@ -52,7 +52,7 @@ function ProposalCard({ onChanges }: { onChanges: () => void }) {
         {days.map(([k, day]) => (
           <div key={k} style={{ borderTop: '1px solid var(--hair)', padding: '6px 0' }}>
             <div className="row">
-              <span style={{ fontSize: 13.5, fontWeight: 600 }}>{DAY_NAMES[+k]} · {day.name}</span>
+              <span style={{ fontSize: 14.5, fontWeight: 600 }}>{DAY_NAMES[+k]} · {day.name}</span>
               <span className="fchips">{(day.focus || []).map((f) => <span key={f} className="fchip">{f}</span>)}</span>
             </div>
             <div className="sub num" style={{ margin: 0 }}>{dayLine(day)}</div>
@@ -169,7 +169,7 @@ export function CoachScreen() {
       <div className="scroll" ref={scrollRef}>
         <div className="row" style={{ alignItems: 'center' }}>
           <Title kick="Weekly review · Sun 20:00 · chat anytime">Coach</Title>
-          <button className="ghost press" style={{ width: 'auto', padding: '7px 12px', fontSize: 11.5 }}
+          <button className="ghost press" style={{ width: 'auto', padding: '7px 12px', fontSize: 12.5 }}
             disabled={reviewing} onClick={runReview}>{reviewing ? 'Reviewing…' : 'Run review'}</button>
         </div>
         <ProposalCard onChanges={() => {
