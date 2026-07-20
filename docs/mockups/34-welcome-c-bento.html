@@ -141,7 +141,7 @@
 (() => {
   const W = 460, H = 90, n = 60, v = [];
   for (let i = 0; i < n; i++) { const t = i / (n - 1);
-    v.push(78 + 34 * t - 6 * Math.exp(-((t - .62) * 9) ** 2) + 1.6 * Math.sin(i * 1.7)); }
+    v.push(78 + 34 * t - 6 * Math.exp(-(((t - .62) * 9) ** 2)) + 1.6 * Math.sin(i * 1.7)); }
   const X = i => 4 + (W - 8) * i / (n - 1), Y = q => 6 + (H - 12) * (1 - (q - 70) / 50);
   document.getElementById('e1rm').innerHTML =
     `<path d="${v.map((q, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(q).toFixed(1)}`).join('')} L${X(n-1)},${H} L${X(0)},${H} Z"

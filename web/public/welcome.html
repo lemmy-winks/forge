@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#060708">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
 <title>Forge — an agent-coached training log</title>
 <meta name="description" content="Your own strength & conditioning coach: an agent that reads your real training data and proposes your week. Self-hosted, private, two seats.">
 <style>
@@ -176,7 +177,7 @@
 (() => { // a year of squat e1RM with a deload dip
   const W = 240, H = 130, PL = 30, PR = 10, PT = 12, PB = 16, n = 40, v = [];
   for (let i = 0; i < n; i++) { const t = i / (n - 1);
-    v.push(78 + 34 * t - 6 * Math.exp(-((t - .62) * 9) ** 2) + 1.6 * Math.sin(i * 1.7)); }
+    v.push(78 + 34 * t - 6 * Math.exp(-(((t - .62) * 9) ** 2)) + 1.6 * Math.sin(i * 1.7)); }
   const X = i => PL + (W - PL - PR) * i / (n - 1), Y = q => PT + (H - PT - PB) * (1 - (q - 70) / 50);
   document.getElementById('e1rm').innerHTML =
     `<line x1="${PL}" x2="${W - PR}" y1="${Y(80)}" y2="${Y(80)}" stroke="var(--hair)"/>

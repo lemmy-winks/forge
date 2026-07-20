@@ -263,7 +263,7 @@ export function DayScreen() {
               <div className="xname">Plan for today</div>
               <div className="sub num" style={{ marginTop: 4 }}>
                 {exercises.filter((e) => !e.dropped).length} exercises · {exercises.reduce((x, e) => x + e.sets, 0)} sets
-                {' · '}<b style={{ color: 'var(--volt)' }}>~{t.est} min</b>
+                {' · '}<b style={{ color: 'var(--volt)', whiteSpace: 'nowrap' }}>~{t.est} min</b>
               </div>
               <div className="fpills" style={{ marginTop: 8 }}>
                 {(t.focus || []).map((f) => <span key={f} className="fpill">{f}</span>)}
@@ -295,7 +295,11 @@ export function DayScreen() {
                   {done ? '✓ done' : e.dropped ? 'not today' : `${e.sets}×${e.reps}${e.weight ? ` · ${fmtLoad(e.weight, u)}` : ''}`}
                 </span></div>
               <div className="sub num">
-                {e.last ? `Last: ${fmtLoad(e.last.weight, u)} × ${e.last.reps.join('/')}` : 'First time — be conservative'}
+                {e.last
+                  ? e.last.weight
+                    ? `Last: ${fmtLoad(e.last.weight, u)} × ${e.last.reps.join('/')}`
+                    : `Last: ${e.last.reps.join('/')} reps`
+                  : 'First time — be conservative'}
                 {' · '}<span style={{ color: 'var(--volt)' }}>form ▶</span>
               </div>
             </div>

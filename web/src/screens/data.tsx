@@ -197,14 +197,18 @@ function ZoneBars({ z }: { z: NonNullable<SessionDetail['zones']> }) {
   return (
     <div className="card num">
       <div className="row"><span className="xname">Zones</span>
-        <span className="target">max {z.hr_max}{z.estimated ? ' est' : ''} bpm</span></div>
+        <span className="target num">max {z.estimated ? '≈' : ''}{z.hr_max} bpm</span></div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 8 }}>
         {z.zones.map((r) => (
           <div key={r.zone} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span className="sub" style={{ width: 62, margin: 0 }}>Z{r.zone} {r.high ? `${r.low}–${r.high}` : `${r.low}+`}</span>
+            <span className="sub" style={{ width: 86, margin: 0, whiteSpace: 'nowrap' }}>
+              Z{r.zone} {r.zone === 1 ? `<${r.high}` : r.high ? `${r.low}–${r.high}` : `${r.low}+`}
+            </span>
             <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--sunken)' }}>
-              <div style={{ width: `${Math.max(2, (100 * r.min) / total)}%`, height: 8, borderRadius: 4,
-                background: 'var(--volt)', opacity: ZONE_ALPHA[r.zone - 1] }} />
+              {r.min > 0 && (
+                <div style={{ width: `${Math.max(2, (100 * r.min) / total)}%`, height: 8, borderRadius: 4,
+                  background: 'var(--volt)', opacity: ZONE_ALPHA[r.zone - 1] }} />
+              )}
             </div>
             <span className="sub" style={{ width: 44, textAlign: 'right', margin: 0 }}>{r.min ? `${r.min}m` : '—'}</span>
           </div>
@@ -307,8 +311,10 @@ export function ProgressScreen() {
         <div className="ringwrap num">
           <svg viewBox="0 0 64 64">
             <circle cx="32" cy="32" r="27" fill="none" stroke="var(--sunken)" strokeWidth="7" />
-            <circle cx="32" cy="32" r="27" fill="none" stroke="var(--volt)" strokeWidth="7"
-              strokeLinecap="round" strokeDasharray={`${C * ringPct} ${C}`} transform="rotate(-90 32 32)" />
+            {ringPct > 0 && (
+              <circle cx="32" cy="32" r="27" fill="none" stroke="var(--volt)" strokeWidth="7"
+                strokeLinecap="round" strokeDasharray={`${C * ringPct} ${C}`} transform="rotate(-90 32 32)" />
+            )}
           </svg>
           <div className="t"><b>{p.week.done}/{p.week.planned}</b><span>done</span></div>
         </div>
