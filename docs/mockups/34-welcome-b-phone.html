@@ -3,23 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#060708">
-<title>Forge — an agent-coached training log</title>
-<meta name="description" content="Your own strength & conditioning coach: an agent that reads your real training data and proposes your week. Self-hosted, private, two seats.">
+<title>Welcome option B — phone-first hero</title>
 <style>
   :root{ --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
          --ink:#edeef0; --mut:#8b9096; --dim:#565b61;
          --volt:#c9f73a; --on-volt:#131602; --volt-dim:rgba(201,247,58,.12); --warn:#e8a360; }
   *{ box-sizing:border-box; margin:0; }
-  body{ background:var(--bg); color:var(--ink); font:16px/1.55 -apple-system,"SF Pro Text",Inter,system-ui,sans-serif; }
+  body{ background:var(--bg); color:var(--ink); font:16px/1.55 -apple-system,Inter,system-ui,sans-serif; }
   .wrap{ max-width:980px; margin:0 auto; padding:0 20px; }
   .num{ font-variant-numeric:tabular-nums; }
   .wordmark{ font-size:14px; font-weight:800; letter-spacing:.34em; }
   .wordmark i{ color:var(--volt); font-style:normal; }
 
-  /* hero: copy left, phone right */
-  .hero{ display:grid; grid-template-columns:1.1fr .9fr; gap:40px; align-items:center; padding:64px 0 48px; }
-  @media (max-width:760px){ .hero{ grid-template-columns:1fr; text-align:center; padding-top:44px; }
+  .hero{ display:grid; grid-template-columns:1.1fr .9fr; gap:40px; align-items:center; padding:64px 0 40px; }
+  @media (max-width:760px){ .hero{ grid-template-columns:1fr; text-align:center; }
     .phone{ margin:0 auto; } }
   h1{ font-size:clamp(30px,5vw,46px); line-height:1.1; letter-spacing:-.02em; margin:22px 0 14px; }
   h1 em{ color:var(--volt); font-style:normal; }
@@ -27,15 +24,11 @@
   @media (max-width:760px){ .lede{ margin:0 auto 26px; } }
   .cta{ display:inline-block; background:var(--volt); color:var(--on-volt); font-weight:700;
         border-radius:999px; padding:14px 32px; text-decoration:none; }
-  .cta:active{ transform:scale(.98); }
-  .ghostbtn{ display:inline-block; color:var(--ink); border:1px solid var(--hair); border-radius:999px;
-             padding:13px 26px; text-decoration:none; margin-left:10px; font-size:15px; }
-  .badges{ display:flex; gap:10px; margin-top:30px; flex-wrap:wrap; }
-  @media (max-width:760px){ .badges{ justify-content:center; } }
-  .badge{ display:flex; align-items:center; gap:8px; background:var(--raised); border-radius:999px;
-          padding:8px 15px; font-size:13px; color:var(--mut); }
-  .badge b{ color:var(--ink); font-weight:600; }
-  .dot{ width:8px; height:8px; border-radius:50%; }
+  .ghost{ display:inline-block; color:var(--ink); border:1px solid var(--hair); border-radius:999px;
+          padding:13px 26px; text-decoration:none; margin-left:10px; font-size:15px; }
+  .logos{ display:flex; gap:18px; margin-top:30px; color:var(--dim); font-size:13px; align-items:center; flex-wrap:wrap; }
+  @media (max-width:760px){ .logos{ justify-content:center; } }
+  .logos b{ color:var(--mut); font-weight:600; }
 
   /* CSS-drawn phone running the Today screen */
   .phone{ width:290px; background:var(--bg); border:1px solid #23262b; border-radius:38px;
@@ -52,33 +45,17 @@
   .plate{ width:7px; background:var(--volt); border-radius:2px; opacity:.85; }
   .p-tag{ color:var(--volt); }
 
-  /* feature tiles */
   .band{ border-top:1px solid var(--hair); padding:46px 0; }
-  .tiles3{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
-  @media (max-width:760px){ .tiles3{ grid-template-columns:1fr; } }
+  .band .wrap{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  @media (max-width:760px){ .band .wrap{ grid-template-columns:1fr; } }
   .f{ background:var(--raised); border-radius:18px; padding:18px; }
   .f h3{ font-size:16px; margin-bottom:5px; }
   .f p{ color:var(--mut); font-size:13.5px; }
   .f .viz{ background:var(--sunken); border-radius:12px; margin-top:12px; padding:10px; }
   svg{ display:block; width:100%; }
-  .chg{ display:flex; justify-content:space-between; gap:8px; padding:6px 0; font-size:12.5px;
-        color:var(--mut); border-bottom:1px solid var(--hair); }
-  .chg:last-child{ border-bottom:none; }
-  .chg .s{ color:var(--volt); }
-  .chg .w{ flex:1; color:var(--ink); }
-
-  /* library strip */
-  .libband{ border-top:1px solid var(--hair); padding:40px 0; }
-  .libband .head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; }
-  .libband h3{ font-size:16px; }
-  .libband .sub{ color:var(--mut); font-size:13.5px; }
-  .strip{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
-  .strip figure{ background:#fff; border-radius:12px; overflow:hidden; aspect-ratio:1.3; }
-  .strip img{ width:100%; height:100%; object-fit:cover; display:block; }
-  @media (max-width:520px){ .strip{ grid-template-columns:repeat(2,1fr); } }
-
+  .strip{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:12px; }
+  .strip div{ aspect-ratio:1.4; border-radius:10px; background:#e8e6e1 center/cover; }
   footer{ text-align:center; padding:56px 0 76px; border-top:1px solid var(--hair); }
-  footer h2{ font-size:26px; letter-spacing:-.01em; }
   .fine{ color:var(--dim); font-size:13px; margin-top:12px; }
 </style>
 </head>
@@ -90,15 +67,11 @@
     <h1>Show up.<br>The plan is <em>already written</em>.</h1>
     <p class="lede">An agent coach that reads your Watch runs, weigh-ins and every logged set —
     then proposes next week and waits for your approval.</p>
-    <div><a class="cta" href="/">Open Forge</a><a class="ghostbtn" href="/">Try the demo</a></div>
-    <div class="badges">
-      <span class="badge"><span class="dot" style="background:#ff375f"></span><b>Apple Health</b></span>
-      <span class="badge"><span class="dot" style="background:#4cc2ff"></span><b>Withings</b></span>
-      <span class="badge"><span class="dot" style="background:var(--volt)"></span><b>Claude</b>&nbsp;coach</span>
-    </div>
+    <div><a class="cta" href="/">Open Forge</a><a class="ghost" href="/">Try the demo</a></div>
+    <div class="logos">Works with <b>Apple Health</b> · <b>Withings</b> · coached by <b>Claude</b></div>
   </div>
 
-  <div class="phone num" role="img" aria-label="Forge's Today screen showing a planned lower-body session">
+  <div class="phone num">
     <div class="p-kick">Today · Wednesday</div>
     <div class="p-h">Lower A</div>
     <div class="p-card">
@@ -110,8 +83,12 @@
         <span class="p-sub" style="margin:0 0 1px 6px">20 + 8.75 per side</span>
       </div>
     </div>
-    <div class="p-card"><div class="p-row"><b>Romanian Deadlift</b><span class="p-sub">3×10 @ 60 kg</span></div></div>
-    <div class="p-card"><div class="p-row"><b>Split Squat</b><span class="p-sub">2×12 · droppable</span></div></div>
+    <div class="p-card">
+      <div class="p-row"><b>Romanian Deadlift</b><span class="p-sub">3×10 @ 60 kg</span></div>
+    </div>
+    <div class="p-card">
+      <div class="p-row"><b>Split Squat</b><span class="p-sub">2×12 · droppable</span></div>
+    </div>
     <div class="p-card">
       <div class="p-row"><b>Cool-down</b><span class="p-sub">5 min · couch stretch</span></div>
       <div class="p-sub" style="color:var(--warn)">knee niggle — added by your coach</div>
@@ -120,45 +97,34 @@
   </div>
 </div>
 
-<div class="band"><div class="wrap tiles3">
+<div class="band"><div class="wrap">
   <div class="f"><h3>Runs sync themselves</h3>
-    <p>Route, HR curve, time in zone — matched to the plan automatically. GPS never leaves your server.</p>
-    <div class="viz num"><svg id="route" viewBox="0 0 240 130" role="img" aria-label="Run route trace"></svg></div>
+    <p>Route, HR curve, zones — matched to the plan automatically.</p>
+    <div class="viz num"><svg id="route" viewBox="0 0 240 130"></svg></div>
   </div>
   <div class="f"><h3>A coach with receipts</h3>
-    <p>Every proposal cites your real numbers, change by change. You approve; nothing applies itself.</p>
-    <div class="viz num">
-      <div class="chg"><span class="s">+</span><span class="w">Back Squat +2.5 kg</span><span>clean ×2 wks</span></div>
-      <div class="chg"><span class="s">~</span><span class="w">Zone 2 → 50 min</span><span>drift down</span></div>
-      <div class="chg"><span class="s">~</span><span class="w">Bench holds</span><span>rebuild 3×8</span></div>
+    <p>Every proposal cites your real numbers, change by change.</p>
+    <div class="viz num" style="font-size:12.5px; color:var(--mut)">
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--hair)"><span style="color:var(--volt)">+</span><span style="flex:1;margin-left:8px;color:var(--ink)">Back Squat +2.5 kg</span><span>clean ×2 wks</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--hair)"><span style="color:var(--volt)">~</span><span style="flex:1;margin-left:8px;color:var(--ink)">Zone 2 → 50 min</span><span>drift down</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--volt)">~</span><span style="flex:1;margin-left:8px;color:var(--ink)">Bench holds</span><span>rebuild 3×8</span></div>
     </div>
   </div>
   <div class="f"><h3>Progress you can see</h3>
-    <p>e1RM per lift, bodyweight vs goal, VO₂max trend, weekly zone minutes — from what you actually did.</p>
-    <div class="viz num"><svg id="e1rm" viewBox="0 0 240 130" role="img" aria-label="Back squat e1RM trend"></svg></div>
-  </div>
-</div></div>
-
-<div class="libband"><div class="wrap">
-  <div class="head"><h3>A curated exercise library</h3>
-    <span class="sub">form photos & cues for every prescribed movement</span></div>
-  <div class="strip">
-    <figure><img src="/media/exercises/back-squat-0.jpg" alt="Back squat, start position" loading="lazy"></figure>
-    <figure><img src="/media/exercises/back-squat-1.jpg" alt="Back squat, bottom position" loading="lazy"></figure>
-    <figure><img src="/media/exercises/barbell-curl-0.jpg" alt="Barbell curl, start position" loading="lazy"></figure>
-    <figure><img src="/media/exercises/barbell-curl-1.jpg" alt="Barbell curl, top position" loading="lazy"></figure>
+    <p>e1RM per lift, bodyweight vs goal, VO₂max trend, zone minutes.</p>
+    <div class="viz num"><svg id="e1rm" viewBox="0 0 240 130"></svg></div>
   </div>
 </div></div>
 
 <footer class="wrap">
-  <h2>Your data never leaves your house.</h2>
-  <p class="lede" style="margin:10px auto 22px">Self-hosted, two seats, zero analytics, zero cloud.</p>
+  <h1 style="font-size:26px">Your data never leaves your house.</h1>
+  <p class="lede" style="margin:10px auto 22px">Self-hosted, two seats, zero analytics.</p>
   <a class="cta" href="/">Open Forge</a>
   <div class="fine">New here without an account? The demo is one tap on the sign-in screen.</div>
 </footer>
 
 <script>
-(() => { // route trace — same loop generator as the app's demo runs
+(() => {
   const r = 7.2 / (2 * Math.PI), pts = [];
   for (let i = 0; i <= 200; i++) { const a = 2 * Math.PI * i / 200;
     const w = 1 + .16 * Math.sin(3 * a) + .05 * Math.sin(7 * a + 1.3);
@@ -173,7 +139,7 @@
       fill="none" stroke="var(--volt)" stroke-width="2" stroke-linejoin="round"/>
      <circle cx="${path[0][0]}" cy="${path[0][1]}" r="3.5" fill="var(--volt)"/>`;
 })();
-(() => { // a year of squat e1RM with a deload dip
+(() => {
   const W = 240, H = 130, PL = 30, PR = 10, PT = 12, PB = 16, n = 40, v = [];
   for (let i = 0; i < n; i++) { const t = i / (n - 1);
     v.push(78 + 34 * t - 6 * Math.exp(-((t - .62) * 9) ** 2) + 1.6 * Math.sin(i * 1.7)); }
@@ -181,12 +147,9 @@
   document.getElementById('e1rm').innerHTML =
     `<line x1="${PL}" x2="${W - PR}" y1="${Y(80)}" y2="${Y(80)}" stroke="var(--hair)"/>
      <line x1="${PL}" x2="${W - PR}" y1="${Y(110)}" y2="${Y(110)}" stroke="var(--hair)"/>
-     <text x="${PL - 5}" y="${Y(80) + 3}" text-anchor="end" font-size="9" fill="var(--mut)">80</text>
-     <text x="${PL - 5}" y="${Y(110) + 3}" text-anchor="end" font-size="9" fill="var(--mut)">110</text>
      <path d="${v.map((q, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(q).toFixed(1)}`).join('')}"
        fill="none" stroke="var(--volt)" stroke-width="2"/>
-     <circle cx="${X(n - 1)}" cy="${Y(v[n - 1])}" r="3.5" fill="var(--volt)"/>
-     <text x="${X(n - 1) - 8}" y="${Y(v[n - 1]) - 9}" text-anchor="end" font-size="10" fill="var(--ink)">e1RM 112 kg</text>`;
+     <circle cx="${X(n - 1)}" cy="${Y(v[n - 1])}" r="3.5" fill="var(--volt)"/>`;
 })();
 </script>
 </body>

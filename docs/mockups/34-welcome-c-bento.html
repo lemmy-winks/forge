@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welcome option C — bento grid</title>
+<style>
+  :root{ --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
+         --ink:#edeef0; --mut:#8b9096; --dim:#565b61;
+         --volt:#c9f73a; --on-volt:#131602; --volt-dim:rgba(201,247,58,.12); }
+  *{ box-sizing:border-box; margin:0; }
+  body{ background:var(--bg); color:var(--ink); font:16px/1.5 -apple-system,Inter,system-ui,sans-serif;
+        padding:26px 16px 60px; }
+  .num{ font-variant-numeric:tabular-nums; }
+  .grid{ max-width:1020px; margin:0 auto; display:grid; gap:12px;
+         grid-template-columns:repeat(4,1fr); grid-auto-rows:150px; }
+  @media (max-width:860px){ .grid{ grid-template-columns:repeat(2,1fr); } }
+  .t{ background:var(--raised); border-radius:22px; padding:20px; overflow:hidden; position:relative;
+      display:flex; flex-direction:column; }
+  .t h3{ font-size:15.5px; margin-bottom:3px; }
+  .t p{ color:var(--mut); font-size:13px; }
+  .kick{ color:var(--volt); font-size:10.5px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; margin-bottom:6px; }
+
+  .hero{ grid-column:span 2; grid-row:span 2; justify-content:space-between; }
+  .wordmark{ font-size:13px; font-weight:800; letter-spacing:.34em; }
+  .wordmark i{ color:var(--volt); font-style:normal; }
+  .hero h1{ font-size:clamp(24px,3.4vw,34px); line-height:1.12; letter-spacing:-.02em; margin:10px 0; }
+  .hero h1 em{ color:var(--volt); font-style:normal; }
+  .hero p{ font-size:14.5px; max-width:340px; }
+  .cta{ align-self:flex-start; background:var(--volt); color:var(--on-volt); font-weight:700;
+        border-radius:999px; padding:12px 28px; text-decoration:none; font-size:15px; }
+
+  .route{ grid-row:span 2; }
+  .route svg{ flex:1; min-height:0; }
+  .chat{ grid-column:span 1; grid-row:span 2; }
+  .msg{ border-radius:12px; padding:8px 11px; font-size:12px; margin-top:7px; }
+  .msg.me{ background:var(--volt-dim); margin-left:16px; }
+  .msg.coach{ background:var(--sunken); }
+  .msg b{ color:var(--volt); }
+
+  .stat{ background:var(--sunken); }
+  .stat .v{ font-size:30px; font-weight:650; letter-spacing:-.01em; margin-top:auto; }
+  .stat .v span{ font-size:14px; color:var(--mut); font-weight:400; }
+  .up{ color:var(--volt); }
+
+  .chart{ grid-column:span 2; }
+  .chart svg{ flex:1; min-height:0; }
+  .photo{ padding:0; background:#e8e6e1; }
+  .photo img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .zones .zrow{ display:flex; align-items:center; gap:7px; font-size:11px; color:var(--mut); margin-top:6px; }
+  .zlab{ width:56px; }
+  .ztrack{ flex:1; height:6px; border-radius:3px; background:var(--bg); }
+  .zfill{ height:6px; border-radius:3px; background:var(--volt); }
+  .logos{ display:flex; flex-wrap:wrap; gap:8px; margin-top:auto; }
+  .logos span{ background:var(--bg); border-radius:999px; padding:6px 13px; font-size:12px; color:var(--mut); }
+  .logos b{ color:var(--ink); font-weight:600; }
+  .priv{ background:linear-gradient(140deg, var(--raised), #17200a); }
+  footer{ text-align:center; margin-top:26px; color:var(--dim); font-size:13px; }
+  footer a{ color:var(--volt); }
+</style>
+</head>
+<body>
+
+<div class="grid">
+  <div class="t hero">
+    <span class="wordmark">FORGE<i>.</i></span>
+    <div>
+      <h1>An agent coach with <em>your whole training log</em> in its head.</h1>
+      <p>Data in from Apple Health & Withings. A proposed week out every Sunday. You approve; you train.</p>
+    </div>
+    <a class="cta" href="/">Open Forge →</a>
+  </div>
+
+  <div class="t route num">
+    <div class="kick">Watch sync</div>
+    <h3>This morning's 7.2 km</h3>
+    <svg id="route" viewBox="0 0 210 210" preserveAspectRatio="xMidYMid meet"></svg>
+    <p>86% in zone · route stays on your server</p>
+  </div>
+
+  <div class="t chat">
+    <div class="kick">Coach chat</div>
+    <div class="msg me num">Knee's niggling again.</div>
+    <div class="msg coach num">Logged. I'll pull deep lunges and add the couch stretch to
+    your cool-downs until it clears.</div>
+    <div class="msg coach num">Squat still moves — <b>+2.5 kg</b> next week was earned.</div>
+  </div>
+
+  <div class="t stat num">
+    <div class="kick">Zone 2 this week</div>
+    <div class="v">86<span> / 90 min</span></div>
+  </div>
+
+  <div class="t photo"><img src="../../web/public/media/exercises/back-squat-1.jpg" alt="Back squat"></div>
+
+  <div class="t chart num">
+    <div class="kick">12 months</div>
+    <h3>Back squat e1RM <span class="up" style="font-size:13px">78 → 112 kg</span></h3>
+    <svg id="e1rm" viewBox="0 0 460 90" preserveAspectRatio="none"></svg>
+  </div>
+
+  <div class="t zones">
+    <div class="kick">Run detail</div>
+    <h3>Time in zone</h3>
+    <div class="zrow"><span class="zlab">Z2 114–133</span><div class="ztrack"><div class="zfill" style="width:86%;opacity:.5"></div></div><span>24m</span></div>
+    <div class="zrow"><span class="zlab">Z3 133–152</span><div class="ztrack"><div class="zfill" style="width:51%;opacity:.7"></div></div><span>14m</span></div>
+    <div class="zrow"><span class="zlab">Z4 152–171</span><div class="ztrack"><div class="zfill" style="width:4%"></div></div><span>0.5m</span></div>
+  </div>
+
+  <div class="t">
+    <div class="kick">Sources</div>
+    <h3>Plugged into your life</h3>
+    <div class="logos"><span><b>Apple Health</b></span><span><b>Withings</b></span><span><b>Claude</b> coach</span><span><b>PWA</b> offline</span></div>
+  </div>
+
+  <div class="t priv">
+    <div class="kick">Private</div>
+    <h3>Self-hosted. Two seats. Zero cloud.</h3>
+    <p style="margin-top:auto">Your GPS, your labs, your bodyweight — on your hardware, nowhere else.</p>
+  </div>
+</div>
+
+<footer>No account? <a href="/">Try the demo</a> — a year of Bruce Willis's training, live coach included.</footer>
+
+<script>
+(() => {
+  const r = 7.2 / (2 * Math.PI), pts = [];
+  for (let i = 0; i <= 200; i++) { const a = 2 * Math.PI * i / 200;
+    const w = 1 + .16 * Math.sin(3 * a) + .05 * Math.sin(7 * a + 1.3);
+    pts.push([(r * w * 1.35 / 111) * Math.cos(a), -(r * w / 111) * Math.sin(a)]); }
+  const W = 210, H = 210, P = 12, xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const sx = Math.max(...xs) - Math.min(...xs), sy = Math.max(...ys) - Math.min(...ys);
+  const sc = Math.min((W - 2 * P) / sx, (H - 2 * P) / sy);
+  const path = pts.map(([x, y]) => [P + (x - Math.min(...xs)) * sc + (W - 2 * P - sx * sc) / 2,
+                                    P + (y - Math.min(...ys)) * sc + (H - 2 * P - sy * sc) / 2]);
+  document.getElementById('route').innerHTML =
+    `<path d="${path.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join('')}"
+      fill="none" stroke="var(--volt)" stroke-width="2.5" stroke-linejoin="round"/>
+     <circle cx="${path[0][0]}" cy="${path[0][1]}" r="4.5" fill="var(--volt)"/>`;
+})();
+(() => {
+  const W = 460, H = 90, n = 60, v = [];
+  for (let i = 0; i < n; i++) { const t = i / (n - 1);
+    v.push(78 + 34 * t - 6 * Math.exp(-((t - .62) * 9) ** 2) + 1.6 * Math.sin(i * 1.7)); }
+  const X = i => 4 + (W - 8) * i / (n - 1), Y = q => 6 + (H - 12) * (1 - (q - 70) / 50);
+  document.getElementById('e1rm').innerHTML =
+    `<path d="${v.map((q, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(q).toFixed(1)}`).join('')} L${X(n-1)},${H} L${X(0)},${H} Z"
+       fill="var(--volt-dim)" stroke="none"/>
+     <path d="${v.map((q, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(q).toFixed(1)}`).join('')}"
+       fill="none" stroke="var(--volt)" stroke-width="2"/>
+     <circle cx="${X(n - 1)}" cy="${Y(v[n - 1])}" r="4" fill="var(--volt)"/>`;
+})();
+</script>
+</body>
+</html>
