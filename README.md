@@ -5,11 +5,46 @@ one Docker Compose stack. Design docs: [docs/](docs/) · visual spec, clickable 
 docs are linked from `docs/implementation-plan.md`.
 
 **Status: Phase 4 of the [implementation plan](docs/implementation-plan.md) complete.**
-Working now: Google/dev sign-in with allowlist, Health Auto Export ingest, plans with
-time-budget fitting, full logging flow (warm-ups, plate math, rest timer, swaps, cool-down),
-records, history, progress, equipment profiles, niggles, labs, export, offline set queue,
-Claude coach agent with weekly review proposals, Withings OAuth + cardio reconciliation,
-desktop dashboard, web push (proposals + workout reminders), exercise form photos.
+
+## What it does
+
+**Training plans with time-budget fitting.** Each user has a weekly plan (strength +
+cardio days) shown as a rolling 7-day view starting today. Before a session you say how
+long you actually have; the fitting engine trims the session to fit — the priority-1 main
+lift is never touched, accessories trim first down to their minimum sets, and the cooldown
+shortens from 5 to 2 minutes but is never dropped. Any strength day can be pulled onto
+today if life reshuffles the week.
+
+**A complete logging flow.** Warm-up ramp generation, kg plate math for barbell loads,
+rest timer, in-session exercise swaps (filtered by your equipment profile), cool-down
+checklist. Sets log to an IndexedDB offline queue first, so a dead Wi-Fi corner of the
+garage never loses a set — the queue flushes when the connection returns. PRs and
+records, per-exercise history, and progress charts build up from there.
+
+**Apple Health in, automatically.** Health Auto Export POSTs to `/ingest` with a
+per-user bearer token: weight, sleep, resting HR, VO2 max, and workouts. Ingest is
+idempotent and unit-aware (pounds convert on arrival; storage is always kg). Withings
+scales can also connect directly via OAuth + webhooks, no phone in the loop.
+
+**Cardio reconciliation.** Watch workouts that arrive via ingest are matched against the
+planned cardio day: matched sessions complete the plan with target-vs-actual duration and
+% of time in the prescribed HR zone; unmatched ones are kept as unplanned. Weekly Zone-2
+minutes accumulate against a fixed 110–145 bpm band.
+
+**A Claude coach.** Chat with a server-side coach agent that can read your training and
+health data through the same route handlers the app uses (strictly scoped to your user).
+Every Sunday evening it runs a weekly review and proposes next week's plan as a
+structured revision — a delta list of changes plus a one-line "why" per day — which you
+approve or reject in-app (or set auto-apply). Proposals are validated server-side before
+they can ever touch a plan. Token spend is logged per run.
+
+**The rest.** Onboarding wizard, labs tracking (lipids etc., stored mmol/L), niggle/pain
+tracking that the coach factors in, equipment profiles, exercise library with curated
+form photos, data export, a desktop dashboard at `/dashboard`, and web push (proposal
+alerts + a once-daily workout reminder inside a 16:00–21:00 window). Per-user display
+units (lb/kg, with per-exercise overrides) over always-canonical metric storage.
+Installable PWA, hand-written design system, exactly two users by design — every row is
+user-scoped and the allowlist is the whole auth model.
 
 ## Fresh install on a new server
 
@@ -29,6 +64,93 @@ cp .env.example .env
 # edit .env: set POSTGRES_PASSWORD, SESSION_SECRET, your ALLOWED_USERS emails
 docker compose up -d --build
 open http://localhost:33524
+```
+
+### Deploy with Portainer
+
+Easiest path — **Stacks → Add stack → Repository**, so Portainer clones the repo and the
+relative `build:` context works:
+
+- Repository URL: `https://github.com/lemmy-winks/forge` · reference `refs/heads/main`
+- Compose path: `docker-compose.yml`
+- Authentication: on (GitHub username + a fine-grained PAT with read access — private repo)
+- Environment variables (the stack reads these instead of `.env`):
+
+| Variable | Required | Value |
+| --- | --- | --- |
+| `POSTGRES_PASSWORD` | yes | long random string |
+| `SESSION_SECRET` | yes | long random string |
+| `ALLOWED_USERS` | yes | `you@example.com:You,partner@example.com:Partner` |
+| `BASE_URL` | recommended | `http://<host>:33524` until you have a domain |
+| `FORGE_PORT` | no | host port, default `33524` |
+| `ANTHROPIC_API_KEY` | no | enables the coach |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | no | enables web push (see below) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | no | real sign-in (dev buttons until set) |
+| `WITHINGS_CLIENT_ID` / `WITHINGS_CLIENT_SECRET` | no | direct Withings link |
+
+If you'd rather paste into the **Web editor**, this is the same stack with the build
+context pointed at the repo (works as-is for a public repo; for a private one use the
+Repository method above instead):
+
+```yaml
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: forge
+      POSTGRES_USER: forge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forge -d forge"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    build:
+      context: https://github.com/lemmy-winks/forge.git#main
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://forge:${POSTGRES_PASSWORD}@db:5432/forge
+      SESSION_SECRET: ${SESSION_SECRET:?required}
+      ALLOWED_USERS: ${ALLOWED_USERS:?required}
+      BASE_URL: ${BASE_URL:-http://localhost:33524}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      DEV_AUTH: ${DEV_AUTH:-false}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      COACH_MODEL: ${COACH_MODEL:-claude-sonnet-5}
+      COACH_TZ: ${COACH_TZ:-Europe/London}
+      WITHINGS_CLIENT_ID: ${WITHINGS_CLIENT_ID:-}
+      WITHINGS_CLIENT_SECRET: ${WITHINGS_CLIENT_SECRET:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:forge@localhost}
+      REMINDER_HOUR: ${REMINDER_HOUR:-16}
+      QUIET_START: ${QUIET_START:-8}
+      QUIET_END: ${QUIET_END:-21}
+    volumes:
+      - media:/data/media
+    ports:
+      - "${FORGE_PORT:-33524}:8000"
+
+volumes:
+  pgdata:
+  media:
+```
+
+After the first deploy, generate web-push keys inside the running container and add them
+to the stack's environment variables, then redeploy:
+
+```bash
+docker exec $(docker ps -qf name=api) python -m app.vapid
 ```
 
 With no Google credentials configured, the sign-in page shows **dev sign-in buttons** for the
