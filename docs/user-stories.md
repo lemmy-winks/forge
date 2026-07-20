@@ -125,6 +125,12 @@ As the System, I want incoming Watch workouts matched to prescriptions so that c
 - AC2: Progress shows weekly Zone-2 minutes vs target and resting HR trend.
 - AC3: The coach reports VO2max movement on a quarterly cadence, coaching the inputs weekly.
 
+**E5.4 — Rich run detail** *(added Jul 2026, shipped)*
+As James, I want a run's detail screen to show what actually happened — zones, the route, the HR curve — so that a synced run is worth opening.
+- AC1: HR and GPS series from HAE are stored per cardio session (downsampled), not discarded after aggregation; sessions ingested before series capture gain traces when HAE re-sends the day.
+- AC2: Detail shows a route trace (self-contained SVG, no external map tiles — offline-safe, GPS never leaves the server), the HR curve with the prescribed band shaded, and time-in-zone bars for five HR-max zones.
+- AC3: Zone boundaries come from `prefs.hr_max` when set; otherwise estimated and labeled as such, with a nudge to tell the coach a tested max.
+
 ## E6 · Progress & records
 
 **E6.1 — Strength trends**

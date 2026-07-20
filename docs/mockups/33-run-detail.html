@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forge mockup 33 — Run detail (E5.4)</title>
+<style>
+  /* Void × Volt tokens — mirror web/src/styles.css */
+  :root{
+    --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
+    --ink:#edeef0; --mut:#8b9096; --dim:#565b61;
+    --volt:#c9f73a; --warn:#e8a360; --volt-dim:rgba(201,247,58,.12);
+  }
+  *{ box-sizing:border-box; margin:0; }
+  body{ background:#0a0b0d; color:var(--ink); min-height:100vh; display:flex;
+        flex-direction:column; align-items:center; gap:18px; padding:36px 16px;
+        font:15px/1.45 -apple-system, "SF Pro Text", Inter, system-ui, sans-serif; }
+  .cap{ color:var(--mut); font-size:13px; letter-spacing:.02em; }
+  .cap b{ color:var(--ink); }
+  .phone{ width:390px; max-width:100%; background:var(--bg); border-radius:34px;
+          padding:22px 16px 30px; box-shadow:0 30px 80px rgba(0,0,0,.55); }
+  .back{ color:var(--mut); font-size:14px; margin:2px 2px 10px; }
+  .kick{ color:var(--volt); font-size:11.5px; font-weight:600; letter-spacing:.14em;
+         text-transform:uppercase; margin:0 2px; }
+  h1{ font-size:26px; letter-spacing:-.01em; margin:2px 2px 12px; }
+  .card{ background:var(--raised); border-radius:16px; padding:13px 15px; margin-bottom:10px; }
+  .num{ font-variant-numeric:tabular-nums; }
+  .row{ display:flex; justify-content:space-between; align-items:baseline; }
+  .xname{ font-weight:600; font-size:15px; }
+  .target{ color:var(--mut); font-size:13.5px; }
+  .sub{ color:var(--mut); font-size:12.5px; margin-top:6px; }
+  .up{ color:var(--volt); }
+  .tiles{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:10px; }
+  .tile{ background:var(--raised); border-radius:14px; padding:10px 6px 9px; text-align:center; }
+  .tile .k{ color:var(--mut); font-size:11px; letter-spacing:.05em; text-transform:uppercase; }
+  .tile .v{ font-size:19px; font-weight:600; margin-top:3px; }
+  svg{ width:100%; display:block; margin-top:6px; }
+  .zrow{ display:flex; align-items:center; gap:8px; margin-top:7px; }
+  .zlab{ color:var(--mut); font-size:12.5px; width:66px; }
+  .ztrack{ flex:1; height:8px; border-radius:4px; background:var(--sunken); }
+  .zfill{ height:8px; border-radius:4px; background:var(--volt); }
+  .zmin{ color:var(--mut); font-size:12.5px; width:44px; text-align:right; }
+  .ghost{ width:100%; background:var(--raised); color:var(--ink); border:none; font:inherit;
+          border-radius:999px; padding:12px; margin-top:2px; }
+</style>
+</head>
+<body>
+<div class="cap"><b>33 · Run detail</b> — E5.4 rich cardio detail: route trace, HR vs prescribed band, five-zone breakdown. Data shaped like Bruce's Cherry Orchard Zone-2 run.</div>
+
+<div class="phone num">
+  <div class="back">‹ History</div>
+  <div class="kick">2026-07-15 · Watch sync</div>
+  <h1>Zone 2</h1>
+
+  <div class="card">
+    <div class="row"><span class="xname">Target</span>
+      <span class="target">40 min · Z 125–140 bpm</span></div>
+    <div class="sub"><span class="up">86% in zone</span> · 36.5 of 42 min in band</div>
+  </div>
+
+  <div class="tiles">
+    <div class="tile"><div class="k">Time</div><div class="v">42:18</div></div>
+    <div class="tile"><div class="k">Distance</div><div class="v">7.21<span style="font-size:12px"> km</span></div></div>
+    <div class="tile"><div class="k">Pace</div><div class="v">5:52<span style="font-size:12px"> /km</span></div></div>
+    <div class="tile"><div class="k">Avg HR</div><div class="v">133</div></div>
+  </div>
+
+  <div class="card">
+    <div class="row"><span class="xname">Route</span></div>
+    <svg id="route" viewBox="0 0 320 230" role="img" aria-label="Route trace"></svg>
+    <div class="sub">● start · ○ finish</div>
+  </div>
+
+  <div class="card">
+    <div class="row"><span class="xname">Heart rate</span><span class="target">avg 133 bpm</span></div>
+    <svg id="hr" viewBox="0 0 320 120" role="img" aria-label="Heart rate trace"></svg>
+    <div class="sub">shaded: prescribed 125–140 bpm</div>
+  </div>
+
+  <div class="card">
+    <div class="row"><span class="xname">Zones</span><span class="target">max 190 est bpm</span></div>
+    <div id="zones"></div>
+    <div class="sub">Max HR estimated from this run — tell the coach your tested max to refine zones.</div>
+  </div>
+
+  <button class="ghost">Ask the coach about this session</button>
+</div>
+
+<script>
+// ----- route: the demo generator's Cherry Orchard loop, projected like RouteTrace
+const lat0 = 53.3388, lon0 = -6.3699, dist = 7.21, rKm = dist / (2 * Math.PI);
+const cos = Math.cos(lat0 * Math.PI / 180), pts = [];
+for (let i = 0; i <= 240; i++) {
+  const a = 2 * Math.PI * i / 240;
+  const w = 1 + 0.16 * Math.sin(3 * a) + 0.05 * Math.sin(7 * a + 1.3);
+  pts.push([lat0 + (rKm * w / 111) * Math.sin(a), lon0 + (rKm * w * 1.35 / (111 * cos)) * Math.cos(a)]);
+}
+const W = 320, PAD = 14, xs = pts.map(p => p[1] * cos), ys = pts.map(p => -p[0]);
+const sx = Math.max(...xs) - Math.min(...xs), sy = Math.max(...ys) - Math.min(...ys);
+const H = Math.min(300, Math.max(120, (W - 2 * PAD) * sy / sx + 2 * PAD));
+const sc = Math.min((W - 2 * PAD) / sx, (H - 2 * PAD) / sy);
+const P = i => [PAD + (xs[i] - Math.min(...xs)) * sc + (W - 2 * PAD - sx * sc) / 2,
+                PAD + (ys[i] - Math.min(...ys)) * sc + (H - 2 * PAD - sy * sc) / 2];
+const path = pts.map((_, i) => P(i));
+const rsvg = document.getElementById('route');
+rsvg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+rsvg.innerHTML =
+  `<path d="${path.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join('')}"
+     fill="none" stroke="var(--volt)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+   <circle cx="${path[0][0]}" cy="${path[0][1]}" r="4" fill="var(--volt)"/>
+   <circle cx="${path.at(-1)[0]}" cy="${path.at(-1)[1]}" r="4" fill="none" stroke="var(--volt)" stroke-width="2"/>`;
+
+// ----- HR trace: warm-up ramp into the band, gentle drift, shaded prescription
+const dur = 2538, n = 150, lo = 90, hi = 160, PL = 30, PR = 8, PT = 8, PB = 16;
+const X = t => PL + (320 - PL - PR) * t / dur, Y = v => PT + (120 - PT - PB) * (1 - (v - lo) / (hi - lo));
+let hr = [];
+for (let i = 0; i < n; i++) {
+  const t = i / (n - 1);
+  const bpm = 96 + 37 * Math.min(1, t * 6) + 3 * Math.sin(t * 9) + 2 * Math.sin(t * 23 + 1);
+  hr.push([t * dur, bpm]);
+}
+const d = hr.map(([t, v], i) => `${i ? 'L' : 'M'}${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join('');
+document.getElementById('hr').innerHTML =
+  `<rect x="${PL}" y="${Y(140)}" width="${320 - PL - PR}" height="${Y(125) - Y(140)}" fill="var(--volt-dim)"/>
+   <line x1="${PL}" x2="${320 - PR}" y1="${Y(lo)}" y2="${Y(lo)}" stroke="var(--hair)"/>
+   <line x1="${PL}" x2="${320 - PR}" y1="${Y(hi)}" y2="${Y(hi)}" stroke="var(--hair)"/>
+   <text x="${PL - 5}" y="${Y(lo) + 3}" text-anchor="end" font-size="9" fill="var(--mut)">${lo}</text>
+   <text x="${PL - 5}" y="${Y(hi) + 3}" text-anchor="end" font-size="9" fill="var(--mut)">${hi}</text>
+   <path d="${d}" fill="none" stroke="var(--volt)" stroke-width="2" stroke-linejoin="round"/>
+   <text x="${PL}" y="116" font-size="9" fill="var(--mut)">0 min</text>
+   <text x="312" y="116" text-anchor="end" font-size="9" fill="var(--mut)">42 min</text>`;
+
+// ----- zones: five rows, deeper = harder, labels carry identity
+const zones = [["Z1 <114", 3.4, .35], ["Z2 114–133", 24.1, .5], ["Z3 133–152", 14.3, .65],
+               ["Z4 152–171", 0.5, .82], ["Z5 171+", 0, 1]];
+const top = Math.max(...zones.map(z => z[1]));
+document.getElementById('zones').innerHTML = zones.map(([lab, min, al]) =>
+  `<div class="zrow"><span class="zlab">${lab}</span>
+     <div class="ztrack"><div class="zfill" style="width:${Math.max(2, 100 * min / top)}%;opacity:${al}"></div></div>
+     <span class="zmin">${min ? min + 'm' : '—'}</span></div>`).join('');
+</script>
+</body>
+</html>

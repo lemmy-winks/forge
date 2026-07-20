@@ -2,6 +2,8 @@
 
 Stack (decided): **FastAPI + Postgres 16 (Alembic migrations, RLS)** · **Vite + React + TS PWA** (Tailwind, TanStack Query, Dexie offline queue, vite-plugin-pwa) · **MCP server** in-process with forge-api · **Claude API** for coach loops (chat + scheduled reviews) · **Docker Compose** on a home server · ingress **Cloudflare → VPS Nginx → Tailscale** · media via **ffmpeg** sidecar · design system **Void × Volt** (tokens in memory/spec).
 
+> **As built (Jul 2026)** — where reality diverged from the line above: SQLAlchemy `create_all` (new tables only), no Alembic/RLS yet (RLS still slated for Phase 5); hand-written `styles.css` instead of Tailwind; raw IndexedDB queue instead of Dexie; coach tools call route handlers directly in-process — no MCP server; ffmpeg sidecar gone with the media descope (Phase 5). Public ingress is live (Cloudflare → forge domain), Google OAuth active.
+
 Principles: walking skeleton first; every phase ends usable; the riskiest integration (Apple Health export path) is proven in week one; agent features land only after the data they read is real.
 
 ---
@@ -54,7 +56,16 @@ Stories: E5.1–E5.3, E6.1–E6.2 (charts), E14.1, E12.1 (reminder), E2.2 (Withi
 - e1RM/tonnage/zone-minute aggregations; Progress screens; Records screen; desktop `/dashboard` (small multiples, bodyweight vs goal, VO2max raw+smoothed, Zone 2 vs target, consistency heatmap).
 - Planned-day reminder notification (quiet hours).
 
-**Exit:** Watch run auto-appears matched to Wednesday's prescription; dashboard renders every panel from live data; coach references cardio + recovery in the weekly review.
+**Exit:** Watch run auto-appears matched to Wednesday's prescription; dashboard renders every panel from live data; coach references cardio + recovery in the weekly review. **Done.**
+
+## Phase 4.5 — Shipped between phases (Jul 2026, unplanned)
+
+Work that landed after the Phase 4 exit, before Phase 5 proper:
+
+- **Onboarding wizard** + **demo account** (E5.4-adjacent): Bruce Willis, `role='demo'`, a year of believable data, live coach, admin-managed via `/api/admin/demo`; excluded from the seat cap, user list, and Sunday scheduler; segregation test covers the demo on every surface (API, chat context, coach tools, admin).
+- **Rich run detail** (E5.4): HR + GPS series stored per cardio session (`workout_series`, downsampled at ingest), five-zone breakdown from `prefs.hr_max` (or estimated), tile-free SVG route trace, HR chart with the prescribed band shaded. Re-sent HAE days backfill series onto already-ingested runs. Demo runs carry generated Cherry Orchard (Dublin) loops.
+- **Coach prompt caching** + chat feedback speedup; plan rationales restyled to lead with what the week achieves rather than the edit log.
+- **Ops**: build stamps (image build date in `/healthz`, bundle build date compiled into the JS) surfaced on Settings → Server for stale-deploy RCA; Withings link flow made a server-side 302 so the iOS Withings app's universal link can't hijack OAuth.
 
 ## Phase 5 — Labs, household & media pipeline
 **Goal: everything in the spec, for both users.**
@@ -72,7 +83,7 @@ Stories: E15.1–E15.3, remaining E12 enforcement
 
 - Backup/restore drill (Postgres + media, to backup storage); documented runbook.
 - Ingest-freshness alerting; structured logs; agent cost visibility.
-- Security pass: rate limits at Nginx, security headers, dependency audit, secrets review.
+- Security pass: rate limits at Nginx, security headers, dependency audit, secrets review. Rate-limit the demo seat's coach runs specifically — it runs on the real API key and is open to anyone who can reach the app.
 - JSON export endpoint; "two notification kinds only" enforcement test (filming kind retired with the media pipeline).
 - v1.5 backlog groomed: readiness-aware adjustments, RPE autoregulation, chart revision-markers, GP report PDF.
 
