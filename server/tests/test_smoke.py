@@ -1,0 +1,561 @@
+"""End-to-end API smoke tests against sqlite. Run: python -m pytest tests/ -q"""
+import os
+import tempfile
+
+_tmp = tempfile.mkdtemp()
+os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/test.db"
+os.environ["ALLOWED_USERS"] = "james@test.dev:James,shelby@test.dev:Shelby"
+os.environ["DEV_AUTH"] = "true"
+os.environ["SESSION_SECRET"] = "test-secret"
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app.main import app  # noqa: E402
+
+client = TestClient(app)
+MONDAY = "2026-07-20"
+
+
+def setup_module():
+    client.__enter__()  # run lifespan (create tables + seed)
+
+
+def teardown_module():
+    client.__exit__(None, None, None)
+
+
+def login(email="james@test.dev"):
+    r = client.post("/auth/dev", json={"email": email})
+    assert r.status_code == 200, r.text
+
+
+def test_health_and_auth_mode():
+    assert client.get("/healthz").json()["ok"] is True
+    mode = client.get("/auth/mode").json()
+    assert mode["dev"] is True
+    assert len(mode["users"]) == 2
+
+
+def test_allowlist_rejects_stranger():
+    r = client.post("/auth/dev", json={"email": "stranger@test.dev"})
+    assert r.status_code == 403
+
+
+def test_me_requires_session():
+    fresh = TestClient(app)
+    assert fresh.get("/auth/me").status_code == 401
+
+
+def test_full_training_flow():
+    login()
+    me = client.get("/auth/me").json()
+    assert me["name"] == "James"
+
+    # Monday with a 40-minute budget: trims expected, squat protected
+    t = client.get(f"/api/today?date={MONDAY}&budget=40").json()
+    assert t["kind"] == "strength"
+    assert t["trims"], "40-minute budget should trim something"
+    squat = next(e for e in t["exercises"] if e["slug"] == "back-squat")
+    assert squat["sets"] == 3, "main lift must never be trimmed"
+    assert squat["warmups"], "main barbell lift gets a warm-up ramp"
+    assert "Per side" in (squat.get("plate") or "")
+
+    # start session, log squat sets
+    s = client.post("/api/sessions", json={"date": MONDAY, "budget": 40}).json()
+    sid = s["id"]
+    assert any(tt["slug"] == "back-squat" and tt["sets"] == 3 for tt in s["fitted"]["targets"])
+    for i in range(1, 4):
+        r = client.post(f"/api/sessions/{sid}/sets",
+                        json={"slug": "back-squat", "set_no": i, "weight": 60, "reps": 5, "rpe": 7})
+        assert r.status_code == 200, r.text
+
+    # second heavier set later should register a PB
+    r = client.post(f"/api/sessions/{sid}/sets",
+                    json={"slug": "back-squat", "set_no": 4, "weight": 62.5, "reps": 5})
+    assert any(p["kind"] == "e1rm" for p in r.json()["pbs"])
+
+    # complete with cool-down done
+    r = client.post(f"/api/sessions/{sid}/complete",
+                    json={"cooldown_status": "done", "cooldown_min": 5, "notes": "knee fine"})
+    stats = r.json()["stats"]
+    assert stats["sets_done"] == 4
+    assert stats["tonnage"] > 0
+
+    # history + detail
+    hist = client.get("/api/history").json()
+    assert hist and hist[0]["name"] == "Lower A"
+    detail = client.get(f"/api/sessions/{sid}").json()
+    assert detail["exercises"][0]["slug"] == "back-squat"
+    assert detail["notes"] == "knee fine"
+
+    # progress + records
+    prog = client.get("/api/progress").json()
+    assert "back-squat" in prog["e1rm"]
+    recs = client.get("/api/records").json()
+    assert any(rr["slug"] == "back-squat" and rr["kind"] == "e1rm" for rr in recs)
+
+
+def test_cooldown_includes_niggle_mobility():
+    login()
+    t = client.get(f"/api/today?date={MONDAY}").json()
+    cd = t["cooldown"]
+    assert any(c.get("why") for c in cd), "niggle-targeted mobility should be flagged"
+
+
+def test_swap_alternatives_respect_niggle_and_equipment():
+    login()
+    alts = client.get("/api/exercises/back-squat/alternatives").json()
+    by_slug = {a["slug"]: a for a in alts}
+    assert "leg-press" in by_slug and not by_slug["leg-press"]["excluded"]
+    assert "bulgarian-split-squat" in by_slug and by_slug["bulgarian-split-squat"]["excluded"]
+
+
+def test_ingest_flow():
+    login()
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+    payload = {"data": {"metrics": [
+        {"name": "weight_body_mass", "units": "kg",
+         "data": [{"date": "2026-07-18 07:15:00 +0100", "qty": 82.1}]},
+        {"name": "vo2_max", "units": "ml/kg/min",
+         "data": [{"date": "2026-07-17 18:00:00 +0100", "qty": 41.2}]}],
+        "workouts": [{"name": "Outdoor Run", "start": "2026-07-15 18:00:00 +0100",
+                      "end": "2026-07-15 18:40:00 +0100",
+                      "duration": 2418, "distance": {"qty": 6.82},
+                      "avgHeartRate": {"qty": 133}}]}}
+    r = client.post("/ingest", json=payload, headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 200
+    assert r.json()["stored"] == 3
+    # idempotent
+    r2 = client.post("/ingest", json=payload, headers={"Authorization": f"Bearer {tok}"})
+    assert r2.json()["stored"] == 0
+
+    assert client.post("/ingest", json=payload,
+                       headers={"Authorization": "Bearer fg_bogus"}).status_code == 401
+
+    conn = client.get("/api/connections").json()
+    assert conn["apple_health"]["last_push"] is not None
+
+    hist = client.get("/api/history").json()
+    assert any(h["kind"] == "cardio" for h in hist)
+
+
+def test_labs_and_niggles_and_export():
+    login()
+    r = client.post("/api/labs", json={"drawn_on": "2026-06-14", "results": [
+        {"marker": "LDL", "value": 2.9, "ref_high": 3.0},
+        {"marker": "HDL", "value": 1.3, "ref_low": 1.0}]})
+    assert r.status_code == 200
+    labs = client.get("/api/labs").json()
+    assert labs[0]["results"][0]["marker"] == "LDL"
+
+    n = client.post("/api/niggles", json={"body_part": "Right wrist", "note": "test"}).json()
+    r = client.patch(f"/api/niggles/{n['id']}", json={"status": "cleared"})
+    assert r.status_code == 200
+
+    exp = client.get("/api/export").json()
+    assert exp["user"]["email"] == "james@test.dev"
+    assert len(exp["sets"]) >= 4
+
+
+def test_week_overview():
+    login()
+    w = client.get(f"/api/week?date={MONDAY}").json()
+    assert w["start"] == MONDAY
+    assert len(w["days"]) == 7
+    d0, d1, d2 = w["days"][0], w["days"][1], w["days"][2]
+    assert d0["kind"] == "strength" and d0["name"] == "Lower A" and d0["est"] > 0
+    assert d0["session"] and d0["session"]["status"] == "completed"
+    assert d0["session"]["stats"]["tonnage"] > 0
+    assert d1["kind"] == "rest" and d1["session"] is None
+    assert d2["kind"] == "cardio" and d2["minutes"] == 40
+
+
+def test_pull_forward_another_days_workout():
+    login()
+    tuesday = "2026-07-21"
+    # Tuesday is a rest day; pull Friday's Upper A (plan day "4") onto it
+    r = client.post("/api/sessions", json={"date": tuesday, "budget": None, "plan_day": "4"})
+    assert r.status_code == 200, r.text
+    fitted = r.json()["fitted"]
+    assert fitted["name"] == "Upper A"
+    assert any(t["slug"] == "bench-press" for t in fitted["targets"])
+    detail = client.get(f"/api/sessions/{r.json()['id']}").json()
+    assert detail["day"] == tuesday, "session recorded on the requested date, not Friday"
+    # cardio days can't be pulled into a strength session
+    bad = client.post("/api/sessions", json={"date": "2026-07-23", "plan_day": "2"})
+    assert bad.status_code == 400
+
+
+def _wait_chat(max_s: float = 3.0) -> dict:
+    """Poll GET /api/chat until the background coach thread finishes."""
+    import time as _time
+    deadline = _time.time() + max_s
+    while _time.time() < deadline:
+        data = client.get("/api/chat").json()
+        if not data["pending"]:
+            return data
+        _time.sleep(0.05)
+    raise AssertionError("chat reply never arrived")
+
+
+def test_coach_unconfigured_fallbacks():
+    login()
+    # chat is async now: POST returns pending, the reply lands via polling
+    r = client.post("/api/chat", json={"text": "hello coach"})
+    assert r.json()["pending"] is True
+    data = _wait_chat()
+    assert data["messages"][-1]["who"] == "coach"
+    assert "ANTHROPIC_API_KEY" in data["messages"][-1]["text"]
+    assert client.post("/api/coach/run-review").status_code == 503
+
+
+def test_proposal_validation_and_approve_flow():
+    from app.coach import create_proposal
+    from app.db import SessionLocal
+    from app.models import User
+
+    login()
+    db = SessionLocal()
+    try:
+        james = db.query(User).filter(User.email == "james@test.dev").first()
+
+        bad = create_proposal(db, james, {"days": {"0": {"kind": "strength", "exercises": [
+            {"slug": "no-such-lift", "sets": 3, "reps": 5, "priority": 1}],
+            "cooldown": [{"slug": "walk-easy"}]}}}, "r")
+        assert "unknown exercise" in bad["error"]
+
+        bad2 = create_proposal(db, james, {"days": {"0": {"kind": "strength", "exercises": [
+            {"slug": "back-squat", "sets": 3, "reps": 5, "priority": 2}],
+            "cooldown": [{"slug": "walk-easy"}]}}}, "r")
+        assert "priority 1" in bad2["error"]
+
+        bad3 = create_proposal(db, james, {"days": {"0": {"kind": "strength", "exercises": [
+            {"slug": "back-squat", "sets": 3, "reps": 5, "priority": 1}], "cooldown": []}}}, "r")
+        assert "cooldown" in bad3["error"]
+
+        good = create_proposal(db, james, {"days": {
+            "0": {"name": "Lower A", "kind": "strength", "focus": ["Quads"],
+                  "why": "Main squat day — keep climbing",
+                  "exercises": [{"slug": "back-squat", "sets": 3, "reps": 5, "weight": 62.5,
+                                 "rest": 120, "priority": 1, "min_sets": 3}],
+                  "cooldown": [{"slug": "quad-hip-flexor-stretch", "hold": "45 s"}]},
+            "2": {"name": "Zone 2", "kind": "cardio", "focus": ["Base"],
+                  "cardio": {"type": "run", "minutes": 45, "hr_low": 125, "hr_high": 140}},
+        }, "changes": [{"sign": "+", "what": "Back Squat 60 → 62.5 kg",
+                        "why": "all reps clean at RPE 7"}]},
+            "Squat earned +2.5; test proposal.")
+        assert good.get("ok"), good
+        assert good["status"] == "proposed"
+    finally:
+        db.close()
+
+    prop = client.get("/api/proposal").json()["proposal"]
+    assert prop and prop["rationale"].startswith("Squat earned")
+    assert prop["content"]["changes"][0]["sign"] == "+"
+    assert prop["content"]["days"]["0"]["why"].startswith("Main squat")
+
+    r = client.post(f"/api/proposal/{prop['id']}/approve")
+    assert r.status_code == 200
+    assert client.get("/api/proposal").json()["proposal"] is None
+
+    t = client.get(f"/api/today?date={MONDAY}").json()
+    squat = next(e for e in t["exercises"] if e["slug"] == "back-squat")
+    assert squat["weight"] == 62.5, "approved proposal should be the active plan"
+
+
+def test_onboarding_prefs_and_intake_mode():
+    from app.coach import _system_prompt
+    from app.db import SessionLocal
+    from app.models import User
+
+    login()
+    r = client.patch("/api/prefs", json={"prefs": {"onboarding_step": 2}, "units": "lb"})
+    assert r.json()["units"] == "lb"
+    assert r.json()["prefs"]["onboarding_step"] == 2
+    assert client.patch("/api/prefs", json={"units": "furlongs"}).json()["units"] == "lb"
+
+    db = SessionLocal()
+    try:
+        james = db.query(User).filter(User.email == "james@test.dev").first()
+        assert "INTAKE MODE" in _system_prompt(db, james), "not onboarded -> intake mode"
+        client.patch("/api/prefs", json={"prefs": {"onboarded": True}, "units": "kg"})
+        db.refresh(james)
+        assert "INTAKE MODE" not in _system_prompt(db, james), "onboarded -> normal coaching"
+    finally:
+        db.close()
+
+
+def test_watch_run_reconciliation():
+    """Phase 4 exit: a Watch run auto-appears matched to the planned cardio day."""
+    login()
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+    # Wednesday 2026-07-22 — plan day "2" is the approved Zone 2 prescription (125-140)
+    hr = [{"date": f"2026-07-22 18:{i:02d}:00 +0100", "qty": v}
+          for i, v in enumerate([128, 131, 133, 135, 130, 129, 134, 132, 160, 100])]
+    payload = {"data": {"workouts": [{
+        "name": "Outdoor Run", "start": "2026-07-22 18:00:00 +0100",
+        "end": "2026-07-22 18:45:00 +0100", "duration": 2700,
+        "distance": {"qty": 7.5}, "avgHeartRate": {"qty": 132},
+        "heartRateData": hr}]}}
+    r = client.post("/ingest", json=payload, headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 200 and r.json()["stored"] == 1
+
+    hist = client.get("/api/history").json()
+    run = next(h for h in hist if h["day"] == "2026-07-22")
+    assert run["status"] == "completed", "matched run must not stay unplanned"
+    assert run["name"] == "Zone 2", "matched run takes the prescription's name"
+    s = run["stats"]
+    assert s["target"]["minutes"] == 45 and s["target"]["hr_low"] == 125
+    assert s["pct_in_zone"] == 80.0, "8 of 10 HR samples inside 125-140"
+    assert s["zone2_min"] == 36.0, "8 of 10 samples inside the Zone-2 band (110-145)"
+    assert s["pace_min_km"] == 6.0
+
+    # annotate the synced session (E5.2 AC3)
+    r = client.patch(f"/api/sessions/{run['id']}/notes", json={"notes": "felt easy"})
+    assert r.status_code == 200
+    assert client.get(f"/api/sessions/{run['id']}").json()["notes"] == "felt easy"
+
+
+def test_unmatched_workout_stays_unplanned():
+    login()
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+    payload = {"data": {"workouts": [{  # Thursday — no cardio planned
+        "name": "Pool Swim", "start": "2026-07-23 07:00:00 +0100", "duration": 1800}]}}
+    client.post("/ingest", json=payload, headers={"Authorization": f"Bearer {tok}"})
+    hist = client.get("/api/history").json()
+    swim = next(h for h in hist if h["day"] == "2026-07-23")
+    assert swim["status"] == "unplanned" and swim["name"] == "Pool Swim"
+
+
+def test_progress_zone2_and_vo2_trend():
+    login()
+    p = client.get("/api/progress").json()
+    assert p["zone2"]["target"] == 45, "weekly Zone-2 target comes from the active plan"
+    assert len(p["vo2max_smooth"]) == len(p["vo2max"])
+
+
+def test_dashboard():
+    login()
+    d = client.get("/api/dashboard").json()
+    assert d["name"] == "James"
+    assert "back-squat" in d["e1rm"]
+    assert len(d["tonnage_weekly"]) == 12 and len(d["heatmap"]) == 12
+    assert all(len(row["days"]) == 7 for row in d["heatmap"])
+    assert d["zone2_target"] == 45
+    assert any(r["slug"] == "back-squat" for r in d["records"])
+    assert client.get("/dashboard").status_code == 200, "SPA route serves the app shell"
+
+
+def test_withings_unconfigured_and_webhook_ignores_unknown():
+    login()
+    assert client.get("/api/withings/connect").status_code == 503, "no creds configured"
+    conn = client.get("/api/connections").json()["withings"]
+    assert conn["configured"] is False and conn["linked"] is False
+    # webhook: probe OK, unknown Withings user ignored (logged), never an error
+    assert client.get("/api/withings/webhook").status_code == 200
+    r = client.post("/api/withings/webhook", data={"userid": "999", "appli": "1"})
+    assert r.status_code == 200 and r.json()["ignored"] is True
+
+
+def test_body_composition_and_units():
+    from app.db import SessionLocal
+    from app.models import User
+    from app.routers.withings import store_measuregrps
+
+    login()
+    # Withings measure groups map to canonical metric rows (kg / cm / %)
+    db = SessionLocal()
+    try:
+        james = db.query(User).filter(User.email == "james@test.dev").first()
+        grps = [{"date": 1784800000, "measures": [
+            {"type": 1, "value": 82150, "unit": -3},    # 82.15 kg
+            {"type": 6, "value": 213, "unit": -1},      # 21.3 %
+            {"type": 76, "value": 58200, "unit": -3},   # 58.2 kg muscle
+            {"type": 77, "value": 47100, "unit": -3},   # 47.1 kg water
+            {"type": 88, "value": 32, "unit": -1},      # 3.2 kg bone
+            {"type": 4, "value": 183, "unit": -2},      # 1.83 m -> 183 cm
+        ]}]
+        assert store_measuregrps(db, james.id, grps) == 6
+        assert store_measuregrps(db, james.id, grps) == 0, "idempotent"
+        db.commit()
+    finally:
+        db.close()
+
+    p = client.get("/api/progress").json()
+    bc = p["bodycomp"]
+    assert bc["fat_pct"][-1]["v"] == 21.3
+    assert bc["muscle"][-1]["v"] == 58.2
+    assert bc["height_cm"] == 183.0
+    assert bc["water_pct"][-1]["v"] == round(100 * 47.1 / 82.15, 1)
+
+    # manual body entry + validation
+    assert client.post("/api/body", json={"type": "height", "value": 180.0}).status_code == 200
+    assert client.post("/api/body", json={"type": "shoe_size", "value": 9}).status_code == 400
+    assert client.post("/api/body", json={"type": "height", "value": -1}).status_code == 400
+
+    # unit prefs round-trip; dashboard exposes them (default load unit = lb)
+    client.patch("/api/prefs", json={"prefs": {"unit_lipids": "mgdl",
+                                               "load_units": {"back-squat": "kg"}}})
+    d = client.get("/api/dashboard").json()
+    assert d["unit_load"] == "lb" and d["unit_lipids"] == "mgdl"
+    assert d["load_units"] == {"back-squat": "kg"}
+    assert d["bodycomp"]["fat_pct"][-1]["v"] == 21.3
+
+
+def test_hae_body_fat_ingest():
+    login()
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+    payload = {"data": {"metrics": [
+        {"name": "body_fat_percentage", "units": "%",
+         "data": [{"date": "2026-07-18 07:16:00 +0100", "qty": 21.9}]},
+        {"name": "lean_body_mass", "units": "lb",
+         "data": [{"date": "2026-07-18 07:16:00 +0100", "qty": 141.0}]}]}}
+    r = client.post("/ingest", json=payload, headers={"Authorization": f"Bearer {tok}"})
+    assert r.json()["stored"] == 2
+    p = client.get("/api/progress").json()
+    assert any(pt["v"] == 21.9 for pt in p["bodycomp"]["fat_pct"]), "HAE fat %% joined the series"
+    # lean_body_mass honored the lb unit: 141 lb -> ~63.96 kg
+    exp = client.get("/api/export").json()
+    lbm = [m for m in exp["metrics"] if m["type"] == "fat_free_mass"]
+    assert lbm and abs(lbm[-1]["value"] - 63.96) < 0.05
+
+
+def test_push_three_kinds_enforced():
+    import pytest
+
+    from app import notify
+    from app.db import SessionLocal
+    from app.models import User
+
+    login()
+    assert client.get("/api/push/config").json()["enabled"] is False
+    r = client.post("/api/push/subscribe",
+                    json={"endpoint": "https://push.example/ep1",
+                          "keys": {"p256dh": "k", "auth": "a"}})
+    assert r.status_code == 200
+
+    db = SessionLocal()
+    try:
+        james = db.query(User).filter(User.email == "james@test.dev").first()
+        with pytest.raises(ValueError):
+            notify.send_push(db, james, "marketing", "nope", "never")  # E12.1 AC2
+        assert notify.send_push(db, james, "reminder", "t", "b") == 0, "no VAPID keys -> no send"
+    finally:
+        db.close()
+
+    from datetime import datetime
+    assert notify.in_quiet_hours(datetime(2026, 7, 22, 23, 0)) is True
+    assert notify.in_quiet_hours(datetime(2026, 7, 22, 7, 30)) is True
+    assert notify.in_quiet_hours(datetime(2026, 7, 22, 17, 0)) is False
+
+
+def test_curated_form_media():
+    import pytest
+
+    from app import notify
+    from app.db import SessionLocal
+    from app.models import User
+
+    login()
+    e = client.get("/api/exercises/back-squat").json()
+    assert e["media_tier"] == "images"
+    urls = e["media_url"].split(",")
+    assert urls == ["/media/exercises/back-squat-0.jpg", "/media/exercises/back-squat-1.jpg"]
+    # unmatched exercises keep no media and stay cues-only
+    assert client.get("/api/exercises/landmine-press").json()["media_url"] == ""
+
+    # the filming push kind is retired along with the media pipeline
+    db = SessionLocal()
+    try:
+        james = db.query(User).filter(User.email == "james@test.dev").first()
+        with pytest.raises(ValueError):
+            notify.send_push(db, james, "film", "t", "b")
+    finally:
+        db.close()
+
+
+def test_coach_context_and_new_tools():
+    from app.coach import _exec_tool, amend_week
+    from app.db import SessionLocal
+    from app.models import Plan, PlanRevision, User
+
+    login()
+    # deep-link context: the stored message carries a short [re: …] tag
+    sid = client.get("/api/history").json()[0]["id"]
+    r = client.post("/api/chat", json={"text": "how did this look?",
+                                       "context": {"kind": "session", "id": sid}})
+    assert r.json()["pending"] is True
+    data = _wait_chat()
+    mine = [m for m in data["messages"] if m["who"] == "me"]
+    assert "[re: session" in mine[-1]["text"]
+
+    db = SessionLocal()
+    try:
+        james = db.query(User).filter(User.email == "james@test.dev").first()
+        assert len(_exec_tool(db, james, "get_week", {})["days"]) == 7
+
+        # amend one day — every other day of the active week must survive untouched
+        active = _exec_tool(db, james, "get_active_plan", {})
+        before_days = set(active["content"]["days"].keys())
+        out = amend_week(db, james,
+                         {"2": {"name": "Easy spin", "kind": "cardio", "focus": ["Recovery"],
+                                "why": "deload the mid-week run",
+                                "cardio": {"type": "bike", "minutes": 30, "hr_low": 110, "hr_high": 130}}},
+                         [{"sign": "~", "what": "Zone 2 run → easy bike", "why": "knee care"}],
+                         "test amend")
+        assert out.get("ok"), out
+        prop = _exec_tool(db, james, "get_proposal", {})["proposal"]
+        assert set(prop["content"]["days"].keys()) == before_days
+        assert prop["content"]["days"]["2"]["name"] == "Easy spin"
+
+        # a new proposal supersedes the old one — never more than one pending
+        assert amend_week(db, james, {}, [], "re-proposal").get("ok")
+        pending = (db.query(PlanRevision).join(Plan)
+                   .filter(Plan.user_id == james.id, PlanRevision.status == "proposed").count())
+        assert pending == 1
+
+        assert _exec_tool(db, james, "update_goal", {"goal": "Squat 100 kg clean"})["ok"]
+        assert _exec_tool(db, james, "log_body_metric", {"type": "weight", "value": 82.0})["ok"]
+        assert "error" in _exec_tool(db, james, "log_body_metric", {"type": "shoe_size", "value": 9})
+        assert "This week so far" in __import__("app.coach", fromlist=["x"])._system_prompt(db, james)
+    finally:
+        db.close()
+    # tidy: reject the pending proposal so later tests see a clean slate
+    prop_id = client.get("/api/proposal").json()["proposal"]["id"]
+    assert client.post(f"/api/proposal/{prop_id}/reject").status_code == 200
+
+
+def test_expanded_library():
+    from pathlib import Path
+
+    from app.seed import MEDIA_SLUGS
+
+    login()
+    lib = client.get("/api/exercises").json()
+    assert len(lib) >= 60, "common-gym expansion should be seeded"
+    dl = client.get("/api/exercises/deadlift").json()
+    assert dl["media_tier"] == "images" and dl["cues"] and dl["dont"]
+    assert len(dl["benefit"]) > 40, "every exercise ships a why-it-matters line"
+    from app.seed import BENEFITS, EXERCISES
+    missing = [e[0] for e in EXERCISES if e[0] not in BENEFITS]
+    assert not missing, f"benefit text missing for {missing}"
+    # every media slug's photos actually ship in the web bundle
+    media = Path(__file__).resolve().parents[2] / "web" / "public" / "media" / "exercises"
+    missing = [s for s in MEDIA_SLUGS if not (media / f"{s}-0.jpg").exists()]
+    assert not missing, f"media files missing for {missing}"
+    # new lifts join the swap pool
+    alts = client.get("/api/exercises/back-squat/alternatives").json()
+    assert any(a["slug"] == "front-squat" and not a["excluded"] for a in alts)
+
+
+def test_user_segregation():
+    login("shelby@test.dev")
+    assert client.get("/api/history").json() == []
+    assert client.get("/api/records").json() == []
+    assert client.get("/api/labs").json() == []
+    dash = client.get("/api/dashboard").json()
+    assert dash["e1rm"] == {} and dash["records"] == [], "dashboard is user-scoped too"
+    t = client.get(f"/api/today?date={MONDAY}").json()
+    squat = next(e for e in t["exercises"] if e["slug"] == "back-squat")
+    assert squat["weight"] < 60, "Shelby's seeded plan is scaled independently"
+    assert not any(c.get("why") for c in t["cooldown"]), "James's niggle must not leak"

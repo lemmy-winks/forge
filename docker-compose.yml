@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: forge
+      POSTGRES_USER: forge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forge -d forge"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://forge:${POSTGRES_PASSWORD}@db:5432/forge
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      ALLOWED_USERS: ${ALLOWED_USERS}
+      BASE_URL: ${BASE_URL:-http://localhost:8000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      DEV_AUTH: ${DEV_AUTH:-false}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      COACH_MODEL: ${COACH_MODEL:-claude-sonnet-5}
+      COACH_TZ: ${COACH_TZ:-Europe/London}
+      # Phase 4+ — these only reach the container via this list, never via .env in the image
+      WITHINGS_CLIENT_ID: ${WITHINGS_CLIENT_ID:-}
+      WITHINGS_CLIENT_SECRET: ${WITHINGS_CLIENT_SECRET:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:forge@localhost}
+      REMINDER_HOUR: ${REMINDER_HOUR:-16}
+      QUIET_START: ${QUIET_START:-8}
+      QUIET_END: ${QUIET_END:-21}
+    volumes:
+      - media:/data/media
+    ports:
+      - "${FORGE_PORT:-33524}:8000"
+
+volumes:
+  pgdata:
+  media:

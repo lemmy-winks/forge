@@ -1,0 +1,36 @@
+# Forge — agent-coached fitness app (James + Shelby, self-hosted)
+
+Apple Health/Withings data in, weekly plans proposed by a Claude coach agent, workouts
+logged in a PWA. Exactly two users. Design, user stories (E1–E15), and the phase plan
+live in `docs/`.
+
+## Commands
+
+- **Tests**: `cd server && python -m pytest tests/ -q` — 20 smoke tests against sqlite, no Docker needed (local venv: `server/.venv`). Run them before any deploy.
+- **Frontend**: `cd web && npm run build` (dev: `npm run dev`, proxies to :8000).
+- **Deploy**: `docker compose up -d --build api` — builds `web/` in a node stage; the runtime image is Python-only. Never add Node to the runtime image.
+- **Health**: `curl localhost:33524/healthz` (host port = `FORGE_PORT`, default 33524; container-internal port stays 8000)
+- After every deploy, remind the user: fully close + reopen the PWA so the service worker picks up the new bundle.
+
+## Architecture
+
+- `server/app/` — FastAPI + SQLAlchemy 2.0 (create_all, no Alembic yet) + Postgres 16. Routers in `app/routers/`, time-budget fitting in `app/fitting.py`, coach agent in `app/coach.py`.
+- `web/` — React 19 + Vite 7 + TypeScript PWA. TanStack Query for server state; IndexedDB offline set queue in `src/queue.ts`; hand-written `src/styles.css` IS the design system — no Tailwind, keep it that way.
+- Coach: server-side Claude tool-use loop; tools call route handlers directly with `(user=user, db=db)`. `propose_revision` validates content and creates `status='proposed'` revisions the user approves in-app (auto-apply only when `prefs.coach_approval == 'auto'`). Sunday 20:00 Europe/London review scheduler in `main.py` lifespan; `agent_runs` logs token spend. Model via `COACH_MODEL` (default claude-sonnet-5).
+- `/api/week` is a rolling 7-day view starting today. Sessions can pull any strength plan day onto today's date (`plan_day` override on POST /api/sessions).
+- Phase 4: Withings OAuth+webhooks in `routers/withings.py` (`WITHINGS_CLIENT_ID/SECRET`; webhook needs public ingress). Ingested Watch workouts reconcile against the planned cardio day (`ingest.py::_match_prescription`) — matched → `status='completed'` with target-vs-actual + `pct_in_zone`; unmatched stay `unplanned`. Zone-2 weekly minutes use the fixed 110–145 band (`ZONE2_BAND`); the per-plan prescription band only drives `pct_in_zone`. Desktop dashboard: `/dashboard` route (same SPA bundle) ← `/api/dashboard`.
+- Web Push: `notify.send_push` is the only send path and hard-rejects kinds outside proposal/reminder (the filming kind was retired with the media pipeline — form media is curated free-exercise-db photos in `web/public/media/exercises/`, wired by `seed.MEDIA_SLUGS`); reminders are once-per-day via the `notification_log` unique constraint, window `REMINDER_HOUR`(16)–`QUIET_END`(21). VAPID keys via `python -m app.vapid` → `.env`; push is silently off until set. SW push handler lives in `web/public/push-listener.js` (workbox `importScripts`).
+
+## Invariants — do not break
+
+- Fitting: the priority-1 main lift is never trimmed; accessories trim first down to `min_sets`; cooldown shortens 5→2 min but is never dropped.
+- Proposals: known exercise slugs only; exactly one priority-1 main lift per strength day; non-empty mobility-only cooldown; `content.changes` delta list and per-day `why` one-liners required (the UI renders them).
+- Every query is scoped by `user_id` — James and Shelby must never see each other's data (test_user_segregation guards this).
+- Ingest is idempotent on `(user_id, type, ts, source)` and must honor the payload's `units` field — Health Auto Export sends pounds.
+- Secrets live only in `.env` (chmod 600, gitignored). `ANTHROPIC_API_KEY` never reaches the frontend. Mask tokens when displaying them; rotating an ingest token invalidates the old one instantly.
+- Design system "Void × Volt": bg `#060708`, raised `#121316`, hairlines `#191b1f`, one accent volt `#c9f73a` (actions, trends, positive status), warm `#e8a360` for warnings only. No borders, pill CTAs, thin tabular numerals.
+- Units: storage is ALWAYS canonical (kg / cm / mmol-L) — conversion happens only at the display/input edge via the helpers in `web/src/api.ts` (`loadUnitFor`/`fmtLoad`/`kgToDisp`/`dispToKg`, `heightDisp`, `lipidDisp`/`lipidToMmol`). Loads display per `prefs.unit_load` (default **lb**) with per-exercise overrides in `prefs.load_units`; bodyweight per `user.units` via `kgDisp`; lipids per `prefs.unit_lipids`. Plate math stays kg (physical plates). Never store a display-unit number.
+
+## Current environment
+
+Runs via Docker Compose on a single home server (`deploy/fresh-install.sh` bootstraps a clean install). Google OAuth is unconfigured by default, so dev sign-in buttons are active and the app is LAN-only. Public ingress (reverse proxy → this host) + Google OAuth creds are the next infra step when asked — until then Health Auto Export only syncs on home Wi-Fi.
