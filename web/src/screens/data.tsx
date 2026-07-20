@@ -23,7 +23,8 @@ export function HistoryScreen() {
              s.duration_s ? fmtT(s.duration_s) : null,
              s.avg_hr ? Math.round(s.avg_hr) + ' bpm' : null].filter(Boolean).join(' · ')
           : [s.tonnage != null ? s.tonnage + ' t' : null,
-             s.sets_done != null ? s.sets_done + ' sets' : null].filter(Boolean).join(' · ');
+             s.sets_done != null ? s.sets_done + ' sets' : null,
+             s.partial ? 'partial' : null].filter(Boolean).join(' · ');
         return (
           <button key={h.id} className="lrow press num" onClick={() => go('detail', { detailId: h.id })}>
             <b>{h.day} · {h.name}</b><span className="rsub">{head || h.status}</span><span className="chev">›</span>
@@ -49,6 +50,9 @@ export function DetailScreen() {
     <Shell>
       <Back label="History" onClick={() => openTab('history')} />
       <Title kick={`${d.day}${d.kind === 'cardio' ? ' · Watch sync' : ''}`}>{d.name}</Title>
+      {d.stats?.partial && (
+        <Chip>Saved incomplete — {d.stats.sets_done} of {d.stats.sets_planned} planned sets logged</Chip>
+      )}
       {d.exercises.map((g) => {
         const t = targets[g.substituted_for || g.slug];
         const u = loadUnitFor(me.prefs, g.slug);

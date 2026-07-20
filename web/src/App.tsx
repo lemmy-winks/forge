@@ -155,6 +155,39 @@ function AppInner({ me }: { me: Me }) {
     go('log');
   }, [budget, go, me]);
 
+  /** Re-enter a still-active session from a previous day: rebuild the log
+      state from its fitted snapshot + already-logged sets, then jump in. */
+  const resumeSession = useCallback(async (sid: string, date: string) => {
+    try {
+      const detail = await api<SessionDetail>('/api/sessions/' + sid);
+      const day = await api<Today>('/api/today?date=' + date);
+      const byslug: Record<string, { name: string; kind: string }> = {};
+      (day.exercises || []).forEach((e) => { byslug[e.slug] = { name: e.name, kind: e.kind }; });
+      const fitted = detail.fitted as Fitted;
+      const targets: LogTarget[] = (fitted.targets || [])
+        .filter((t) => t.sets > 0)
+        .map((t) => ({ ...t, name: byslug[t.slug]?.name || t.slug, kind: byslug[t.slug]?.kind || 'bb',
+          unit: loadUnitFor(me.prefs, t.slug) }));
+      logDispatch({ type: 'start', sid, fitted, targets });
+      const done: LogState['done'] = {};
+      const swaps: LogState['swaps'] = {};
+      detail.exercises.forEach((g) => {
+        done[g.slug] = g.sets.map((s) => ({ weight: s.weight, reps: s.reps, rpe: s.rpe }));
+        if (g.substituted_for) swaps[g.substituted_for] = { slug: g.slug, name: g.name };
+      });
+      let idx = 0;
+      while (idx < targets.length - 1) {
+        const slug = swaps[targets[idx].slug]?.slug || targets[idx].slug;
+        if ((done[slug] || []).length >= targets[idx].sets) idx++; else break;
+      }
+      const t = targets[idx];
+      logDispatch({ type: 'restore', done, swaps, idx, w: t.weight, r: t.reps });
+      go('log');
+    } catch (e) {
+      toast(e instanceof ApiError && e.network ? 'Need a connection to resume' : String((e as Error).message));
+    }
+  }, [go, me]);
+
   const finishSession = useCallback(async (skipCd: boolean, note: string) => {
     if (!log) return;
     const shown = log.fitted.cd === 'short' ? (log.fitted.cooldown || []).slice(0, 2) : (log.fitted.cooldown || []);
@@ -196,9 +229,9 @@ function AppInner({ me }: { me: Me }) {
 
   const ctx = useMemo<AppCtxType>(() => ({
     me, screen, tab, learnSlug, learnFrom, detailId, lift, dayDate, chatContext, setChatContext,
-    go, openTab, budget, setBudget, log, logDispatch, startSession, finishSession, summary, signOut,
+    go, openTab, budget, setBudget, log, logDispatch, startSession, resumeSession, finishSession, summary, signOut,
   }), [me, screen, tab, learnSlug, learnFrom, detailId, lift, dayDate, chatContext, go, openTab,
-       budget, log, startSession, finishSession, summary, signOut]);
+       budget, log, startSession, resumeSession, finishSession, summary, signOut]);
 
   const SCREENS: Record<Screen, () => JSX.Element> = {
     today: PlanScreen, day: DayScreen, learn: LearnScreen, log: LogScreen, swap: SwapScreen,

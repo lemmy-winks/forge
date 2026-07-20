@@ -51,6 +51,7 @@ export interface AppCtxType {
   log: LogState | null;
   logDispatch: (a: LogAction) => void;
   startSession: (today: Today, planDay?: string) => Promise<void>;
+  resumeSession: (sid: string, date: string) => Promise<void>;
   finishSession: (skipCd: boolean, note: string) => Promise<void>;
   summary: SummaryData | null;
   signOut: () => void;

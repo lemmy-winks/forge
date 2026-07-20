@@ -364,6 +364,31 @@ def test_run_series_zones_and_backfill():
     assert len(d["series"]["hr"]) == 10 and d["stats"]["hr_samples"] == 10
 
 
+def test_dangling_session_save_incomplete():
+    """A workout started on a previous day and abandoned surfaces in /api/week
+    as `dangling`; completing it banks the sets, flags it partial, and clears
+    the reminder."""
+    login()
+    past_monday = "2026-07-13"  # strength plan day, before today
+    r = client.post("/api/sessions", json={"date": past_monday})
+    assert r.status_code == 200 and r.json()["resumed"] is False
+    sid = r.json()["id"]
+    client.post(f"/api/sessions/{sid}/sets",
+                json={"slug": "back-squat", "set_no": 1, "weight": 60, "reps": 5, "rpe": 7})
+
+    d = client.get("/api/week").json()["dangling"]
+    assert d and d["id"] == sid and d["sets_done"] == 1 and d["date"] == past_monday
+
+    r = client.post(f"/api/sessions/{sid}/complete", json={"cooldown_status": "skipped"})
+    stats = r.json()["stats"]
+    assert stats["partial"] is True and stats["sets_done"] == 1
+    assert stats["duration_s"] is not None and stats["duration_s"] < 6 * 3600, \
+        "duration ends at the last set, not at save time a day later"
+    assert client.get("/api/week").json()["dangling"] is None, "reminder cleared"
+    detail = client.get(f"/api/sessions/{sid}").json()
+    assert detail["status"] == "completed" and detail["stats"]["partial"] is True
+
+
 def test_progress_zone2_and_vo2_trend():
     login()
     p = client.get("/api/progress").json()

@@ -221,7 +221,23 @@ def week(date: str | None = None, user: User = Depends(current_user), db: Sessio
         elif e and e.get("kind") == "cardio":
             item["minutes"] = (e.get("cardio") or {}).get("minutes")
         out.append(item)
-    return {"start": str(base), "rationale": rev.rationale if rev else "", "days": out}
+
+    # An active strength session left over from a previous day: the user
+    # started logging and never finished. Surfaced so the UI can offer
+    # resume / save-as-incomplete instead of silently forgetting it.
+    dangling = (db.query(WorkoutSession)
+                .filter(WorkoutSession.user_id == user.id, WorkoutSession.kind == "strength",
+                        WorkoutSession.status == "active", WorkoutSession.day < actual_today)
+                .order_by(WorkoutSession.day.desc()).first())
+    dang_out = None
+    if dangling:
+        n_sets = db.query(LoggedSet).filter(LoggedSet.session_id == dangling.id).count()
+        dang_out = {"id": dangling.id, "date": str(dangling.day),
+                    "day_name": DAY_NAMES[dangling.day.weekday()],
+                    "name": dangling.name, "sets_done": n_sets}
+
+    return {"start": str(base), "rationale": rev.rationale if rev else "", "days": out,
+            "dangling": dang_out}
 
 
 # ---------- sessions & sets ----------
@@ -329,11 +345,18 @@ def complete_session(sid: str, body: CompleteIn, user: User = Depends(current_us
     started = session.started_at
     if started is not None and started.tzinfo is None:
         started = started.replace(tzinfo=timezone.utc)
+    end = now
+    if session.day < local_today() and sets:
+        # saving off a previous day's unfinished session — the workout ended
+        # at the last logged set, not now
+        last = max(s.ts for s in sets)
+        end = last.replace(tzinfo=timezone.utc) if last.tzinfo is None else last
     session.stats = {
         "tonnage": round(sum(s.weight * s.reps for s in sets) / 1000, 2),
         "sets_done": len(sets), "sets_planned": planned,
+        "partial": len(sets) < planned,  # saved unfinished — the UI labels it
         "avg_rpe": round(sum(rpes) / len(rpes), 1) if rpes else None,
-        "duration_s": int((now - started).total_seconds()) if started else None,
+        "duration_s": max(0, int((end - started).total_seconds())) if started else None,
     }
     session.status = "completed"
     session.completed_at = now

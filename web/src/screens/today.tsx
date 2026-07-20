@@ -1,8 +1,8 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { api, fmtLoad, fmtT, kgDisp, loadUnitFor, todayISO, type ProposalResp, type Today, type WeekResp } from '../api';
 import { MuscleMap } from '../musclemap';
-import { Back, Chip, Loading, Shell, Title, useApp } from '../ui';
+import { Back, Chip, Loading, Shell, Title, toast, useApp } from '../ui';
 
 /* ---------------- Plan: the whole week, separated by day ---------------- */
 
@@ -28,13 +28,31 @@ const dayMinutes = (d: WeekResp['days'][number]): number =>
   d.kind === 'strength' ? (d.est ?? 45) : d.kind === 'cardio' ? (d.minutes ?? 30) : 0;
 
 export function PlanScreen() {
-  const { go, openTab } = useApp();
+  const { go, openTab, resumeSession } = useApp();
+  const qc = useQueryClient();
   const q = useQuery<WeekResp>({ queryKey: ['week'], queryFn: () => api('/api/week') });
   const pq = useQuery<ProposalResp>({ queryKey: ['proposal'], queryFn: () => api('/api/proposal') });
   const [noteOpen, setNoteOpen] = useState(false);
+  const [dangOpen, setDangOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const w = q.data;
   const prop = pq.data?.proposal;
   if (!w) return <Shell><Loading /></Shell>;
+  const dang = w.dangling;
+
+  const saveIncomplete = async () => {
+    if (!dang || saving) return;
+    setSaving(true);
+    try {
+      const r = await api<{ stats: any }>(`/api/sessions/${dang.id}/complete`,
+        { method: 'POST', body: { cooldown_status: 'skipped' } });
+      toast(`Saved — ${r.stats.sets_done} sets banked. On to today.`, true);
+      setDangOpen(false);
+      qc.invalidateQueries({ queryKey: ['week'] });
+      qc.invalidateQueries({ queryKey: ['history'] });
+    } catch (e) { toast(String((e as Error).message)); }
+    setSaving(false);
+  };
 
   const right = (d: WeekResp['days'][number]): string => {
     const s = d.session;
@@ -58,6 +76,15 @@ export function PlanScreen() {
   return (
     <Shell>
       <Title kick="Today + the six days ahead">Plan</Title>
+
+      {dang && (
+        <button className="warnbanner press" onClick={() => setDangOpen(true)}>
+          <span className="pulse" style={{ background: 'var(--warn)' }} />
+          <b>Unfinished: {dang.day_name} · {dang.name}</b>
+          <span className="num" style={{ color: 'var(--warn)', fontWeight: 700, fontSize: 13 }}>
+            {dang.sets_done} {dang.sets_done === 1 ? 'set' : 'sets'} ›</span>
+        </button>
+      )}
 
       {prop && (
         <button className="propbanner press" onClick={() => openTab('coach')}>
@@ -127,6 +154,27 @@ export function PlanScreen() {
         );
       })}
       <Chip>Tap a day to see it in full — you can run any strength day on today's date</Chip>
+
+      {dangOpen && dang && (
+        <div className="overlay" onClick={() => setDangOpen(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <h3>Unfinished workout</h3>
+            <div className="sub" style={{ marginTop: 0 }}>
+              You started <b style={{ color: 'var(--ink)' }}>{dang.name}</b> on {dang.day_name} and
+              logged <span className="num">{dang.sets_done}</span> {dang.sets_done === 1 ? 'set' : 'sets'}.
+              Pick it back up, or save it as-is and move on — the sets you did still count.
+            </div>
+            <button className="cta press" disabled={saving} onClick={saveIncomplete}>
+              {saving ? 'Saving…'
+                : `Save as incomplete · keep ${dang.sets_done} ${dang.sets_done === 1 ? 'set' : 'sets'}`}
+            </button>
+            <button className="ghost press" disabled={saving}
+              onClick={() => { setDangOpen(false); resumeSession(dang.id, dang.date); }}>
+              Resume this workout now
+            </button>
+          </div>
+        </div>
+      )}
     </Shell>
   );
 }
@@ -254,7 +302,13 @@ export function DayScreen() {
   return (
     <Shell>
       {head}
-      {done && <div className="banner">✓ {t.name} complete — {sess?.stats?.tonnage ?? 0} t lifted.</div>}
+      {done && (
+        <div className="banner">
+          {sess?.stats?.partial
+            ? `◐ ${t.name} saved incomplete — ${sess.stats.sets_done} of ${sess.stats.sets_planned} sets, ${sess.stats.tonnage ?? 0} t.`
+            : `✓ ${t.name} complete — ${sess?.stats?.tonnage ?? 0} t lifted.`}
+        </div>
+      )}
       {!done && t.rationale && <Chip>{t.rationale}</Chip>}
       {!done && (
         <div className="card">

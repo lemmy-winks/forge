@@ -194,7 +194,10 @@ export interface WeekDay {
   est?: number; exercise_count?: number; minutes?: number;
   session: { id: string; kind: string; status: string; stats: any; name: string } | null;
 }
-export interface WeekResp { start: string; rationale: string; days: WeekDay[]; }
+export interface WeekResp {
+  start: string; rationale: string; days: WeekDay[];
+  dangling: { id: string; date: string; day_name: string; name: string; sets_done: number } | null;
+}
 
 export interface ProposalDay {
   name: string; kind: 'strength' | 'cardio'; focus?: string[]; why?: string;
