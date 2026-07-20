@@ -25,7 +25,8 @@ sed -i '' "s|- BASE_URL=.*|- BASE_URL=http://$HOST:$PORT|" docker-compose.overri
   || sed -i '' "s|- BASE_URL=.*|- BASE_URL=http://$HOST:$PORT|" docker-compose.yml
 
 echo "== 4/6  Build + start on the server (compose + override values from this Mac)"
-docker --context $CTX compose -p forge up -d --build
+docker --context $CTX compose -p forge -f docker-compose.yml -f docker-compose.override.yml \
+       -f docker-compose.build.yml up -d --build
 echo "   waiting for Postgres…"
 for i in $(seq 1 30); do
   docker --context $CTX compose -p forge exec -T db pg_isready -U forge -d forge >/dev/null 2>&1 && break
@@ -51,5 +52,7 @@ Manual follow-ups:
     so the home-screen app, push subscription and offline queue start fresh there.
   · Stop the old stack on this Mac once you're happy:  docker compose down
     (data stays in the local volume as a fallback until you remove it)
-  · Future deploys from this Mac:  docker --context $CTX compose -p forge up -d --build
+  · Future deploys from this Mac:
+      docker --context $CTX compose -p forge -f docker-compose.yml \
+        -f docker-compose.override.yml -f docker-compose.build.yml up -d --build
 EOF

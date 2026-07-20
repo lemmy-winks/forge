@@ -87,8 +87,15 @@ To set up by hand instead: edit the values at the top of [docker-compose.yml](do
 (`POSTGRES_PASSWORD` in both places, `SESSION_SECRET`, your `ALLOWED_USERS` emails), then
 
 ```bash
-docker compose up -d --build
+docker compose up -d          # pulls ghcr.io/lemmy-winks/forge:latest
 open http://localhost:33524
+```
+
+The main compose file is deliberately image-only so it can be pasted into Portainer as-is.
+To build from source instead of pulling, layer on the build add-on:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
 ### Deploy with Portainer

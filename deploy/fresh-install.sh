@@ -43,7 +43,9 @@ EOF
 chmod 600 docker-compose.override.yml
 
 echo "== 2/4  Building and starting the stack"
-docker compose up -d --build
+# override listed explicitly: auto-merge stops once -f is used
+docker compose -f docker-compose.yml -f docker-compose.override.yml \
+               -f docker-compose.build.yml up -d --build
 
 echo "== 3/4  Generating Web Push (VAPID) keys"
 docker compose run --rm --no-deps api python -m app.vapid | sed 's/^/      - /' >> docker-compose.override.yml

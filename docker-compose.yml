@@ -17,10 +17,9 @@ services:
     restart: unless-stopped
 
   api:
+    # Published by GitHub Actions on every push to main (amd64 + arm64).
+    # Building from source instead: add -f docker-compose.build.yml (see README).
     image: ghcr.io/lemmy-winks/forge:latest
-    build:
-      context: .
-      dockerfile: server/Dockerfile
     init: true
     container_name: forge
     depends_on:

@@ -8,7 +8,7 @@ live in `docs/`.
 
 - **Tests**: `cd server && python -m pytest tests/ -q` — 20 smoke tests against sqlite, no Docker needed (local venv: `server/.venv`). Run them before any deploy.
 - **Frontend**: `cd web && npm run build` (dev: `npm run dev`, proxies to :8000).
-- **Deploy**: `docker compose up -d --build api` — builds `web/` in a node stage; the runtime image is Python-only. Never add Node to the runtime image.
+- **Deploy** (build from source): `docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.build.yml up -d --build api` — builds `web/` in a node stage; the runtime image is Python-only. Never add Node to the runtime image. The main compose is image-only (`ghcr.io/lemmy-winks/forge`, published by CI) so it pastes into Portainer; `docker-compose.build.yml` adds the build config, and once `-f` is used the override must be listed explicitly.
 - **Health**: `curl localhost:33524/healthz` (host port = `FORGE_PORT`, default 33524; container-internal port stays 8000)
 - After every deploy, remind the user: fully close + reopen the PWA so the service worker picks up the new bundle.
 
