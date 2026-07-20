@@ -4,9 +4,32 @@ import { api, fmtLoad, fmtT, kgDisp, loadUnitFor, todayISO, type Today, type Wee
 import { Back, Chip, Loading, Shell, Title, useApp } from '../ui';
 
 /* ---------------- Plan: the whole week, separated by day ---------------- */
+
+/** Tiny kind marker so rows read at a glance without reading. */
+function KindGlyph({ kind, done }: { kind: string; done?: boolean }) {
+  const c = done ? 'var(--volt)' : 'var(--mut)';
+  if (kind === 'cardio') {
+    return (<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <polyline points="1,9 4.5,9 6.5,4 9,12 10.8,8 15,8" fill="none" stroke={c}
+        strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" /></svg>);
+  }
+  if (kind === 'strength') {
+    return (<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <line x1="4" y1="8" x2="12" y2="8" stroke={c} strokeWidth="1.6" />
+      <rect x="1.2" y="4.5" width="2.4" height="7" rx="1" fill={c} />
+      <rect x="12.4" y="4.5" width="2.4" height="7" rx="1" fill={c} /></svg>);
+  }
+  return (<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+    <circle cx="8" cy="8" r="2.2" fill={c} opacity=".45" /></svg>);
+}
+
+const dayMinutes = (d: WeekResp['days'][number]): number =>
+  d.kind === 'strength' ? (d.est ?? 45) : d.kind === 'cardio' ? (d.minutes ?? 30) : 0;
+
 export function PlanScreen() {
   const { go } = useApp();
   const q = useQuery<WeekResp>({ queryKey: ['week'], queryFn: () => api('/api/week') });
+  const [noteOpen, setNoteOpen] = useState(false);
   const w = q.data;
   if (!w) return <Shell><Loading /></Shell>;
 
@@ -25,23 +48,64 @@ export function PlanScreen() {
     return '';
   };
 
+  const maxMin = Math.max(...w.days.map(dayMinutes), 30);
+  const today = w.days.find((d) => d.is_today);
+  const rest = w.days.filter((d) => !d.is_today);
+
   return (
     <Shell>
       <Title kick="Today + the six days ahead">Plan</Title>
-      {w.rationale && <Chip>{w.rationale}</Chip>}
-      {w.days.map((d) => {
+
+      {/* the week's shape at a glance — bar height = time, solid = done */}
+      <div className="weekstrip">
+        {w.days.map((d) => {
+          const min = dayMinutes(d);
+          const done = d.session?.status === 'completed';
+          return (
+            <button key={d.date} className={'ws press' + (done ? ' done' : '') + (d.is_today ? ' today' : '')}
+              aria-label={`${d.day_name}: ${d.name || 'rest'}`}
+              onClick={() => go('day', { dayDate: d.is_today ? null : d.date })}>
+              <span className="col">
+                {min > 0 && <span className="fill" style={{ height: `${Math.round(22 + 78 * min / maxMin)}%` }} />}
+              </span>
+              <span className="d num">{d.day_name.slice(0, 2)}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {w.rationale && (
+        <button className="coachnote press" onClick={() => setNoteOpen(!noteOpen)}>
+          <span className="kick" style={{ fontSize: 11 }}>Coach's note</span>
+          <div className={noteOpen ? '' : 'clamp'} style={{ marginTop: 3 }}>{w.rationale}</div>
+          <div className="more">{noteOpen ? 'less' : 'more'}</div>
+        </button>
+      )}
+
+      {today && (
+        <button className="herocard press" onClick={() => go('day', { dayDate: null })}>
+          <div className="toprow">
+            <span className="kick" style={{ fontSize: 11 }}>{today.day_name} · today</span>
+            <span className="est num">{today.session?.status === 'completed' ? right(today)
+              : dayMinutes(today) ? `~${dayMinutes(today)} min` : ''}</span>
+          </div>
+          <div className="hname">{today.name || 'Rest day'}</div>
+          {today.focus.length > 0 && (
+            <div className="fpills">{today.focus.map((f) => <span key={f} className="fpill">{f}</span>)}</div>
+          )}
+        </button>
+      )}
+
+      {rest.map((d) => {
         const done = d.session?.status === 'completed';
-        const emphasis = d.is_today
-          ? { background: 'var(--raised)', borderRadius: 16, borderTop: 0, padding: '13px 15px' }
-          : undefined;
         return (
           <button key={d.date} className={'lrow press' + (d.kind === 'rest' && !d.session ? ' dimrow' : '')}
-            style={emphasis}
-            onClick={() => go('day', { dayDate: d.is_today ? null : d.date })}>
+            onClick={() => go('day', { dayDate: d.date })}>
+            <span className="glyphslot"><KindGlyph kind={d.session?.kind || d.kind} done={done} /></span>
             <span>
-              <b>{d.day_name}{d.is_today ? ' · today' : ''}</b>
+              <b>{d.day_name}</b>
               <span style={{ display: 'block', fontSize: 13, color: 'var(--mut)', marginTop: 2 }}>
-                {d.name || 'Rest'}{d.focus.length ? ' · ' + d.focus.join(' · ') : ''}
+                {d.name || 'Rest'}
               </span>
             </span>
             <span className="rsub num" style={done ? { color: 'var(--volt)', fontWeight: 700 } : undefined}>
