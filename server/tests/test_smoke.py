@@ -669,3 +669,48 @@ def test_admin_added_user_gets_defaults_immediately():
         assert db.query(Plan).filter(Plan.user_id == u.id).count() == 1
     finally:
         db.close()
+
+
+def test_demo_account_lifecycle():
+    """Bruce Willis: a year of data, sign-in button, isolation, reset/remove."""
+    login()  # admin creates the demo
+    r = client.post("/api/admin/demo")
+    assert r.status_code == 200 and r.json()["exists"] is True
+
+    # demo is invisible to user management and doesn't consume a seat
+    assert all(u["role"] != "demo" for u in client.get("/api/admin/users").json())
+    mode = client.get("/auth/mode").json()
+    assert mode["demo"] is True
+    assert all(u["name"] != "Bruce Willis" for u in mode["users"])
+
+    # anyone can open the demo; it's fully onboarded
+    r = client.post("/auth/demo")
+    assert r.status_code == 200 and r.json()["name"] == "Bruce Willis"
+    me = client.get("/auth/me").json()
+    assert me["role"] == "demo" and me["prefs"].get("onboarded") is True
+
+    # a year of history that the screens can actually render
+    hist = client.get("/api/history").json()
+    assert len(hist) == 60, "history page is full (60-row cap)"
+    assert any(h["kind"] == "cardio" and (h["stats"].get("pct_in_zone") or 0) > 0 for h in hist)
+    prog = client.get("/api/progress").json()
+    assert len(prog["e1rm"]["back-squat"]["points"]) > 20, "a year of squat progression"
+    assert len(prog["weight"]) > 60 and prog["weight"][0]["v"] > prog["weight"][-1]["v"]
+    recs = client.get("/api/records").json()
+    assert any(rr["slug"] == "back-squat" and rr["kind"] == "e1rm" for rr in recs)
+    assert len(client.get("/api/week").json()["days"]) == 7
+    assert client.get("/api/dashboard").status_code == 200
+    assert client.get("/api/proposal").json()["proposal"] is not None, "pending proposal to show off"
+    assert len(client.get("/api/chat").json()["messages"]) >= 6
+    assert len(client.get("/api/labs").json()) == 3
+    assert client.get("/api/export").json()["user"]["email"] == "bruce@demo.forge"
+
+    # reset regenerates deterministically; remove deletes everything
+    login()
+    assert client.post("/api/admin/demo").status_code == 200
+    assert client.delete("/api/admin/demo").json()["exists"] is False
+    assert client.get("/auth/mode").json()["demo"] is False
+    assert client.post("/auth/demo").status_code == 404
+    # and the real seats still exist untouched
+    emails = {u["email"] for u in client.get("/api/admin/users").json()}
+    assert {"james@test.dev", "shelby@test.dev"} <= emails

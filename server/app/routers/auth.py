@@ -33,10 +33,24 @@ def _google():
 @router.get("/mode")
 def mode(db: Session = Depends(get_db)):
     s = get_settings()
-    out = {"google": s.google_enabled, "dev": s.dev_login_enabled, "users": []}
+    out = {"google": s.google_enabled, "dev": s.dev_login_enabled, "users": [],
+           "demo": db.query(User.id).filter(User.role == "demo").first() is not None}
     if s.dev_login_enabled:
-        out["users"] = [{"email": u.email, "name": u.name} for u in db.query(User).order_by(User.created_at)]
+        out["users"] = [{"email": u.email, "name": u.name}
+                        for u in db.query(User).filter(User.role != "demo").order_by(User.created_at)]
     return out
+
+
+@router.post("/demo")
+def demo_login(db: Session = Depends(get_db)):
+    """Open the demo account (Bruce). Enabled the moment the admin creates it —
+    the session is scoped to demo data only, like any other user's."""
+    user = db.query(User).filter(User.role == "demo").first()
+    if not user:
+        raise HTTPException(status_code=404, detail="demo not enabled")
+    resp = JSONResponse({"ok": True, "name": user.name})
+    set_session(resp, user.id)
+    return resp
 
 
 class DevLogin(BaseModel):

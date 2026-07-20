@@ -41,6 +41,15 @@ export function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
           <span><b>{u.name}</b><div className="em">{u.email}</div></span>
         </button>
       ))}
+      {m?.demo && (
+        <button className="acct press" onClick={async () => {
+          try { await api('/auth/demo', { method: 'POST' }); onSignedIn(); }
+          catch (e) { toast(String((e as Error).message)); }
+        }}>
+          <span className="avatar neutral">B</span>
+          <span><b>Try the demo</b><div className="em">Bruce Willis · a year of training, live coach</div></span>
+        </button>
+      )}
       <div className="fine">
         Private instance — allowlisted accounts only
         {m?.dev && <><br />Dev sign-in is enabled (no Google configured)</>}

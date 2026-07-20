@@ -97,7 +97,7 @@ export function lipidRefDisp(marker: string, mmol: number | null, u: string): nu
   if (mmol == null) return null;
   return u === 'mgdl' ? Math.round(mmol * (LIPID_FACTOR[marker] ?? 38.67)) : mmol;
 }
-export interface AuthMode { google: boolean; dev: boolean; users: { email: string; name: string }[]; }
+export interface AuthMode { google: boolean; dev: boolean; demo: boolean; users: { email: string; name: string }[]; }
 
 export interface LastTime { weight: number; reps: number[]; rpe: number[]; when: string; }
 export interface TodayExercise {

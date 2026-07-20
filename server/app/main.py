@@ -38,7 +38,7 @@ def _reviews_due() -> list[str]:
     due: list[str] = []
     db = SessionLocal()
     try:
-        for user in db.query(models.User).all():
+        for user in db.query(models.User).filter(models.User.role != "demo").all():
             done = any(
                 r.created_at.astimezone(ZoneInfo(settings.coach_tz)).isocalendar()[:2] == week
                 for r in db.query(models.AgentRun)
@@ -83,7 +83,7 @@ def _send_due_reminders() -> None:
     today = now.date()
     db = SessionLocal()
     try:
-        for user in db.query(models.User).all():
+        for user in db.query(models.User).filter(models.User.role != "demo").all():
             rev = (db.query(models.PlanRevision).join(models.Plan)
                    .filter(models.Plan.user_id == user.id, models.Plan.domain == "training",
                            models.PlanRevision.status == "active")

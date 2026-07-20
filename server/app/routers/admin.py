@@ -89,7 +89,8 @@ def _user_row(u: User) -> dict:
 
 @router.get("/users")
 def list_users(user: User = Depends(admin_user), db: Session = Depends(get_db)):
-    return [_user_row(u) for u in db.query(User).order_by(User.created_at)]
+    return [_user_row(u) for u in
+            db.query(User).filter(User.role != "demo").order_by(User.created_at)]
 
 
 class UserPatch(BaseModel):
@@ -128,8 +129,8 @@ class UserCreate(BaseModel):
 @router.post("/users")
 def create_user(body: UserCreate, user: User = Depends(admin_user),
                 db: Session = Depends(get_db)):
-    # two users by design — this only fills the second seat if it's empty
-    if db.query(User).count() >= 2:
+    # two users by design (the demo seat doesn't count) — this fills the second seat
+    if db.query(User).filter(User.role != "demo").count() >= 2:
         raise HTTPException(status_code=409, detail="both seats are taken")
     email = body.email.strip().lower()
     if not EMAIL_RE.match(email):
@@ -147,3 +148,25 @@ def create_user(body: UserCreate, user: User = Depends(admin_user),
     seed_user_defaults(db, new)  # equipment profiles + starter plan, ready immediately
     db.commit()
     return _user_row(new)
+
+
+@router.get("/demo")
+def demo_status(user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    from ..demo import demo_user as get_demo
+    return {"exists": get_demo(db) is not None}
+
+
+@router.post("/demo")
+def demo_create(user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    """Create (or reset) Bruce Willis with a fresh year of data."""
+    from ..demo import delete_demo, seed_demo
+    delete_demo(db)
+    seed_demo(db)
+    return {"exists": True}
+
+
+@router.delete("/demo")
+def demo_delete(user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    from ..demo import delete_demo
+    delete_demo(db)
+    return {"exists": False}

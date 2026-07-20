@@ -697,6 +697,8 @@ export function ServerScreen() {
         </button>
       </div>
 
+      <DemoCard />
+
       <h3 className="title" style={{ fontSize: 16, margin: '10px 2px 0' }}>Users</h3>
       {uq.data.map((u) => <UserCard key={u.id} u={u}
         onSaved={() => qc.invalidateQueries({ queryKey: ['admin-users'] })} />)}
@@ -717,5 +719,43 @@ export function ServerScreen() {
         anyone can log in.
       </div>
     </Shell>
+  );
+}
+
+function DemoCard() {
+  const qc = useQueryClient();
+  const q = useQuery<{ exists: boolean }>({ queryKey: ['admin-demo'], queryFn: () => api('/api/admin/demo') });
+  const [busy, setBusy] = useState(false);
+  const call = (method: 'POST' | 'DELETE', msg: string) => async () => {
+    setBusy(true);
+    try {
+      await api('/api/admin/demo', { method });
+      qc.invalidateQueries({ queryKey: ['admin-demo'] });
+      toast(msg, true);
+    } catch (e: any) { toast(e?.message || 'Failed'); }
+    setBusy(false);
+  };
+  const exists = q.data?.exists;
+  return (
+    <div className="card">
+      <b style={{ fontSize: 14 }}>Demo account</b>
+      <div className="rsub" style={{ margin: '6px 0 10px' }}>
+        {exists
+          ? 'Live — "Try the demo" shows on the sign-in screen. Bruce Willis, a year of history, real coach.'
+          : 'Adds a "Try the demo" button to the sign-in screen: Bruce Willis with a year of believable training data. Anyone who can reach this app can open it — demo data only, never yours.'}
+      </div>
+      {exists ? (
+        <div className="btnrow">
+          <button className="ghost press" disabled={busy}
+            onClick={call('POST', 'Demo data reset')}>Reset data</button>
+          <button className="ghost press" disabled={busy} style={{ color: 'var(--warn)' }}
+            onClick={() => confirm('Remove the demo account and all its data?')
+              && call('DELETE', 'Demo removed')()}>Remove</button>
+        </div>
+      ) : (
+        <button className="cta press" style={{ width: '100%' }} disabled={busy || q.isLoading}
+          onClick={call('POST', 'Demo account created')}>{busy ? 'Building a year of data…' : 'Create demo account'}</button>
+      )}
+    </div>
   );
 }
