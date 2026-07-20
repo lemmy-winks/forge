@@ -614,3 +614,58 @@ def test_admin_settings_and_user_management():
     # put shelby back so earlier-run state stays consistent for other tests
     client.patch(f"/api/admin/users/{shelby['id']}",
                  json={"email": "shelby@test.dev", "name": "Shelby"})
+
+
+def test_second_matching_workout_stays_unplanned():
+    """The planned day is claimed once — a second run must not double-complete it."""
+    login()
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+    payload = {"data": {"workouts": [{
+        "name": "Outdoor Run", "start": "2026-07-22 19:30:00 +0100",
+        "end": "2026-07-22 20:00:00 +0100", "duration": 1800,
+        "avgHeartRate": {"qty": 130}}]}}
+    r = client.post("/ingest", json=payload, headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 200 and r.json()["stored"] == 1
+    day = [h for h in client.get("/api/history").json() if h["day"] == "2026-07-22"]
+    assert sorted(h["status"] for h in day) == ["completed", "unplanned"]
+
+
+def test_workout_units_honored():
+    """Workout payload units convert like body metrics do — miles never stored as km."""
+    login()
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+    payload = {"data": {"workouts": [{
+        "name": "Outdoor Walk", "start": "2026-07-23 08:00:00 +0100",
+        "duration": 2700, "distance": {"qty": 3.0, "units": "mi"},
+        "activeEnergyBurned": {"qty": 1000, "units": "kJ"}}]}}
+    r = client.post("/ingest", json=payload, headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 200 and r.json()["stored"] == 1
+    walk = next(h for h in client.get("/api/history").json() if h["day"] == "2026-07-23")
+    assert walk["status"] == "unplanned"
+    assert abs(walk["stats"]["distance"] - 4.828) < 0.01, "3 mi → km"
+    assert abs(walk["stats"]["kcal"] - 239.0) < 0.5, "1000 kJ → kcal"
+    assert abs(walk["stats"]["pace_min_km"] - 9.32) < 0.02, "pace over km, not miles"
+
+
+def test_admin_added_user_gets_defaults_immediately():
+    """A user added via the admin API is usable at once: equipment + starter plan."""
+    from app.db import SessionLocal
+    from app.models import EquipmentProfile, Plan, User
+    from app.seed import seed_user_defaults
+
+    db = SessionLocal()
+    try:
+        u = User(email="third@test.dev", name="Third", role="member", prefs={})
+        db.add(u)
+        db.flush()
+        seed_user_defaults(db, u)
+        db.commit()
+        gym = (db.query(EquipmentProfile)
+               .filter(EquipmentProfile.user_id == u.id, EquipmentProfile.name == "Gym").first())
+        assert gym is not None and u.active_profile_id == gym.id
+        assert (db.query(EquipmentProfile)
+                .filter(EquipmentProfile.user_id == u.id, EquipmentProfile.name == "Travel")
+                .count()) == 1
+        assert db.query(Plan).filter(Plan.user_id == u.id).count() == 1
+    finally:
+        db.close()

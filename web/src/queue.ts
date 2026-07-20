@@ -33,8 +33,10 @@ export async function flushQueue(onFlushed?: (n: number) => void): Promise<void>
       db.transaction('queue', 'readwrite').objectStore('queue').delete(it.key);
       done++;
     } catch (e) {
-      if (e instanceof ApiError && e.network) break; // still offline
-      db.transaction('queue', 'readwrite').objectStore('queue').delete(it.key); // rejected: drop
+      if (!(e instanceof ApiError)) break;
+      if (e.network || e.status === 401) break; // offline or signed out — keep everything, retry later
+      if ((e.status ?? 0) >= 500) continue; // server hiccup — keep this one, try the rest
+      db.transaction('queue', 'readwrite').objectStore('queue').delete(it.key); // truly rejected: drop
     }
   }
   if (done && onFlushed) onFlushed(done);

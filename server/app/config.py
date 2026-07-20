@@ -67,6 +67,15 @@ def get_settings() -> Settings:
     return Settings()
 
 
+def local_today():
+    """Today in the instance's home timezone (COACH_TZ) — never the UTC date,
+    which is yesterday's date for the first hour after midnight in summer."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    return datetime.now(ZoneInfo(get_settings().coach_tz)).date()
+
+
 # Settings the admin can manage in-app (Settings → Server). Stored in the
 # app_settings table; a stored value overrides the environment on the cached
 # singleton, so every get_settings() call site sees it without a restart.

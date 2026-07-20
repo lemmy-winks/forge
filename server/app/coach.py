@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from .config import get_settings
+from .config import get_settings, local_today
 from .models import AgentRun, ChatMessage, Exercise, Niggle, Plan, PlanRevision, User
 
 MAX_LOOPS = 12
@@ -248,7 +248,7 @@ def _week_so_far(db: Session, user: User) -> str:
     from .models import PlanRevision as PR
     from .models import WorkoutSession
     from .routers.training import active_revision
-    today = datetime.now(timezone.utc).date()
+    today = local_today()
     monday = today - timedelta(days=today.weekday())
     rows = (db.query(WorkoutSession)
             .filter(WorkoutSession.user_id == user.id, WorkoutSession.day >= monday,
@@ -286,7 +286,7 @@ propose_revision with their real first week: conservative starting loads (this w
 calibration — say so in the rationale), their equipment only, cool-downs included. Then tell
 them it's waiting on the Today screen for approval. Do not lecture; keep it light."""
     return f"""You are the Forge coach for {user.name} — their personal strength & conditioning coach.
-Today is {datetime.now(timezone.utc).date().isoformat()}. Display units: {user.units}.{intake}
+Today is {local_today().isoformat()}. Display units: {user.units}.{intake}
 
 Goal: {plan.goal if plan else 'not set'}
 {_week_so_far(db, user)}

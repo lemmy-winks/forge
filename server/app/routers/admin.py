@@ -17,6 +17,7 @@ from ..config import OVERRIDABLE, get_settings, set_override
 from ..db import get_db
 from ..models import AppSetting, IngestToken, User
 from ..security import admin_user, new_ingest_token
+from ..seed import seed_user_defaults
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -143,5 +144,6 @@ def create_user(body: UserCreate, user: User = Depends(admin_user),
     db.add(new)
     db.flush()
     db.add(IngestToken(user_id=new.id, token=new_ingest_token()))
+    seed_user_defaults(db, new)  # equipment profiles + starter plan, ready immediately
     db.commit()
     return _user_row(new)

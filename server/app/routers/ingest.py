@@ -30,6 +30,15 @@ METRIC_MAP = {
 MASS_TYPES = {"weight", "fat_free_mass"}
 
 
+def _first(d: dict, *keys):
+    """First key present with a non-None value — unlike `or`-chains, keeps zeros."""
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            return v
+    return None
+
+
 def _parse_ts(raw) -> datetime | None:
     if not raw:
         return None
@@ -53,9 +62,7 @@ def _hr_values(w: dict) -> list[float]:
     """Heart-rate samples from an HAE workout payload, tolerant of shape."""
     out = []
     for s in w.get("heartRateData", []) or []:
-        v = s.get("qty") if isinstance(s, dict) else s
-        if isinstance(s, dict) and v is None:
-            v = s.get("Avg") or s.get("avg")
+        v = _first(s, "qty", "Avg", "avg") if isinstance(s, dict) else s
         try:
             out.append(float(v))
         except (TypeError, ValueError):
@@ -72,7 +79,8 @@ def _minutes_in_band(hrs: list[float], duration_s: float, low: float, high: floa
 
 
 def _match_prescription(db: Session, user_id: str, day, name: str) -> tuple[dict, str] | None:
-    """Planned cardio entry for this date whose type loosely matches the workout name."""
+    """Planned cardio entry for this date whose type matches the workout name.
+    A day already completed stays claimed — a second workout stays unplanned."""
     from .training import active_revision
     rev = active_revision(db, user_id)
     if not rev:
@@ -81,7 +89,15 @@ def _match_prescription(db: Session, user_id: str, day, name: str) -> tuple[dict
     if not entry or entry.get("kind") != "cardio":
         return None
     ctype = str((entry.get("cardio") or {}).get("type", "")).lower()
-    if ctype and ctype not in name.lower():
+    # no prescribed type = nothing to match against — never complete the day off
+    # an arbitrary workout (a strength session would otherwise claim it)
+    if not ctype or ctype not in name.lower():
+        return None
+    already = (db.query(WorkoutSession.id)
+               .filter(WorkoutSession.user_id == user_id, WorkoutSession.day == day,
+                       WorkoutSession.kind == "cardio", WorkoutSession.status == "completed")
+               .first())
+    if already:
         return None
     return entry, str(day.weekday())
 
@@ -137,9 +153,9 @@ async def ingest(request: Request,
             if ts is None:
                 continue
             if mtype == "sleep_h":
-                qty = sample.get("asleep") or sample.get("totalSleep") or sample.get("qty")
+                qty = _first(sample, "asleep", "totalSleep", "qty")
             else:
-                qty = sample.get("qty") or sample.get("Avg") or sample.get("avg")
+                qty = _first(sample, "qty", "Avg", "avg")
             try:
                 value = float(qty) * factor
             except (TypeError, ValueError):
@@ -167,13 +183,25 @@ async def ingest(request: Request,
                          ("avgHeartRate", "avg_hr"), ("maxHeartRate", "max_hr"),
                          ("activeEnergyBurned", "kcal")):
             v = w.get(key)
+            wunit = ""
             if isinstance(v, dict):
+                wunit = str(v.get("units", "")).lower()
                 v = v.get("qty")
             if v is not None:
                 try:
-                    stats[out] = float(v)
+                    val = float(v)
                 except (TypeError, ValueError):
-                    pass
+                    continue
+                # honor the payload's units — same invariant as body metrics
+                if out == "distance" and wunit in ("mi", "mile", "miles"):
+                    val *= 1.609344
+                elif out == "distance" and wunit in ("m", "meter", "meters", "metres"):
+                    val /= 1000.0
+                elif out == "kcal" and wunit == "kj":
+                    val *= 0.2390057
+                elif out == "duration_s" and wunit == "min":
+                    val *= 60.0
+                stats[out] = round(val, 3)
         duration = stats.get("duration_s", 0)
         if stats.get("distance") and duration:
             stats["pace_min_km"] = round(duration / 60 / stats["distance"], 2)

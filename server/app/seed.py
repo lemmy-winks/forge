@@ -348,6 +348,34 @@ def _week(scale: float = 1.0) -> dict:
     }
 
 
+def seed_user_defaults(db: Session, u: User, scale: float = 0.6) -> None:
+    """Equipment profiles + starter plan for one user. Idempotent; used at boot
+    for seeded users and by the admin API when a user is added later."""
+    if not db.query(EquipmentProfile).filter(EquipmentProfile.user_id == u.id,
+                                             EquipmentProfile.name == "Gym").first():
+        gym = EquipmentProfile(user_id=u.id, name="Gym",
+                               items=[{"name": n, "available": True} for n in GYM_ITEMS]
+                               + [{"name": "Kettlebells", "available": False},
+                                  {"name": "Rowing machine", "available": False}],
+                               bar_kg=20, plates_kg=[25, 20, 15, 10, 5, 2.5, 1.25], db_max_kg=30)
+        db.add(gym)
+        db.flush()
+        if not u.active_profile_id:
+            u.active_profile_id = gym.id
+        db.add(EquipmentProfile(user_id=u.id, name="Travel",
+                                items=[{"name": "Resistance bands", "available": True},
+                                       {"name": "Bodyweight only", "available": True}],
+                                bar_kg=0, plates_kg=[], db_max_kg=0))
+    if db.query(Plan).filter(Plan.user_id == u.id).count() == 0:
+        plan = Plan(user_id=u.id, goal="Get stronger and fitter; build the aerobic base.",
+                    status="active")
+        db.add(plan)
+        db.flush()
+        db.add(PlanRevision(plan_id=plan.id, num=1, status="active",
+                            content=_week(scale=scale),
+                            rationale="Starter week — hand-written baseline before the coach takes over."))
+
+
 def run_seed(db: Session) -> None:
     settings = get_settings()
 
@@ -389,25 +417,16 @@ def run_seed(db: Session) -> None:
 
     users = db.query(User).order_by(User.created_at).all()
 
-    # equipment: shared Home + per-user Gym/Travel
-    if db.query(EquipmentProfile).count() == 0:
+    # shared Home equipment profile (user_id NULL — visible to both)
+    if not db.query(EquipmentProfile).filter(EquipmentProfile.user_id.is_(None),
+                                             EquipmentProfile.name == "Home").first():
         db.add(EquipmentProfile(user_id=None, name="Home",
                                 items=[{"name": n, "available": True} for n in HOME_ITEMS],
                                 bar_kg=0, plates_kg=[], db_max_kg=24))
-        for u in users:
-            gym = EquipmentProfile(user_id=u.id, name="Gym",
-                                   items=[{"name": n, "available": True} for n in GYM_ITEMS]
-                                   + [{"name": "Kettlebells", "available": False},
-                                      {"name": "Rowing machine", "available": False}],
-                                   bar_kg=20, plates_kg=[25, 20, 15, 10, 5, 2.5, 1.25], db_max_kg=30)
-            db.add(gym)
-            db.flush()
-            u.active_profile_id = gym.id
-            db.add(EquipmentProfile(user_id=u.id, name="Travel",
-                                    items=[{"name": "Resistance bands", "available": True},
-                                           {"name": "Bodyweight only", "available": True}],
-                                    bar_kg=0, plates_kg=[], db_max_kg=0))
-        db.commit()
+
+    # per-user defaults — also called by the admin API when a user is added later
+    for i, u in enumerate(users):
+        seed_user_defaults(db, u, scale=1.0 if i == 0 else 0.6)
 
     # backfill new gym equipment into existing Gym profiles (available by default —
     # toggle off anything the gym actually lacks, in Settings → Equipment)
@@ -416,18 +435,6 @@ def run_seed(db: Session) -> None:
         missing = [n for n in GYM_ITEMS if n not in present]
         if missing:
             prof.items = list(prof.items or []) + [{"name": n, "available": True} for n in missing]
-    db.commit()
-
-    # starter plan per user (hand-written; the coach takes over in Phase 3)
-    for i, u in enumerate(users):
-        if db.query(Plan).filter(Plan.user_id == u.id).count() == 0:
-            plan = Plan(user_id=u.id, goal="Get stronger and fitter; build the aerobic base.",
-                        status="active")
-            db.add(plan)
-            db.flush()
-            db.add(PlanRevision(plan_id=plan.id, num=1, status="active",
-                                content=_week(scale=1.0 if i == 0 else 0.6),
-                                rationale="Starter week — hand-written baseline before the coach takes over."))
     db.commit()
 
     # James's standing niggle (kept from intake; clear it in Settings when it's gone)

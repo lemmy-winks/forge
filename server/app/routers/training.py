@@ -1,6 +1,8 @@
 from datetime import date as ddate
 from datetime import datetime, timedelta, timezone
 
+from ..config import local_today
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -64,7 +66,7 @@ def last_time(db: Session, user_id: str, slug: str) -> dict | None:
 
 def parse_date(raw: str | None) -> ddate:
     if not raw:
-        return datetime.now(timezone.utc).date()
+        return local_today()
     try:
         return ddate.fromisoformat(raw)
     except ValueError:
@@ -177,7 +179,7 @@ def today(date: str | None = None, budget: int | None = Query(default=None, ge=2
 def week(date: str | None = None, user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Rolling 7-day view: today first, then the six days ahead."""
     base = parse_date(date)
-    actual_today = datetime.now(timezone.utc).date()
+    actual_today = local_today()
     rev = active_revision(db, user.id)
     days = ((rev.content or {}).get("days", {}) or {}) if rev else {}
 
@@ -514,7 +516,7 @@ def _bodycomp(db: Session, user_id: str, days: int = 365) -> dict:
 
 @router.get("/progress")
 def progress(user: User = Depends(current_user), db: Session = Depends(get_db)):
-    today_d = datetime.now(timezone.utc).date()
+    today_d = local_today()
     week_start = today_d - timedelta(days=today_d.weekday())
     week_sessions = (db.query(WorkoutSession)
                      .filter(WorkoutSession.user_id == user.id,
@@ -540,7 +542,7 @@ def progress(user: User = Depends(current_user), db: Session = Depends(get_db)):
 def dashboard(user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Everything the desktop dashboard renders (E14.1) — same queries the agent uses."""
     from ..models import LabPanel
-    today_d = datetime.now(timezone.utc).date()
+    today_d = local_today()
     this_monday = today_d - timedelta(days=today_d.weekday())
     weeks = [this_monday - timedelta(weeks=i) for i in range(11, -1, -1)]
     rev = active_revision(db, user.id)

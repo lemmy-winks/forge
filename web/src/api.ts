@@ -258,4 +258,9 @@ export function plateStr(kind: string, weight: number, profile?: Profile | null)
 export function fmtT(s: number): string {
   return Math.floor(s / 60) + ':' + String(Math.max(0, s % 60)).padStart(2, '0');
 }
-export const todayISO = () => new Date().toISOString().slice(0, 10);
+/** Today as the user's LOCAL date — toISOString alone is the UTC date, which is
+ *  still yesterday for the first hour after midnight during BST. */
+export const todayISO = () => {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+};
