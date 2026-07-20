@@ -53,6 +53,7 @@ export function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
       <div className="fine">
         Private instance — allowlisted accounts only
         {m?.dev && <><br />Dev sign-in is enabled (no Google configured)</>}
+        <br /><a href="/welcome.html" style={{ color: 'var(--mut)' }}>New here? See what Forge is →</a>
       </div>
     </div>
   );
