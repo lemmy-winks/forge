@@ -252,3 +252,118 @@ class AppSetting(Base):
     key: Mapped[str] = mapped_column(String(40), primary_key=True)
     value: Mapped[str] = mapped_column(Text, default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+# ---------- nutrition (beta track, Phase 7 — stories E16) ----------
+
+
+class Recipe(Base):
+    """Curated recipe library — the food twin of `exercises`. Per-serving macros
+    are authored (hand-checked) at seed/import time; the `ingredients` JSON list
+    joins the `ingredients` table by name for shopping/waste math (Phase 8)."""
+    __tablename__ = "recipes"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    slug: Mapped[str] = mapped_column(String(60), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    kind: Mapped[str] = mapped_column(String(16), default="dinner")  # dinner | breakfast | lunch | snack
+    minutes: Mapped[int] = mapped_column(Integer, default=0)
+    difficulty: Mapped[str] = mapped_column(String(12), default="easy")  # easy | medium — hard ceiling
+    serves: Mapped[int] = mapped_column(Integer, default=2)
+    batch: Mapped[int] = mapped_column(Integer, default=0)  # extra servings boxed for a zero-cook night
+    kcal: Mapped[float] = mapped_column(Float, default=0)  # per serving, canonical
+    protein_g: Mapped[float] = mapped_column(Float, default=0)
+    fiber_g: Mapped[float] = mapped_column(Float, default=0)
+    satfat_g: Mapped[float] = mapped_column(Float, default=0)
+    carbs_g: Mapped[float] = mapped_column(Float, default=0)
+    fat_g: Mapped[float] = mapped_column(Float, default=0)
+    why: Mapped[str] = mapped_column(Text, default="")  # "why it's in your week" one-liner
+    steps: Mapped[list] = mapped_column(JSON, default=list)  # [{title, minutes, detail, timer}] — done-when style
+    ingredients: Mapped[list] = mapped_column(JSON, default=list)  # [{name, qty, unit, disp, note}]
+    tags: Mapped[list] = mapped_column(JSON, default=list)
+    platefig: Mapped[str] = mapped_column(String(32), default="plate")  # plate-art composition id
+    source: Mapped[str] = mapped_column(String(24), default="seed")  # seed | bbc-good-food | card-box
+    source_url: Mapped[str] = mapped_column(Text, default="")
+    complete: Mapped[int] = mapped_column(Integer, default=1)  # only complete entries are proposable
+
+
+class Ingredient(Base):
+    """Macro/aisle reference per ingredient name — per 100 g/ml, or per item when
+    unit is 'x'. Pantry staples never appear on shopping lists."""
+    __tablename__ = "ingredients"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    name: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    aisle: Mapped[str] = mapped_column(String(24), default="cupboard")  # produce | protein | dairy | cupboard | frozen
+    unit: Mapped[str] = mapped_column(String(8), default="g")  # g | ml | x
+    pack: Mapped[str] = mapped_column(String(40), default="")  # typical pack, e.g. "400 g tin"
+    kcal_100: Mapped[float] = mapped_column(Float, default=0)
+    protein_100: Mapped[float] = mapped_column(Float, default=0)
+    fiber_100: Mapped[float] = mapped_column(Float, default=0)
+    satfat_100: Mapped[float] = mapped_column(Float, default=0)
+    pantry: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class MealRevision(Base):
+    """Versioned food week, mirror of plan_revisions. user_id NULL = the member
+    household's shared week (dinners cook for two); the demo seat gets rows under
+    its own user_id so it can never see the household's food."""
+    __tablename__ = "meal_revisions"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    num: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(16), default="active")  # proposed | active | superseded
+    content: Mapped[dict] = mapped_column(JSON, default=dict)  # {"days": {"0".."6": {"slots": {...}}}}
+    rationale: Mapped[str] = mapped_column(Text, default="")
+    changes: Mapped[list] = mapped_column(JSON, default=list)  # [{sign, what, why}] — proposal diff rows
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MealLog(Base):
+    """One row per eaten thing, macros snapshotted at log time so later recipe
+    edits never rewrite history. client_id makes offline-queue retries idempotent."""
+    __tablename__ = "meal_log"
+    __table_args__ = (UniqueConstraint("user_id", "client_id", name="uq_meal_client"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    day: Mapped[date] = mapped_column(Date, index=True)
+    slot: Mapped[str] = mapped_column(String(12))  # breakfast | lunch | dinner | snack
+    recipe_slug: Mapped[str] = mapped_column(String(60), default="")  # empty for off-plan estimates
+    label: Mapped[str] = mapped_column(String(120), default="")
+    servings: Mapped[float] = mapped_column(Float, default=1)
+    kcal: Mapped[float] = mapped_column(Float, default=0)  # totals for `servings`, snapshot
+    protein_g: Mapped[float] = mapped_column(Float, default=0)
+    fiber_g: Mapped[float] = mapped_column(Float, default=0)
+    satfat_g: Mapped[float] = mapped_column(Float, default=0)
+    source: Mapped[str] = mapped_column(String(12), default="plan")  # plan | chat | order
+    estimated: Mapped[int] = mapped_column(Integer, default=0)
+    client_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Carryover(Base):
+    """What a week's shop leaves behind (E16.5). Household-scoped like the food
+    week (user_id NULL for members, demo's id for demo). Wired up in Phase 8;
+    the table ships in Phase 7 so create_all provisions it once."""
+    __tablename__ = "carryovers"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    week_start: Mapped[date] = mapped_column(Date, index=True)
+    item: Mapped[str] = mapped_column(String(80))
+    qty: Mapped[str] = mapped_column(String(40), default="")  # human amount: "½ bag", "⅔ jar"
+    use_by: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(12), default="open")  # open | kept | binned | consumed
+
+
+class LunchFavorite(Base):
+    """Vetted repeat orders (E16.7, wired in Phase 9). Strictly per-user."""
+    __tablename__ = "lunch_favorites"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    vendor: Mapped[str] = mapped_column(String(20), default="other")  # mealpal | grubhub | other
+    item: Mapped[str] = mapped_column(String(120))
+    price: Mapped[float] = mapped_column(Float, default=0)
+    kcal: Mapped[float] = mapped_column(Float, default=0)
+    protein_g: Mapped[float] = mapped_column(Float, default=0)
+    fiber_g: Mapped[float] = mapped_column(Float, default=0)
+    satfat_g: Mapped[float] = mapped_column(Float, default=0)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    last_ordered: Mapped[date | None] = mapped_column(Date, nullable=True)

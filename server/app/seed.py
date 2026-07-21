@@ -444,3 +444,8 @@ def run_seed(db: Session) -> None:
                       note="Grumbles in deep lunges — avoiding that pattern",
                       avoid_patterns=["deep_lunge"], mobility_slug="quad-hip-flexor-stretch"))
         db.commit()
+
+    # nutrition (beta track, Phase 7): ingredient table, recipe library,
+    # prefs defaults, first household food week
+    from .food_seed import run_food_seed
+    run_food_seed(db)

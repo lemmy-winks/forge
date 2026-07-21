@@ -808,3 +808,87 @@ def test_demo_cannot_reach_member_data():
 
     login()
     client.delete("/api/admin/demo")
+
+
+def test_food_week_recipe_and_one_tap_log():
+    """Phase 7 kitchen core (E16.2/E16.4): the seeded food week resolves recipes,
+    leftovers and order/out slots; ticking a slot snapshots macros idempotently."""
+    login()
+    me = client.get("/auth/me").json()
+    assert me["prefs"]["nutrition_targets"]["protein_g"] == 160, "seeded targets"
+
+    w = client.get(f"/api/food/week?date={MONDAY}").json()
+    assert w["has_plan"] and len(w["days"]) == 7
+    assert w["targets"]["fiber_g"] == 38
+    mon = w["days"][0]
+    dinner = next(s for s in mon["slots"] if s["slot"] == "dinner")
+    assert dinner["recipe"]["slug"] == "harissa-chicken-traybake"
+    assert dinner["recipe"]["platefig"] == "tray-chicken"
+    assert dinner["logged"] is False
+    # Wednesday inherits Monday's dinner as leftovers; Friday is the night out;
+    # Tuesday lunch is an order-assist slot
+    wed = next(s for s in w["days"][2]["slots"] if s["slot"] == "dinner")
+    assert wed.get("leftover") and wed["recipe"]["slug"] == "harissa-chicken-traybake"
+    fri = next(s for s in w["days"][4]["slots"] if s["slot"] == "dinner")
+    assert fri.get("out") is True
+    tue_lunch = next(s for s in w["days"][1]["slots"] if s["slot"] == "lunch")
+    assert tue_lunch.get("order") is True
+
+    # recipe detail: done-when steps with a timer step, joined ingredients, the trio
+    r = client.get("/api/food/recipes/harissa-chicken-traybake").json()
+    assert len(r["steps"]) == 5 and any(s.get("timer") for s in r["steps"])
+    assert any(i["name"] == "chickpeas" and i["aisle"] == "cupboard" for i in r["ingredients"])
+    assert any(i.get("pantry") for i in r["ingredients"]), "pantry staples flagged"
+    assert r["fiber_g"] == 11 and r["satfat_g"] == 4.5 and r["difficulty"] == "easy"
+    assert client.get("/api/food/recipes/nope").status_code == 404
+
+    # one-tap tick with offline-queue idempotency
+    body = {"date": MONDAY, "slot": "dinner", "recipe": "harissa-chicken-traybake",
+            "client_id": "tick-1"}
+    r1 = client.post("/api/food/log", json=body).json()
+    assert r1["duplicate"] is False and r1["totals"]["protein_g"] == 42
+    r2 = client.post("/api/food/log", json=body).json()
+    assert r2["duplicate"] is True and r2["id"] == r1["id"]
+    w = client.get(f"/api/food/week?date={MONDAY}").json()
+    dinner = next(s for s in w["days"][0]["slots"] if s["slot"] == "dinner")
+    assert dinner["logged"] is True and dinner["log_id"] == r1["id"]
+    assert w["days"][0]["totals"]["protein_g"] == 42
+    # off-plan entries need their own numbers
+    assert client.post("/api/food/log", json={"date": MONDAY, "slot": "snack"}).status_code == 400
+    # untick
+    assert client.delete(f"/api/food/log/{r1['id']}").json()["totals"]["kcal"] == 0
+
+
+def test_food_household_scope_and_demo_wall():
+    """E16.8: one household food week, strictly per-user logs; the demo seat
+    sees the shared recipe library but never the household's week or plates."""
+    login("shelby@test.dev")
+    w = client.get(f"/api/food/week?date={MONDAY}").json()
+    dinner = next(s for s in w["days"][0]["slots"] if s["slot"] == "dinner")
+    assert dinner["recipe"]["slug"] == "harissa-chicken-traybake", "household week is shared"
+
+    # James logs his plate; Shelby's day stays hers
+    login()
+    jid = client.post("/api/food/log", json={"date": MONDAY, "slot": "dinner",
+                                             "recipe": "harissa-chicken-traybake",
+                                             "client_id": "seg-1"}).json()["id"]
+    login("shelby@test.dev")
+    w = client.get(f"/api/food/week?date={MONDAY}").json()
+    dinner = next(s for s in w["days"][0]["slots"] if s["slot"] == "dinner")
+    assert dinner["logged"] is False and w["days"][0]["totals"]["kcal"] == 0
+    assert client.delete(f"/api/food/log/{jid}").status_code == 404, "cross-user delete"
+
+    # the demo seat: shared library yes, household week no
+    login()
+    client.post("/api/admin/demo")
+    client.post("/auth/demo")
+    wd = client.get(f"/api/food/week?date={MONDAY}").json()
+    assert all(not d["slots"] for d in wd["days"]), "household food week invisible to demo"
+    assert all(d["totals"]["kcal"] == 0 for d in wd["days"])
+    assert client.get("/api/food/recipes/harissa-chicken-traybake").status_code == 200
+
+    login()
+    client.delete("/api/admin/demo")
+    assert any(m["recipe"] == "harissa-chicken-traybake"
+               for m in client.get("/api/export").json()["meals"]), "meals in export (E15.3)"
+    client.delete(f"/api/food/log/{jid}")

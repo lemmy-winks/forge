@@ -340,7 +340,7 @@ def patch_prefs(body: PrefsIn, user: User = Depends(current_user), db: Session =
 
 @router.get("/export")
 def export(user: User = Depends(current_user), db: Session = Depends(get_db)):
-    from ..models import LoggedSet, Record, WorkoutSession
+    from ..models import LoggedSet, MealLog, Record, WorkoutSession
 
     def rows(model, order_col):
         return db.query(model).filter(model.user_id == user.id).order_by(order_col).all()
@@ -358,4 +358,9 @@ def export(user: User = Depends(current_user), db: Session = Depends(get_db)):
         "records": [{"slug": r.exercise_slug, "kind": r.kind, "value": r.value,
                      "detail": r.detail, "achieved_on": str(r.achieved_on)}
                     for r in rows(Record, Record.achieved_on)],
+        "meals": [{"day": str(m.day), "slot": m.slot, "recipe": m.recipe_slug, "label": m.label,
+                   "servings": m.servings, "kcal": m.kcal, "protein_g": m.protein_g,
+                   "fiber_g": m.fiber_g, "satfat_g": m.satfat_g, "source": m.source,
+                   "estimated": bool(m.estimated)}
+                  for m in rows(MealLog, MealLog.ts)],
     }
