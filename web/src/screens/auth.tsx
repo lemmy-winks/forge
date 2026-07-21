@@ -27,7 +27,7 @@ export function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
   return (
     <div className="authbody">
       <div>
-        <div className="wordmark">FORGE<i>.</i></div>
+        <div className="wordmark">FORGE<i>.</i> <span className="betatag">BETA</span></div>
         <div className="tagline">Coached by an agent.<br />Evidence from your own body.</div>
       </div>
       {m?.google && (

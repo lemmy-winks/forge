@@ -4,7 +4,8 @@
    always worked — hence the separate --cta-* tokens. */
 :root{
   --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
-  --ink:#edeef0; --mut:#8b9096; --dim:#565b61;
+  /* lifted a step (Jul 2026): secondary text read too dark on dim phone screens */
+  --ink:#f3f4f6; --mut:#9ea4ab; --dim:#6d737a;
   --volt:#c9f73a; --volt-deep:#93b821; --on-volt:#131602;
   --warn:#e8a360; --on-warn:#20150a;
   --outer:#000; --btn:#1b1d22; --sel:#1e2126; --neutral:#23262b; --off:#17181c;
@@ -17,7 +18,7 @@
 }
 :root[data-theme="light"]{
   --bg:#f4f5f2; --raised:#ffffff; --sunken:#eceee7; --hair:#e2e5dc;
-  --ink:#171a1f; --mut:#6a7078; --dim:#a0a6ad;
+  --ink:#14171c; --mut:#5f656d; --dim:#969ca3;  /* same step: more contrast on paper */
   --volt:#5c7d0a; --volt-deep:#47620a; --on-volt:#ffffff;
   --warn:#a3641a; --on-warn:#ffffff;
   --outer:#e4e6e0; --btn:#eceee7; --sel:#ffffff; --neutral:#e2e5dc; --off:#e7e9e2;
@@ -60,6 +61,11 @@ input{ font:inherit; font-size:16px; color:var(--ink); } /* ≥16px everywhere o
 .hdr .wm{ font-size:17px; letter-spacing:.05em; font-weight:800; }
 .hdr .wm i{ font-style:normal; color:var(--volt); }
 .hdr .sp{ flex:1; }
+/* beta-branch marker: rides next to every wordmark so the beta stack is
+   unmistakable at a glance. Dropped when features merge to main. */
+.betatag{ font-size:9.5px; font-weight:800; letter-spacing:.14em; color:var(--volt);
+          background:var(--volt-dim); border-radius:6px; padding:3px 7px; margin-left:8px;
+          align-self:center; }
 .avatar{ width:32px; height:32px; border-radius:50%; background:var(--volt); color:var(--on-volt);
          display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; }
 .avatar.neutral{ background:var(--neutral); color:var(--ink); }

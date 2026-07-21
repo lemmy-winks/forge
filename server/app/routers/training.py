@@ -326,6 +326,43 @@ def log_set(sid: str, body: SetIn, user: User = Depends(current_user), db: Sessi
     return {"ok": True, "pbs": pbs}
 
 
+class SetPatch(BaseModel):
+    slug: str
+    set_no: int
+    weight: float = 0
+    reps: int
+    rpe: int | None = None
+
+
+@router.patch("/sessions/{sid}/sets")
+def edit_set(sid: str, body: SetPatch, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Fix a mis-logged set (fat-fingered reps, wrong weight). Allowed while the
+    session is active AND after completion — mistakes get noticed in the summary.
+    Records may gain a new PB from the correction; existing PBs are never
+    revoked here (a deliberate simplification — the coach reads sets, not records)."""
+    session = db.get(WorkoutSession, sid)
+    if not session or session.user_id != user.id:
+        raise HTTPException(status_code=404, detail="session not found")
+    row = (db.query(LoggedSet)
+           .filter(LoggedSet.session_id == sid, LoggedSet.exercise_slug == body.slug,
+                   LoggedSet.set_no == body.set_no).first())
+    if not row:
+        raise HTTPException(status_code=404, detail="set not found")
+    row.weight, row.reps, row.rpe = body.weight, body.reps, body.rpe
+    pbs = _update_records(db, user, SetIn(slug=body.slug, set_no=body.set_no,
+                                          weight=body.weight, reps=body.reps, rpe=body.rpe),
+                          session.day)
+    if session.status == "completed":  # keep the summary stats honest
+        sets = db.query(LoggedSet).filter(LoggedSet.session_id == sid).all()
+        rpes = [s.rpe for s in sets if s.rpe]
+        stats = dict(session.stats or {})
+        stats["tonnage"] = round(sum(s.weight * s.reps for s in sets) / 1000, 2)
+        stats["avg_rpe"] = round(sum(rpes) / len(rpes), 1) if rpes else None
+        session.stats = stats
+    db.commit()
+    return {"ok": True, "pbs": pbs}
+
+
 class CompleteIn(BaseModel):
     cooldown_status: str = "skipped"  # done | partial | skipped
     cooldown_min: int = 5
@@ -577,6 +614,23 @@ def _bodycomp(db: Session, user_id: str, days: int = 365) -> dict:
     }
 
 
+# Metric drill-down (Progress → tap a key number): full history, not the
+# chart-window slice. water_pct is derived (water mass ÷ weight), so it routes
+# through _bodycomp; everything else reads the metrics table directly.
+HISTORY_TYPES = {"weight": "kg", "body_fat_pct": "%", "muscle_mass": "kg", "bone_mass": "kg",
+                 "vo2max": "ml/kg/min", "resting_hr": "bpm", "sleep_h": "h"}
+
+
+@router.get("/metrics/{mtype}/history")
+def metric_history(mtype: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    if mtype == "water_pct":
+        return {"type": mtype, "unit": "%", "points": _bodycomp(db, user.id, 3650)["water_pct"]}
+    if mtype not in HISTORY_TYPES:
+        raise HTTPException(status_code=404, detail="unknown metric")
+    return {"type": mtype, "unit": HISTORY_TYPES[mtype],
+            "points": _metric_series(db, user.id, mtype, 3650)}
+
+
 @router.get("/progress")
 def progress(user: User = Depends(current_user), db: Session = Depends(get_db)):
     today_d = local_today()
@@ -587,7 +641,7 @@ def progress(user: User = Depends(current_user), db: Session = Depends(get_db)):
                              WorkoutSession.day >= week_start).count())
     rev = active_revision(db, user.id)
     planned = len(((rev.content or {}).get("days", {}) or {})) if rev else 0
-    vo2 = _metric_series(db, user.id, "vo2max", 365)
+    vo2 = _metric_series(db, user.id, "vo2max", 1095)  # quarterly-trend metric — show years, not months
 
     return {"e1rm": _e1rm_series(db, user.id),
             "weight": _metric_series(db, user.id, "weight"),
@@ -640,7 +694,7 @@ def dashboard(user: User = Depends(current_user), db: Session = Depends(get_db))
             row.append({"d": str(d), "s": cell})
         heatmap.append({"week": str(w), "days": row})
 
-    vo2 = _metric_series(db, user.id, "vo2max", 365)
+    vo2 = _metric_series(db, user.id, "vo2max", 1095)  # quarterly-trend metric — show years, not months
     zone2_target = _zone2_target_min(rev)
     labs = (db.query(LabPanel).filter(LabPanel.user_id == user.id)
             .order_by(LabPanel.drawn_on).all())

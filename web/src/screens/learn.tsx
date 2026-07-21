@@ -25,8 +25,8 @@ export function LearnScreen() {
     staleTime: 60_000,
   });
   const e = q.data;
-  const back = () => go(learnFrom === 'log' ? 'log' : learnFrom === 'library' ? 'library'
-    : learnFrom === 'day' ? 'day' : 'today');
+  const back = () => go(learnFrom === 'log' ? 'log' : learnFrom === 'cooldown' ? 'cooldown'
+    : learnFrom === 'library' ? 'library' : learnFrom === 'day' ? 'day' : 'today');
 
   if (!e) return <Shell><Back label="Back" onClick={back} /><Loading /></Shell>;
   // stretches don't get "alternatives" — a lift is not a substitute for mobility work

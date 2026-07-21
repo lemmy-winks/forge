@@ -26,7 +26,7 @@ export function OnboardingFlow({ me, onDone }: { me: Me; onDone: () => void }) {
   return (
     <>
       <div className="hdr">
-        <span className="wm">FORGE<i>.</i></span><span className="sp" />
+        <span className="wm">FORGE<i>.</i></span><span className="betatag">BETA</span><span className="sp" />
         <span className="kick" style={{ fontSize: 10.5 }}>Step {step + 1} of {STEPS.length}</span>
       </div>
       <div style={{ display: 'flex', gap: 5, padding: '0 18px 8px' }}>

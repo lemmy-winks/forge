@@ -16,7 +16,7 @@ export type Tab = 'today' | 'food' | 'history' | 'progress' | 'coach';
 export type Screen =
   | 'today' | 'day' | 'learn' | 'log' | 'swap' | 'cooldown' | 'summary'
   | 'food' | 'food-week' | 'recipe' | 'cook'
-  | 'history' | 'detail' | 'progress' | 'records' | 'coach'
+  | 'history' | 'detail' | 'progress' | 'records' | 'metric' | 'coach'
   | 'settings' | 'set-conn' | 'set-equip' | 'set-niggles' | 'set-labs' | 'library' | 'set-notif'
   | 'set-coach' | 'set-units' | 'set-server' | 'set-food';
 
@@ -65,6 +65,7 @@ export type LogAction =
   | { type: 'w'; d: number } | { type: 'r'; d: number } | { type: 'rpe'; n: number }
   | { type: 'wuDone' }
   | { type: 'logged'; slug: string; set: LoggedSetLocal; rest: number; moreLeft: boolean }
+  | { type: 'editSet'; slug: string; i: number; set: LoggedSetLocal }
   | { type: 'tick' } | { type: 'skipRest' } | { type: 'next' }
   | { type: 'swap'; alt: { slug: string; name: string; kind?: string } } | { type: 'swapBack' }
   | { type: 'unit'; u: LoadUnit }
@@ -109,7 +110,7 @@ export function Header() {
   return (
     <>
       <div className="hdr">
-        <span className="wm">FORGE<i>.</i></span><span className="sp" />
+        <span className="wm">FORGE<i>.</i></span><span className="betatag">BETA</span><span className="sp" />
         <button className="avatar press" aria-label="Settings" onClick={() => go('settings')}>
           {me.name[0] || '?'}
         </button>

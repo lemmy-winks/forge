@@ -20,7 +20,12 @@ METRIC_MAP = {
     "lean_body_mass": ("fat_free_mass", "kg"),
     "height": ("height", "cm"),
     "resting_heart_rate": ("resting_hr", "bpm"),
+    # HAE has shipped several spellings of the VO2max metric name across
+    # versions — accept them all or historical exports silently drop it.
     "vo2_max": ("vo2max", "ml/kg/min"),
+    "vo2max": ("vo2max", "ml/kg/min"),
+    "vo2 max": ("vo2max", "ml/kg/min"),
+    "cardio_fitness": ("vo2max", "ml/kg/min"),
     "sleep_analysis": ("sleep_h", "h"),
     "heart_rate_variability": ("hrv", "ms"),
     "step_count": ("steps", "count"),

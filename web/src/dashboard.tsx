@@ -178,7 +178,7 @@ function DashInner() {
   if (!meQ.data) {
     return (
       <div className="authbody">
-        <div className="wordmark">FORGE<i>.</i></div>
+        <div className="wordmark">FORGE<i>.</i> <span className="betatag">BETA</span></div>
         <p className="tagline">Sign in in the app first, then reload this page.</p>
         <a className="cta" style={{ padding: '12px 28px' }} href="/">Open Forge</a>
       </div>
@@ -194,7 +194,7 @@ function DashInner() {
   return (
     <div className="dash">
       <header className="dash-hdr">
-        <span className="wm">FORGE<i>.</i></span>
+        <span className="wm">FORGE<i>.</i></span><span className="betatag">BETA</span>
         <span className="kick" style={{ fontSize: 14 }}>{d.name} · Dashboard</span>
         <span className="sp" />
         <a href="/" className="back" style={{ alignSelf: 'center' }}>‹ App</a>
