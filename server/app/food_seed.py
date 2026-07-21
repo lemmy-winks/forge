@@ -12,7 +12,10 @@ from sqlalchemy.orm import Session
 
 from .models import Ingredient, MealRevision, Recipe, User
 
-DEFAULT_TARGETS = {"kcal": 2300, "protein_g": 160, "fiber_g": 38, "satfat_g": 18}
+# The cholesterol trio (protein/fiber/satfat) stays the coached core; the rest
+# of the label set is tracked and displayed. sugar/satfat/sodium are caps.
+DEFAULT_TARGETS = {"kcal": 2300, "protein_g": 160, "carbs_g": 250, "sugar_g": 65,
+                   "fiber_g": 38, "fat_g": 80, "satfat_g": 18, "sodium_mg": 2300}
 NUTRITION_PREF_DEFAULTS = {
     "nutrition_targets": DEFAULT_TARGETS,
     "cook_nights": 4,
@@ -21,68 +24,69 @@ NUTRITION_PREF_DEFAULTS = {
     "household_dinners": True,
 }
 
-# name, aisle, unit, typical pack, kcal/100, protein/100, fiber/100, satfat/100, pantry
+# name, aisle, unit, typical pack, then per-100 (or per-item when unit is 'x'):
+# kcal, protein, carbs, sugar, fiber, fat, satfat, sodium (mg), pantry
 INGREDIENTS = [
     # produce
-    ("chicken thighs, skinless", "protein", "g", "650 g tray", 121, 20, 0, 1.1, 0),
-    ("chicken breast", "protein", "g", "500 g tray", 106, 22, 0, 0.4, 0),
-    ("salmon fillets", "protein", "x", "2 × 130 g", 232, 25, 0, 2.6, 0),
-    ("cod fillets", "protein", "x", "2 × 140 g", 96, 21, 0, 0.1, 0),
-    ("prawns, raw", "protein", "g", "300 g bag", 85, 18, 0, 0.2, 0),
-    ("turkey mince 5%", "protein", "g", "500 g pack", 120, 22, 0, 0.9, 0),
-    ("tuna in spring water", "cupboard", "x", "145 g tin", 116, 26, 0, 0.1, 0),
-    ("eggs", "protein", "x", "box of 12", 74, 6.5, 0, 1.1, 0),
-    ("greek yogurt 0%", "dairy", "g", "1 kg tub", 57, 10, 0, 0.1, 0),
-    ("feta", "dairy", "g", "200 g block", 264, 14, 0, 10.9, 0),
-    ("halloumi light", "dairy", "g", "225 g block", 255, 24, 0, 10.5, 0),
-    ("parmesan", "dairy", "g", "wedge", 392, 32, 0, 13.7, 1),
-    ("peppers", "produce", "x", "3-pack", 31, 1, 2.1, 0, 0),
-    ("red onions", "produce", "x", "net of 4", 40, 1.1, 1.7, 0, 0),
-    ("spinach", "produce", "g", "250 g bag", 23, 2.9, 2.2, 0.1, 0),
-    ("long-stem broccoli", "produce", "g", "200 g pack", 35, 3, 3, 0.1, 0),
-    ("spring greens", "produce", "g", "200 g bag", 33, 3, 3.4, 0.1, 0),
-    ("courgettes", "produce", "x", "3-pack", 17, 1.2, 1, 0.1, 0),
-    ("cherry tomatoes", "produce", "g", "500 g pack", 18, 0.9, 1.2, 0, 0),
-    ("sweet potatoes", "produce", "g", "1 kg bag", 86, 1.6, 3, 0, 0),
-    ("baking potatoes", "produce", "x", "4-pack", 93, 2.5, 2.2, 0, 0),
-    ("lemons", "produce", "x", "3-pack", 29, 1.1, 2.8, 0, 0),
-    ("limes", "produce", "x", "3-pack", 30, 0.7, 2.8, 0, 0),
-    ("ginger", "produce", "g", "root", 80, 1.8, 2, 0.1, 0),
-    ("garlic", "produce", "x", "bulb", 149, 6.4, 2.1, 0.1, 1),
-    ("coriander", "produce", "x", "bunch", 23, 2.1, 2.8, 0, 0),
-    ("dill", "produce", "x", "pot", 43, 3.5, 2.1, 0, 0),
-    ("avocado", "produce", "x", "each", 160, 2, 6.7, 2.1, 0),
-    ("apples", "produce", "x", "6-pack", 52, 0.3, 2.4, 0, 0),
-    ("berries, mixed", "produce", "g", "400 g punnet", 43, 0.7, 3.8, 0, 0),
-    ("bananas", "produce", "x", "bunch", 89, 1.1, 2.6, 0.1, 0),
+    ("chicken thighs, skinless", "protein", "g", "650 g tray", 121, 20, 0, 0, 0, 4.7, 1.1, 95, 0),
+    ("chicken breast", "protein", "g", "500 g tray", 106, 22, 0, 0, 0, 1.9, 0.4, 63, 0),
+    ("salmon fillets", "protein", "x", "2 × 130 g", 232, 25, 0, 0, 0, 15, 2.6, 50, 0),
+    ("cod fillets", "protein", "x", "2 × 140 g", 96, 21, 0, 0, 0, 0.7, 0.1, 70, 0),
+    ("prawns, raw", "protein", "g", "300 g bag", 85, 18, 0.2, 0, 0, 0.6, 0.2, 210, 0),
+    ("turkey mince 5%", "protein", "g", "500 g pack", 120, 22, 0, 0, 0, 3.5, 0.9, 75, 0),
+    ("tuna in spring water", "cupboard", "x", "145 g tin", 116, 26, 0, 0, 0, 0.8, 0.1, 320, 0),
+    ("eggs", "protein", "x", "box of 12", 74, 6.5, 0.4, 0.2, 0, 5, 1.1, 70, 0),
+    ("greek yogurt 0%", "dairy", "g", "1 kg tub", 57, 10, 3.6, 3.2, 0, 0.2, 0.1, 36, 0),
+    ("feta", "dairy", "g", "200 g block", 264, 14, 4.1, 4.1, 0, 21, 10.9, 1100, 0),
+    ("halloumi light", "dairy", "g", "225 g block", 255, 24, 2, 1.5, 0, 17, 10.5, 1900, 0),
+    ("parmesan", "dairy", "g", "wedge", 392, 32, 3.2, 0.8, 0, 29, 13.7, 1500, 1),
+    ("peppers", "produce", "x", "3-pack", 31, 1, 6, 4.2, 2.1, 0.3, 0, 4, 0),
+    ("red onions", "produce", "x", "net of 4", 40, 1.1, 9.3, 4.2, 1.7, 0.1, 0, 4, 0),
+    ("spinach", "produce", "g", "250 g bag", 23, 2.9, 3.6, 0.4, 2.2, 0.4, 0.1, 79, 0),
+    ("long-stem broccoli", "produce", "g", "200 g pack", 35, 3, 7, 1.7, 3, 0.4, 0.1, 33, 0),
+    ("spring greens", "produce", "g", "200 g bag", 33, 3, 3.1, 2, 3.4, 0.7, 0.1, 9, 0),
+    ("courgettes", "produce", "x", "3-pack", 17, 1.2, 3.1, 2.5, 1, 0.3, 0.1, 8, 0),
+    ("cherry tomatoes", "produce", "g", "500 g pack", 18, 0.9, 3.9, 2.6, 1.2, 0.2, 0, 5, 0),
+    ("sweet potatoes", "produce", "g", "1 kg bag", 86, 1.6, 20, 4.2, 3, 0.1, 0, 55, 0),
+    ("baking potatoes", "produce", "x", "4-pack", 93, 2.5, 21, 1.2, 2.2, 0.1, 0, 6, 0),
+    ("lemons", "produce", "x", "3-pack", 29, 1.1, 9.3, 2.5, 2.8, 0.3, 0, 2, 0),
+    ("limes", "produce", "x", "3-pack", 30, 0.7, 10.5, 1.7, 2.8, 0.2, 0, 2, 0),
+    ("ginger", "produce", "g", "root", 80, 1.8, 18, 1.7, 2, 0.8, 0.1, 13, 0),
+    ("garlic", "produce", "x", "bulb", 149, 6.4, 33, 1, 2.1, 0.5, 0.1, 17, 1),
+    ("coriander", "produce", "x", "bunch", 23, 2.1, 3.7, 0.9, 2.8, 0.5, 0, 46, 0),
+    ("dill", "produce", "x", "pot", 43, 3.5, 7, 0, 2.1, 1.1, 0, 61, 0),
+    ("avocado", "produce", "x", "each", 160, 2, 8.5, 0.7, 6.7, 14.7, 2.1, 7, 0),
+    ("apples", "produce", "x", "6-pack", 52, 0.3, 14, 10.4, 2.4, 0.2, 0, 1, 0),
+    ("berries, mixed", "produce", "g", "400 g punnet", 43, 0.7, 9.6, 4.9, 3.8, 0.5, 0, 1, 0),
+    ("bananas", "produce", "x", "bunch", 89, 1.1, 23, 12, 2.6, 0.3, 0.1, 1, 0),
     # cupboard
-    ("chickpeas", "cupboard", "x", "400 g tin", 115, 6.3, 5.4, 0.2, 0),
-    ("black beans", "cupboard", "x", "400 g tin", 91, 6, 6.5, 0.1, 0),
-    ("white beans", "cupboard", "x", "400 g tin", 90, 5.4, 5.6, 0.1, 0),
-    ("kidney beans", "cupboard", "x", "400 g tin", 84, 5.2, 6.4, 0.1, 0),
-    ("puy lentils", "cupboard", "g", "250 g pouch", 116, 9, 7.9, 0.1, 0),
-    ("red lentils, dry", "cupboard", "g", "500 g bag", 352, 25, 11, 0.2, 1),
-    ("chopped tomatoes", "cupboard", "x", "400 g tin", 32, 1.2, 1.3, 0, 0),
-    ("passata", "cupboard", "ml", "500 g carton", 32, 1.4, 1.1, 0, 0),
-    ("harissa paste", "cupboard", "g", "185 g jar", 130, 3, 6, 0.6, 0),
-    ("miso paste", "cupboard", "g", "tub", 199, 12, 5.4, 0.4, 1),
-    ("olives", "cupboard", "g", "160 g jar", 145, 1, 3.3, 1.6, 0),
-    ("capers", "cupboard", "g", "jar", 23, 2.4, 3.2, 0.1, 1),
-    ("wholewheat spaghetti", "cupboard", "g", "500 g bag", 348, 13, 10, 0.3, 0),
-    ("soba noodles", "cupboard", "g", "250 g pack", 336, 14, 3, 0.1, 0),
-    ("brown rice", "cupboard", "g", "1 kg bag", 362, 7.5, 3.4, 0.5, 1),
-    ("bulgur wheat", "cupboard", "g", "500 g bag", 342, 12, 12.5, 0.2, 1),
-    ("gnocchi", "cupboard", "g", "500 g pack", 151, 4, 2, 0.1, 0),
-    ("oats", "cupboard", "g", "1 kg bag", 379, 13, 10, 1, 1),
-    ("ground flaxseed", "cupboard", "g", "200 g pack", 534, 18, 27, 3.2, 1),
-    ("almonds", "cupboard", "g", "200 g bag", 579, 21, 12.5, 3.8, 1),
-    ("peanut butter", "cupboard", "g", "340 g jar", 588, 25, 6, 9.5, 1),
-    ("olive oil", "cupboard", "ml", "bottle", 884, 0, 0, 13.8, 1),
-    ("soy sauce, reduced salt", "cupboard", "ml", "bottle", 53, 8, 0.8, 0, 1),
-    ("wholegrain bread", "cupboard", "x", "loaf, per slice", 90, 4, 2.5, 0.2, 0),
-    ("smoked paprika", "cupboard", "g", "jar", 282, 14, 35, 0.9, 1),
-    ("cumin", "cupboard", "g", "jar", 375, 18, 10.5, 1.5, 1),
-    ("chilli flakes", "cupboard", "g", "jar", 282, 12, 27, 1, 1),
+    ("chickpeas", "cupboard", "x", "400 g tin", 115, 6.3, 16.7, 0.4, 5.4, 2.6, 0.2, 220, 0),
+    ("black beans", "cupboard", "x", "400 g tin", 91, 6, 15.4, 0.3, 6.5, 0.5, 0.1, 180, 0),
+    ("white beans", "cupboard", "x", "400 g tin", 90, 5.4, 15.5, 0.6, 5.6, 0.6, 0.1, 240, 0),
+    ("kidney beans", "cupboard", "x", "400 g tin", 84, 5.2, 14, 0.6, 6.4, 0.5, 0.1, 230, 0),
+    ("puy lentils", "cupboard", "g", "250 g pouch", 116, 9, 17, 0.6, 7.9, 0.6, 0.1, 180, 0),
+    ("red lentils, dry", "cupboard", "g", "500 g bag", 352, 25, 60, 2, 11, 1.1, 0.2, 7, 1),
+    ("chopped tomatoes", "cupboard", "x", "400 g tin", 32, 1.2, 5.5, 4, 1.3, 0.2, 0, 130, 0),
+    ("passata", "cupboard", "ml", "500 g carton", 32, 1.4, 6, 4.5, 1.1, 0.2, 0, 160, 0),
+    ("harissa paste", "cupboard", "g", "185 g jar", 130, 3, 14, 7, 6, 6.5, 0.6, 1300, 0),
+    ("miso paste", "cupboard", "g", "tub", 199, 12, 26, 6.2, 5.4, 6, 0.4, 3700, 1),
+    ("olives", "cupboard", "g", "160 g jar", 145, 1, 3.8, 0.5, 3.3, 15, 1.6, 1560, 0),
+    ("capers", "cupboard", "g", "jar", 23, 2.4, 4.9, 0.4, 3.2, 0.9, 0.1, 2960, 1),
+    ("wholewheat spaghetti", "cupboard", "g", "500 g bag", 348, 13, 62, 2.6, 10, 2.5, 0.3, 6, 0),
+    ("soba noodles", "cupboard", "g", "250 g pack", 336, 14, 74, 1, 3, 0.7, 0.1, 790, 0),
+    ("brown rice", "cupboard", "g", "1 kg bag", 362, 7.5, 76, 0.9, 3.4, 2.8, 0.5, 5, 1),
+    ("bulgur wheat", "cupboard", "g", "500 g bag", 342, 12, 69, 0.4, 12.5, 1.3, 0.2, 17, 1),
+    ("gnocchi", "cupboard", "g", "500 g pack", 151, 4, 32, 0.6, 2, 0.4, 0.1, 300, 0),
+    ("oats", "cupboard", "g", "1 kg bag", 379, 13, 60, 1, 10, 6.9, 1, 2, 1),
+    ("ground flaxseed", "cupboard", "g", "200 g pack", 534, 18, 29, 1.6, 27, 42, 3.2, 30, 1),
+    ("almonds", "cupboard", "g", "200 g bag", 579, 21, 22, 4.4, 12.5, 50, 3.8, 1, 1),
+    ("peanut butter", "cupboard", "g", "340 g jar", 588, 25, 20, 9, 6, 50, 9.5, 430, 1),
+    ("olive oil", "cupboard", "ml", "bottle", 884, 0, 0, 0, 0, 100, 13.8, 0, 1),
+    ("soy sauce, reduced salt", "cupboard", "ml", "bottle", 53, 8, 8, 1, 0.8, 0.1, 0, 3300, 1),
+    ("wholegrain bread", "cupboard", "x", "loaf, per slice", 90, 4, 15, 2, 2.5, 1.5, 0.2, 180, 0),
+    ("smoked paprika", "cupboard", "g", "jar", 282, 14, 54, 10, 35, 13, 0.9, 68, 1),
+    ("cumin", "cupboard", "g", "jar", 375, 18, 44, 2.3, 10.5, 22, 1.5, 168, 1),
+    ("chilli flakes", "cupboard", "g", "jar", 282, 12, 50, 10, 27, 14, 1, 30, 1),
 ]
 
 # Every dinner: HelloFresh-card structure — why-it's-here, quantified ingredients
@@ -92,7 +96,8 @@ RECIPES: list[dict] = [
     dict(
         slug="harissa-chicken-traybake", name="Harissa chicken traybake", kind="dinner",
         minutes=25, difficulty="easy", serves=2, batch=2, platefig="tray-chicken",
-        kcal=520, protein_g=42, fiber_g=11, satfat_g=4.5, carbs_g=38, fat_g=16,
+        kcal=520, protein_g=42, carbs_g=38, sugar_g=10, fiber_g=11,
+        fat_g=16, satfat_g=4.5, sodium_mg=620,
         why="Your highest-protein traybake; chickpeas carry the fiber. Low sat fat banks headroom for a night out. Doubles into a zero-cook night — one cook, two dinners.",
         tags=["traybake", "batch", "high-fiber"],
         ingredients=[
@@ -117,7 +122,8 @@ RECIPES: list[dict] = [
     dict(
         slug="salmon-puy-lentils", name="Charred salmon, puy lentils & broccoli", kind="dinner",
         minutes=20, difficulty="easy", serves=2, platefig="plate-salmon",
-        kcal=540, protein_g=38, fiber_g=9, satfat_g=3.5, carbs_g=30, fat_g=24,
+        kcal=540, protein_g=38, carbs_g=30, sugar_g=3, fiber_g=9,
+        fat_g=24, satfat_g=3.5, sodium_mg=480,
         why="The omega-3 day — salmon fat is the kind your lipid panel likes. Lentils carry the fiber under it.",
         tags=["fish", "omega-3", "quick"],
         ingredients=[
@@ -138,7 +144,8 @@ RECIPES: list[dict] = [
     dict(
         slug="turkey-black-bean-chili", name="Turkey & black-bean chili", kind="dinner",
         minutes=35, difficulty="medium", serves=2, batch=2, platefig="bowl-chili",
-        kcal=480, protein_g=45, fiber_g=13, satfat_g=3, carbs_g=46, fat_g=10,
+        kcal=480, protein_g=45, carbs_g=46, sugar_g=11, fiber_g=13,
+        fat_g=10, satfat_g=3, sodium_mg=680,
         why="Fiber engine of the week — two kinds of bean, 5% turkey keeps the sat fat down. The batch feeds a lunch.",
         tags=["batch", "high-fiber", "freezes"],
         ingredients=[
@@ -164,7 +171,8 @@ RECIPES: list[dict] = [
     dict(
         slug="prawn-soba-stirfry", name="Prawn & soba stir-fry", kind="dinner",
         minutes=15, difficulty="easy", serves=2, platefig="bowl-soba",
-        kcal=430, protein_g=34, fiber_g=7, satfat_g=1.5, carbs_g=52, fat_g=8,
+        kcal=430, protein_g=34, carbs_g=52, sugar_g=4, fiber_g=7,
+        fat_g=8, satfat_g=1.5, sodium_mg=1150,
         why="The fastest dinner in the pool — prawns are nearly pure protein, and the whole thing has less sat fat than a latte.",
         tags=["quick", "low-satfat"],
         ingredients=[
@@ -186,7 +194,8 @@ RECIPES: list[dict] = [
     dict(
         slug="baked-cod-white-bean-stew", name="Baked cod on white bean stew", kind="dinner",
         minutes=30, difficulty="easy", serves=2, platefig="bowl-stew",
-        kcal=420, protein_g=40, fiber_g=12, satfat_g=2, carbs_g=36, fat_g=8,
+        kcal=420, protein_g=40, carbs_g=36, sugar_g=8, fiber_g=12,
+        fat_g=8, satfat_g=2, sodium_mg=740,
         why="Sunday-calm cooking. Cod is the leanest fish in the pool and the beans do the fiber work — a soft landing for the week's sat-fat average.",
         tags=["fish", "high-fiber", "one-pan"],
         ingredients=[
@@ -207,7 +216,8 @@ RECIPES: list[dict] = [
     dict(
         slug="one-pan-chicken-puttanesca", name="One-pan chicken puttanesca", kind="dinner",
         minutes=30, difficulty="easy", serves=2, platefig="plate-chicken",
-        kcal=495, protein_g=44, fiber_g=9, satfat_g=3.8, carbs_g=28, fat_g=18,
+        kcal=495, protein_g=44, carbs_g=28, sugar_g=10, fiber_g=9,
+        fat_g=18, satfat_g=3.8, sodium_mg=1040,
         why="Olives and capers bring the salt-and-punch a lean chicken dinner usually lacks — and a surprising fiber nudge.",
         tags=["one-pan"],
         ingredients=[
@@ -228,7 +238,8 @@ RECIPES: list[dict] = [
     dict(
         slug="turkey-meatball-spaghetti", name="Turkey meatballs & wholewheat spaghetti", kind="dinner",
         minutes=30, difficulty="medium", serves=2, batch=2, platefig="bowl-pasta",
-        kcal=560, protein_g=42, fiber_g=10, satfat_g=4, carbs_g=62, fat_g=12,
+        kcal=560, protein_g=42, carbs_g=62, sugar_g=12, fiber_g=10,
+        fat_g=12, satfat_g=4, sodium_mg=640,
         why="Comfort food that behaves: 5% turkey and wholewheat pasta hold the line on sat fat and fiber where beef and white pasta wouldn't.",
         tags=["batch", "comfort"],
         ingredients=[
@@ -250,7 +261,8 @@ RECIPES: list[dict] = [
     dict(
         slug="miso-salmon-greens", name="Miso salmon, greens & brown rice", kind="dinner",
         minutes=20, difficulty="easy", serves=2, platefig="plate-salmon",
-        kcal=530, protein_g=36, fiber_g=6, satfat_g=3, carbs_g=48, fat_g=20,
+        kcal=530, protein_g=36, carbs_g=48, sugar_g=3, fiber_g=6,
+        fat_g=20, satfat_g=3, sodium_mg=1010,
         why="Second oily-fish night, different costume. Miso does the marinade's work in ten minutes flat.",
         tags=["fish", "omega-3", "quick"],
         ingredients=[
@@ -271,7 +283,8 @@ RECIPES: list[dict] = [
     dict(
         slug="chicken-fajita-bowl", name="Chicken fajita bowl", kind="dinner",
         minutes=25, difficulty="easy", serves=2, platefig="bowl-grain",
-        kcal=510, protein_g=43, fiber_g=11, satfat_g=3.5, carbs_g=48, fat_g=13,
+        kcal=510, protein_g=43, carbs_g=48, sugar_g=8, fiber_g=11,
+        fat_g=13, satfat_g=3.5, sodium_mg=420,
         why="Everything a fajita night promises with the tortilla-and-cheese tax refunded into beans and avocado.",
         tags=["bowl", "high-fiber"],
         ingredients=[
@@ -294,7 +307,8 @@ RECIPES: list[dict] = [
     dict(
         slug="lentil-spinach-dal", name="Red lentil & spinach dal", kind="dinner",
         minutes=30, difficulty="easy", serves=2, batch=2, platefig="bowl-stew",
-        kcal=440, protein_g=22, fiber_g=16, satfat_g=2.5, carbs_g=60, fat_g=10,
+        kcal=440, protein_g=22, carbs_g=60, sugar_g=8, fiber_g=16,
+        fat_g=10, satfat_g=2.5, sodium_mg=380,
         why="The meat-free night that out-fibers everything else in the pool. Freezes perfectly — the batch is insurance.",
         tags=["veggie", "batch", "high-fiber", "freezes"],
         ingredients=[
@@ -316,7 +330,8 @@ RECIPES: list[dict] = [
     dict(
         slug="tuna-white-bean-salad", name="Warm tuna & white bean salad", kind="dinner",
         minutes=10, difficulty="easy", serves=2, platefig="plate-salad",
-        kcal=400, protein_g=38, fiber_g=10, satfat_g=2, carbs_g=30, fat_g=12,
+        kcal=400, protein_g=38, carbs_g=30, sugar_g=6, fiber_g=10,
+        fat_g=12, satfat_g=2, sodium_mg=780,
         why="The break-glass dinner: ten minutes, one pan, mostly cupboard. Keeps a tired Thursday from becoming a takeaway.",
         tags=["quick", "storecupboard"],
         ingredients=[
@@ -335,7 +350,8 @@ RECIPES: list[dict] = [
     dict(
         slug="sweet-potato-turkey-skillet", name="Sweet potato & turkey skillet", kind="dinner",
         minutes=25, difficulty="easy", serves=2, platefig="pan-skillet",
-        kcal=500, protein_g=40, fiber_g=9, satfat_g=3.5, carbs_g=50, fat_g=12,
+        kcal=500, protein_g=40, carbs_g=50, sugar_g=10, fiber_g=9,
+        fat_g=12, satfat_g=3.5, sodium_mg=340,
         why="One pan, no drama: lean turkey and sweet potato make a heavier-feeling dinner than its sat-fat number admits.",
         tags=["one-pan"],
         ingredients=[
@@ -355,7 +371,8 @@ RECIPES: list[dict] = [
     dict(
         slug="chicken-gnocchi-tray", name="Crispy gnocchi & chicken traybake", kind="dinner",
         minutes=25, difficulty="easy", serves=2, platefig="tray-chicken",
-        kcal=540, protein_g=41, fiber_g=7, satfat_g=5, carbs_g=58, fat_g=14,
+        kcal=540, protein_g=41, carbs_g=58, sugar_g=6, fiber_g=7,
+        fat_g=14, satfat_g=5, sodium_mg=820,
         why="Gnocchi roast into crispy little pillows — the treat-feeling dinner that still fits the caps.",
         tags=["traybake", "crowd-pleaser"],
         ingredients=[
@@ -375,7 +392,8 @@ RECIPES: list[dict] = [
     dict(
         slug="garlic-prawn-spaghetti", name="Garlic prawn & courgette spaghetti", kind="dinner",
         minutes=20, difficulty="easy", serves=2, platefig="bowl-pasta",
-        kcal=470, protein_g=36, fiber_g=8, satfat_g=2.5, carbs_g=58, fat_g=10,
+        kcal=470, protein_g=36, carbs_g=58, sugar_g=5, fiber_g=8,
+        fat_g=10, satfat_g=2.5, sodium_mg=620,
         why="A card-box classic rebuilt: wholewheat pasta and double courgette where the cream used to be.",
         tags=["quick", "card-box-style"],
         ingredients=[
@@ -396,7 +414,8 @@ RECIPES: list[dict] = [
     dict(
         slug="peri-chicken-rice-greens", name="Peri-peri chicken, rice & greens", kind="dinner",
         minutes=30, difficulty="easy", serves=2, platefig="plate-chicken",
-        kcal=520, protein_g=45, fiber_g=8, satfat_g=3.5, carbs_g=50, fat_g=12,
+        kcal=520, protein_g=45, carbs_g=50, sugar_g=4, fiber_g=8,
+        fat_g=12, satfat_g=3.5, sodium_mg=560,
         why="The Friday-night-out flavour, cooked in. Thighs stay juicy at a fraction of the restaurant's oil.",
         tags=["crowd-pleaser"],
         ingredients=[
@@ -417,7 +436,8 @@ RECIPES: list[dict] = [
     dict(
         slug="veggie-chilli-baked-potato", name="Veggie chilli baked potatoes", kind="dinner",
         minutes=35, difficulty="easy", serves=2, batch=2, platefig="bowl-chili",
-        kcal=450, protein_g=20, fiber_g=17, satfat_g=2, carbs_g=78, fat_g=6,
+        kcal=450, protein_g=20, carbs_g=78, sugar_g=11, fiber_g=17,
+        fat_g=6, satfat_g=2, sodium_mg=560,
         why="The other meat-free night — seventeen grams of fiber, most of the week's target in one bowl. Yogurt plays the sour cream.",
         tags=["veggie", "batch", "high-fiber"],
         ingredients=[
@@ -440,7 +460,8 @@ RECIPES: list[dict] = [
     dict(
         slug="oats-no1", name="Oats №1 — overnight oats, berries & flax", kind="breakfast",
         minutes=5, difficulty="easy", serves=1, platefig="bowl-oats",
-        kcal=420, protein_g=34, fiber_g=11, satfat_g=2, carbs_g=52, fat_g=9,
+        kcal=420, protein_g=34, carbs_g=52, sugar_g=8, fiber_g=11,
+        fat_g=9, satfat_g=2, sodium_mg=65,
         why="The fiber head-start: oats and flax are the two best breakfast levers a lipid panel has.",
         tags=["template", "high-fiber"],
         ingredients=[
@@ -457,7 +478,8 @@ RECIPES: list[dict] = [
     dict(
         slug="yogurt-berry-bowl", name="Greek yogurt & berry bowl", kind="breakfast",
         minutes=3, difficulty="easy", serves=1, platefig="bowl-oats",
-        kcal=320, protein_g=28, fiber_g=6, satfat_g=1, carbs_g=34, fat_g=8,
+        kcal=320, protein_g=28, carbs_g=34, sugar_g=12, fiber_g=6,
+        fat_g=8, satfat_g=1, sodium_mg=55,
         why="The lighter morning — most of the protein, none of the prep.",
         tags=["template", "quick"],
         ingredients=[
@@ -471,7 +493,8 @@ RECIPES: list[dict] = [
     dict(
         slug="eggs-spinach-toast", name="Eggs, spinach & wholegrain toast", kind="breakfast",
         minutes=10, difficulty="easy", serves=1, platefig="plate-eggs",
-        kcal=380, protein_g=24, fiber_g=6, satfat_g=3.5, carbs_g=30, fat_g=17,
+        kcal=380, protein_g=24, carbs_g=30, sugar_g=3, fiber_g=6,
+        fat_g=17, satfat_g=3.5, sodium_mg=500,
         why="The weekend one. Eggs' cholesterol matters far less than the sausage and butter that usually flank them — so they arrive with spinach instead.",
         tags=["template", "weekend"],
         ingredients=[
@@ -488,7 +511,8 @@ RECIPES: list[dict] = [
     dict(
         slug="lentil-feta-salad", name="Big lentil & feta salad", kind="lunch",
         minutes=10, difficulty="easy", serves=1, platefig="plate-salad",
-        kcal=430, protein_g=28, fiber_g=14, satfat_g=5, carbs_g=40, fat_g=16,
+        kcal=430, protein_g=28, carbs_g=40, sugar_g=5, fiber_g=14,
+        fat_g=16, satfat_g=5, sodium_mg=620,
         why="The WFH default: lentils for fiber, a measured amount of feta doing maximum work.",
         tags=["wfh", "high-fiber"],
         ingredients=[
@@ -504,7 +528,8 @@ RECIPES: list[dict] = [
     dict(
         slug="tuna-bean-lunchbox", name="Tuna & bean lunchbox", kind="lunch",
         minutes=8, difficulty="easy", serves=1, platefig="plate-salad",
-        kcal=380, protein_g=34, fiber_g=10, satfat_g=1.5, carbs_g=32, fat_g=10,
+        kcal=380, protein_g=34, carbs_g=32, sugar_g=4, fiber_g=10,
+        fat_g=10, satfat_g=1.5, sodium_mg=700,
         why="Cupboard-only, travels well, and quietly one of the best protein-per-sat-fat ratios in the pool.",
         tags=["wfh", "storecupboard"],
         ingredients=[
@@ -519,7 +544,8 @@ RECIPES: list[dict] = [
     dict(
         slug="chicken-grain-soup", name="Chicken, bean & grain soup", kind="lunch",
         minutes=25, difficulty="easy", serves=2, platefig="bowl-stew",
-        kcal=350, protein_g=30, fiber_g=8, satfat_g=2, carbs_g=36, fat_g=8,
+        kcal=350, protein_g=30, carbs_g=36, sugar_g=3, fiber_g=8,
+        fat_g=8, satfat_g=2, sodium_mg=620,
         why="The cold-day lunch — makes two, second one's tomorrow.",
         tags=["wfh", "batch"],
         ingredients=[
@@ -538,7 +564,8 @@ RECIPES: list[dict] = [
     dict(
         slug="apple-peanut-butter", name="Apple & peanut butter", kind="snack",
         minutes=1, difficulty="easy", serves=1, platefig="snack-apple",
-        kcal=210, protein_g=5, fiber_g=4, satfat_g=1.5, carbs_g=24, fat_g=11,
+        kcal=210, protein_g=5, carbs_g=24, sugar_g=16, fiber_g=4,
+        fat_g=11, satfat_g=1.5, sodium_mg=65,
         why="Fiber plus fat that satisfies — the 3pm biscuit replacement that actually works.",
         tags=["snack"],
         ingredients=[
@@ -550,7 +577,8 @@ RECIPES: list[dict] = [
     dict(
         slug="almonds-30", name="Almonds, a proper handful", kind="snack",
         minutes=1, difficulty="easy", serves=1, platefig="snack-nuts",
-        kcal=180, protein_g=6, fiber_g=4, satfat_g=1.2, carbs_g=6, fat_g=15,
+        kcal=180, protein_g=6, carbs_g=6, sugar_g=1.3, fiber_g=4,
+        fat_g=15, satfat_g=1.2, sodium_mg=0,
         why="Thirty grams of almonds is one of the few snacks with actual lipid-panel evidence behind it.",
         tags=["snack"],
         ingredients=[{"name": "almonds", "qty": 30, "unit": "g", "disp": "30 g", "note": "pantry"}],
@@ -559,7 +587,8 @@ RECIPES: list[dict] = [
     dict(
         slug="protein-yogurt-pot", name="Protein yogurt pot", kind="snack",
         minutes=1, difficulty="easy", serves=1, platefig="snack-yogurt",
-        kcal=150, protein_g=18, fiber_g=1, satfat_g=0.5, carbs_g=12, fat_g=2,
+        kcal=150, protein_g=18, carbs_g=12, sugar_g=8, fiber_g=1,
+        fat_g=2, satfat_g=0.5, sodium_mg=60,
         why="The evening protein closer when the day's number is short.",
         tags=["snack"],
         ingredients=[
@@ -626,16 +655,28 @@ def _first_week() -> dict:
 def run_food_seed(db: Session) -> None:
     """Insert-missing, same contract as run_seed — safe on every boot."""
     # ingredient reference table
-    have = {n for (n,) in db.query(Ingredient.name).all()}
-    for name, aisle, unit, pack, kcal, prot, fib, sat, pantry in INGREDIENTS:
+    have = {i.name: i for i in db.query(Ingredient).all()}
+    for name, aisle, unit, pack, kcal, prot, carbs, sugar, fib, fat, sat, sodium, pantry in INGREDIENTS:
         if name not in have:
             db.add(Ingredient(name=name, aisle=aisle, unit=unit, pack=pack, kcal_100=kcal,
-                              protein_100=prot, fiber_100=fib, satfat_100=sat, pantry=pantry))
+                              protein_100=prot, carbs_100=carbs, sugar_100=sugar, fiber_100=fib,
+                              fat_100=fat, satfat_100=sat, sodium_100=sodium, pantry=pantry))
+        else:  # backfill macros that predate the full-label set (startup ALTER defaults them to 0)
+            row = have[name]
+            for col, val in (("carbs_100", carbs), ("sugar_100", sugar),
+                             ("fat_100", fat), ("sodium_100", sodium)):
+                if not getattr(row, col, 0):
+                    setattr(row, col, val)
     # recipe library
-    have_r = {s for (s,) in db.query(Recipe.slug).all()}
+    have_r = {r.slug: r for r in db.query(Recipe).all()}
     for r in RECIPES:
         if r["slug"] not in have_r:
             db.add(Recipe(**r))
+        else:  # same backfill for authored recipe macros; meal_log snapshots stay untouched
+            row = have_r[r["slug"]]
+            for col in ("carbs_g", "sugar_g", "fat_g", "sodium_mg"):
+                if not getattr(row, col, 0):
+                    setattr(row, col, r.get(col, 0))
     db.commit()
 
     # per-user nutrition prefs defaults (JSON column: reassign, never mutate in place)

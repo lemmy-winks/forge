@@ -106,12 +106,15 @@ TOOLS: list[dict] = [
     {"name": "log_meal",
      "description": ("Log something the user ate AFTER echoing your macro estimate and getting a yes. Off-plan food "
                      "(described or photographed in chat) needs label + kcal + protein_g + fiber_g + satfat_g with "
-                     "estimated: true. Planned/known recipes: pass recipe (slug) + servings instead. "
+                     "estimated: true — also estimate carbs_g, sugar_g, fat_g and sodium_mg (the app tracks the "
+                     "full label set). Planned/known recipes: pass recipe (slug) + servings instead. "
                      "Args: date (YYYY-MM-DD, optional = today), slot (breakfast|lunch|dinner|snack)."),
      "input_schema": {"type": "object", "properties": {"date": {"type": "string"}, "slot": {"type": "string"},
                       "recipe": {"type": "string"}, "servings": {"type": "number"}, "label": {"type": "string"},
-                      "kcal": {"type": "number"}, "protein_g": {"type": "number"}, "fiber_g": {"type": "number"},
-                      "satfat_g": {"type": "number"}, "estimated": {"type": "boolean"}},
+                      "kcal": {"type": "number"}, "protein_g": {"type": "number"}, "carbs_g": {"type": "number"},
+                      "sugar_g": {"type": "number"}, "fiber_g": {"type": "number"}, "fat_g": {"type": "number"},
+                      "satfat_g": {"type": "number"}, "sodium_mg": {"type": "number"},
+                      "estimated": {"type": "boolean"}},
                       "required": ["slot"]}},
     {"name": "get_carryovers", "description": "Leftover shop items from previous food weeks (the waste loop): item, qty, use-by, status (open|kept|binned|consumed). Kept items must be consumed by the next proposal or excused in its rationale.",
      "input_schema": {"type": "object", "properties": {}}},
@@ -295,10 +298,11 @@ def _exec_tool(db: Session, user: User, name: str, args: dict) -> object:
         if name == "get_recipes":
             kind = args.get("kind")
             rows = db.query(Recipe).all()
+            from .models import MACRO_FIELDS
             return [{"slug": r.slug, "name": r.name, "kind": r.kind, "minutes": r.minutes,
                      "difficulty": r.difficulty, "serves": r.serves, "batch": r.batch,
-                     "kcal": r.kcal, "protein_g": r.protein_g, "fiber_g": r.fiber_g,
-                     "satfat_g": r.satfat_g, "tags": r.tags, "complete": bool(r.complete)}
+                     **{k: getattr(r, k) for k in MACRO_FIELDS},
+                     "tags": r.tags, "complete": bool(r.complete)}
                     for r in rows if not kind or r.kind == kind]
         if name == "get_food_proposal":
             from .routers.food import food_proposal
@@ -309,12 +313,12 @@ def _exec_tool(db: Session, user: User, name: str, args: dict) -> object:
                                         args.get("changes") or [], args.get("rationale") or "")
         if name == "log_meal":
             from .routers.food import LogIn, log_meal
+            from .models import MACRO_FIELDS
             body = LogIn(date=args.get("date"), slot=args["slot"], recipe=args.get("recipe"),
                          servings=args.get("servings") or 1, label=args.get("label"),
-                         kcal=args.get("kcal"), protein_g=args.get("protein_g"),
-                         fiber_g=args.get("fiber_g"), satfat_g=args.get("satfat_g"),
                          estimated=bool(args.get("estimated")),
-                         source="plan" if args.get("recipe") else "chat")
+                         source="plan" if args.get("recipe") else "chat",
+                         **{k: args.get(k) for k in MACRO_FIELDS})
             return log_meal(body, user=user, db=db)
         if name == "get_carryovers":
             from .food_coach import list_carryovers
@@ -365,7 +369,9 @@ def _food_context(db: Session, user: User) -> str:
     q = q.filter(MealRevision.user_id == scope) if scope else q.filter(MealRevision.user_id.is_(None))
     pending = q.first() is not None
     return (f"Nutrition targets (daily): {t['kcal']} kcal · protein {t['protein_g']} g · "
-            f"fiber {t['fiber_g']} g · sat-fat cap {t['satfat_g']} g. "
+            f"carbs {t.get('carbs_g', 250)} g · fiber {t['fiber_g']} g · fat {t.get('fat_g', 80)} g. "
+            f"Caps: sat fat {t['satfat_g']} g · sugar {t.get('sugar_g', 65)} g · "
+            f"sodium {t.get('sodium_mg', 2300)} mg. "
             f"Cook nights: {prefs.get('cook_nights', 4)}/week; grocery budget {prefs.get('budget_grocery', '?')}; "
             f"lunch cap {prefs.get('budget_lunch', '?')}."
             + (" A proposed food week is awaiting approval (get_food_proposal)." if pending else ""))

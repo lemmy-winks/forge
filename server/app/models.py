@@ -256,6 +256,13 @@ class AppSetting(Base):
 
 # ---------- nutrition (beta track, Phase 7 — stories E16) ----------
 
+# The full per-meal macro set, in display order. Everything that snapshots or
+# totals meal macros (routes, coach tools, seeds) iterates this one tuple —
+# add here + a startup ALTER in main.py to extend coverage further.
+# All grams except kcal and sodium (mg).
+MACRO_FIELDS = ("kcal", "protein_g", "carbs_g", "sugar_g", "fiber_g",
+                "fat_g", "satfat_g", "sodium_mg")
+
 
 class Recipe(Base):
     """Curated recipe library — the food twin of `exercises`. Per-serving macros
@@ -272,10 +279,12 @@ class Recipe(Base):
     batch: Mapped[int] = mapped_column(Integer, default=0)  # extra servings boxed for a zero-cook night
     kcal: Mapped[float] = mapped_column(Float, default=0)  # per serving, canonical
     protein_g: Mapped[float] = mapped_column(Float, default=0)
-    fiber_g: Mapped[float] = mapped_column(Float, default=0)
-    satfat_g: Mapped[float] = mapped_column(Float, default=0)
     carbs_g: Mapped[float] = mapped_column(Float, default=0)
+    sugar_g: Mapped[float] = mapped_column(Float, default=0)
+    fiber_g: Mapped[float] = mapped_column(Float, default=0)
     fat_g: Mapped[float] = mapped_column(Float, default=0)
+    satfat_g: Mapped[float] = mapped_column(Float, default=0)
+    sodium_mg: Mapped[float] = mapped_column(Float, default=0)
     why: Mapped[str] = mapped_column(Text, default="")  # "why it's in your week" one-liner
     steps: Mapped[list] = mapped_column(JSON, default=list)  # [{title, minutes, detail, timer}] — done-when style
     ingredients: Mapped[list] = mapped_column(JSON, default=list)  # [{name, qty, unit, disp, note}]
@@ -297,8 +306,12 @@ class Ingredient(Base):
     pack: Mapped[str] = mapped_column(String(40), default="")  # typical pack, e.g. "400 g tin"
     kcal_100: Mapped[float] = mapped_column(Float, default=0)
     protein_100: Mapped[float] = mapped_column(Float, default=0)
+    carbs_100: Mapped[float] = mapped_column(Float, default=0)
+    sugar_100: Mapped[float] = mapped_column(Float, default=0)
     fiber_100: Mapped[float] = mapped_column(Float, default=0)
+    fat_100: Mapped[float] = mapped_column(Float, default=0)
     satfat_100: Mapped[float] = mapped_column(Float, default=0)
+    sodium_100: Mapped[float] = mapped_column(Float, default=0)  # mg per 100 g/ml (or per item)
     pantry: Mapped[int] = mapped_column(Integer, default=0)
 
 
@@ -331,8 +344,12 @@ class MealLog(Base):
     servings: Mapped[float] = mapped_column(Float, default=1)
     kcal: Mapped[float] = mapped_column(Float, default=0)  # totals for `servings`, snapshot
     protein_g: Mapped[float] = mapped_column(Float, default=0)
+    carbs_g: Mapped[float] = mapped_column(Float, default=0)
+    sugar_g: Mapped[float] = mapped_column(Float, default=0)
     fiber_g: Mapped[float] = mapped_column(Float, default=0)
+    fat_g: Mapped[float] = mapped_column(Float, default=0)
     satfat_g: Mapped[float] = mapped_column(Float, default=0)
+    sodium_mg: Mapped[float] = mapped_column(Float, default=0)
     source: Mapped[str] = mapped_column(String(12), default="plan")  # plan | chat | order
     estimated: Mapped[int] = mapped_column(Integer, default=0)
     client_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
@@ -363,7 +380,11 @@ class LunchFavorite(Base):
     price: Mapped[float] = mapped_column(Float, default=0)
     kcal: Mapped[float] = mapped_column(Float, default=0)
     protein_g: Mapped[float] = mapped_column(Float, default=0)
+    carbs_g: Mapped[float] = mapped_column(Float, default=0)
+    sugar_g: Mapped[float] = mapped_column(Float, default=0)
     fiber_g: Mapped[float] = mapped_column(Float, default=0)
+    fat_g: Mapped[float] = mapped_column(Float, default=0)
     satfat_g: Mapped[float] = mapped_column(Float, default=0)
+    sodium_mg: Mapped[float] = mapped_column(Float, default=0)
     notes: Mapped[str] = mapped_column(Text, default="")
     last_ordered: Mapped[date | None] = mapped_column(Date, nullable=True)
