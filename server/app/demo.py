@@ -18,8 +18,9 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from .fitting import epley_e1rm
-from .models import (AgentRun, ChatMessage, EquipmentProfile, IngestToken, LabPanel, LabResult,
-                     LoggedSet, Metric, Niggle, Plan, PlanRevision, Record, User,
+from .models import (AgentRun, Carryover, ChatMessage, EquipmentProfile, IngestToken, LabPanel,
+                     LabResult, LoggedSet, LunchFavorite, MealLog, MealRevision, Metric, Niggle,
+                     NotificationLog, Plan, PlanRevision, PushSub, Record, User, WithingsLink,
                      WorkoutSeries, WorkoutSession)
 from .security import new_ingest_token
 from .seed import _week, seed_user_defaults
@@ -275,8 +276,13 @@ def delete_demo(db: Session) -> bool:
     plan_ids = [i for (i,) in db.query(Plan.id).filter_by(user_id=bruce.id)]
     if plan_ids:
         db.query(PlanRevision).filter(PlanRevision.plan_id.in_(plan_ids)).delete(synchronize_session=False)
+    # Every user_id-carrying table must be here or the FK fails on Postgres the
+    # moment a visitor writes a row (the demo seat is public — it CAN log meals,
+    # subscribe to push, etc.). sqlite doesn't enforce FKs, so tests won't save you.
     for model in (WorkoutSeries, WorkoutSession, LabPanel, Plan, Metric, Record, Niggle,
-                  ChatMessage, AgentRun, IngestToken, EquipmentProfile):
+                  ChatMessage, AgentRun, IngestToken, EquipmentProfile,
+                  MealLog, MealRevision, Carryover, LunchFavorite,
+                  PushSub, NotificationLog, WithingsLink):
         db.query(model).filter_by(user_id=bruce.id).delete(synchronize_session=False)
     db.delete(bruce)
     db.commit()

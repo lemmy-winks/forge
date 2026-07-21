@@ -6,6 +6,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..config import local_today
@@ -189,7 +190,17 @@ def log_meal(body: LogIn, user: User = Depends(current_user), db: Session = Depe
                       satfat_g=body.satfat_g or 0, source=body.source or "chat",
                       estimated=1 if body.estimated else 0, client_id=body.client_id)
     db.add(row)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # two retries raced past the existence check — the row is already there
+        db.rollback()
+        existing = (db.query(MealLog)
+                    .filter(MealLog.user_id == user.id, MealLog.client_id == body.client_id)
+                    .first())
+        if existing:
+            return {"id": existing.id, "duplicate": True, "totals": _day_totals(db, user, day)}
+        raise
     return {"id": row.id, "duplicate": False, "totals": _day_totals(db, user, day)}
 
 

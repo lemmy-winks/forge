@@ -21,18 +21,18 @@ const writeQueue = (q: QueuedTick[]) => localStorage.setItem(QKEY, JSON.stringif
 export async function flushFoodQueue(onDone?: (n: number) => void) {
   const q = readQueue();
   if (!q.length) return;
-  const remaining: QueuedTick[] = [];
   let sent = 0;
-  for (const t of q) {
+  let i = 0;
+  for (; i < q.length; i++) {
     try {
-      await api('/api/food/log', { method: 'POST', body: t });
+      await api('/api/food/log', { method: 'POST', body: q[i] });
       sent++;
     } catch (e) {
-      if (e instanceof ApiError && e.network) { remaining.push(t); break; }
+      if (e instanceof ApiError && e.network) break; // still offline — keep q[i..] queued
       // non-network error (e.g. recipe gone): drop it rather than loop forever
     }
   }
-  writeQueue(remaining.concat(q.slice(remaining.length + sent)));
+  writeQueue(q.slice(i));
   if (sent) onDone?.(sent);
 }
 
@@ -81,7 +81,8 @@ export function FoodDayScreen() {
     w.days.find((d) => d.is_today) ?? w.days[0];
 
   const tick = async (s: FoodSlot, date: string) => {
-    if (s.logged && s.log_id) {
+    if (s.logged) {
+      if (!s.log_id) return; // optimistic tick still in flight — don't re-log or half-untick
       try {
         await api('/api/food/log/' + s.log_id, { method: 'DELETE' });
         qc.invalidateQueries({ queryKey: ['foodweek'] });
@@ -454,11 +455,11 @@ export function CookScreen() {
     try {
       await api('/api/food/log', {
         method: 'POST',
-        body: { date: foodDate || todayISO(), slot: 'dinner', recipe: r.slug,
+        body: { date: foodDate || todayISO(), slot: r.kind, recipe: r.slug,
           client_id: crypto.randomUUID() },
       });
       qc.invalidateQueries({ queryKey: ['foodweek'] });
-    } catch { toast('Offline — tick the dinner from the day view when back online'); }
+    } catch { toast('Offline — tick it from the day view when back online'); }
     setPlated(true);
     toast(`Plated in ${cookedMin} min — dinner logged`, true);
   };

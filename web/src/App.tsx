@@ -119,7 +119,7 @@ function AppInner({ me }: { me: Me }) {
     if (extra && 'chatContext' in extra) setChatContext(extra.chatContext ?? null);
     setScreen(s);
     if (s === 'coach') setTab('coach');
-    if (s === 'food') setTab('food');
+    if (s === 'food' || s === 'food-week' || s === 'recipe' || s === 'cook') setTab('food');
   }, []);
 
   const openTab = useCallback((t: Tab) => { setTab(t); setScreen(t); }, []);

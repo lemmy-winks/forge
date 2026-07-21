@@ -892,3 +892,29 @@ def test_food_household_scope_and_demo_wall():
     assert any(m["recipe"] == "harissa-chicken-traybake"
                for m in client.get("/api/export").json()["meals"]), "meals in export (E15.3)"
     client.delete(f"/api/food/log/{jid}")
+
+
+def test_demo_food_rows_cleaned_up():
+    """The public demo seat can log meals; demo reset/remove must delete them —
+    on Postgres a missed table is an FK crash at delete time, on sqlite an
+    orphan row. Guards the delete_demo model list staying complete."""
+    login()
+    client.post("/api/admin/demo")
+    client.post("/auth/demo")
+    r = client.post("/api/food/log", json={"date": MONDAY, "slot": "snack",
+                                           "recipe": "almonds-30", "client_id": "demo-food-1"})
+    assert r.status_code == 200
+
+    login()
+    assert client.post("/api/admin/demo").status_code == 200, "reset with demo meal rows present"
+    assert client.delete("/api/admin/demo").json()["exists"] is False
+
+    from app.db import SessionLocal
+    from app.models import MealLog, User
+    db = SessionLocal()
+    try:
+        assert db.query(User).filter(User.role == "demo").count() == 0
+        assert db.query(MealLog).filter(MealLog.recipe_slug == "almonds-30").count() == 0, \
+            "demo meal rows must not survive demo removal"
+    finally:
+        db.close()
