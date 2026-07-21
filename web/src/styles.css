@@ -32,7 +32,11 @@
 html,body{ height:100%; }
 body{ background:var(--outer); color:var(--ink);
       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
-      -webkit-font-smoothing:antialiased; }
+      -webkit-font-smoothing:antialiased;
+      /* the page itself never pans sideways — any accidental too-wide box is
+         clipped instead of dragging the whole app left-right on iOS */
+      overflow-x:hidden; }
+img,video{ max-width:100%; }
 button{ font:inherit; border:0; background:none; color:inherit; cursor:pointer; padding:0; text-align:inherit; }
 button:focus-visible, input:focus-visible{ outline:2px solid var(--volt); outline-offset:2px; border-radius:8px; }
 input{ font:inherit; font-size:16px; color:var(--ink); } /* ≥16px everywhere or iOS zooms on focus */
@@ -41,7 +45,10 @@ input{ font:inherit; font-size:16px; color:var(--ink); } /* ≥16px everywhere o
    up the app shrinks to the visible area, so the tab bar and chat input stay
    pinned instead of the whole page panning away. */
 .app{ width:100%; max-width:520px; margin:0 auto; height:var(--vvh, 100dvh); background:var(--bg);
-      display:flex; flex-direction:column; overflow:hidden; font-size:15.5px; }
+      display:flex; flex-direction:column; overflow:hidden; font-size:15.5px;
+      /* long unbroken strings (URLs in chat, imported recipe names) wrap
+         instead of stretching a row past the viewport */
+      overflow-wrap:break-word; }
 @media (min-width:560px){ .app{ border-left:1px solid var(--hair); border-right:1px solid var(--hair); } }
 .boot{ margin:auto; font-size:32px; font-weight:800; letter-spacing:.05em; }
 .boot span{ color:var(--volt); }
@@ -57,7 +64,10 @@ input{ font:inherit; font-size:16px; color:var(--ink); } /* ≥16px everywhere o
          display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; }
 .avatar.neutral{ background:var(--neutral); color:var(--ink); }
 
-.scroll{ flex:1; overflow-y:auto; padding:6px 16px 18px; display:flex; flex-direction:column; gap:10px; }
+/* overflow-y:auto silently computes overflow-x to auto too — pin it to hidden
+   or one too-wide child makes the whole screen horizontally scrollable */
+.scroll{ flex:1; overflow-y:auto; overflow-x:hidden; padding:6px 16px 18px;
+         display:flex; flex-direction:column; gap:10px; }
 .tabs{ display:flex; border-top:1px solid var(--hair); padding:8px 6px calc(10px + env(safe-area-inset-bottom));
        background:var(--bg); }
 .tab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; font-size:11.5px; color:var(--dim); }
@@ -79,6 +89,9 @@ h2.title{ font-size:26px; line-height:1.08; margin:2px 0 0; font-weight:650; let
 .tap:active .card, .press:active{ transform:scale(.985); }
 .row{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
 .xname{ font-size:16px; font-weight:550; }
+/* the name side of a row yields and wraps; the value side keeps its width —
+   a long exercise/recipe name can never push the row past the card edge */
+.row>.xname{ flex:1; min-width:0; }
 .target{ font-size:15px; color:var(--ink); font-weight:400; white-space:nowrap; }
 .sub{ font-size:13.5px; color:var(--mut); margin-top:3px; line-height:1.45; }
 .up{ color:var(--volt); font-weight:600; }
@@ -242,7 +255,8 @@ input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%;
               color:var(--ink); background:var(--raised); }
 .overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:60;
           display:flex; align-items:flex-end; justify-content:center; }
-.sheet{ width:100%; max-width:520px; background:var(--raised); border-radius:22px 22px 0 0;
+.sheet{ width:100%; max-width:520px; overflow-x:hidden;
+        background:var(--raised); border-radius:22px 22px 0 0;
         padding:20px 18px calc(18px + env(safe-area-inset-bottom));
         display:flex; flex-direction:column; gap:10px; }
 .sheet h3{ font-size:18px; font-weight:650; letter-spacing:-.01em; }
@@ -281,8 +295,8 @@ input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%;
               justify-content:center; }
 .ringwrap .t b{ font-size:14px; }
 .ringwrap .t span{ font-size:9px; color:var(--mut); }
-.statchips{ display:flex; gap:6px; margin-top:8px; }
-.statchip{ flex:1; background:var(--sunken); border-radius:10px; padding:7px 9px; }
+.statchips{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+.statchip{ flex:1 1 88px; background:var(--sunken); border-radius:10px; padding:7px 9px; }
 .statchip .k{ color:var(--mut); font-size:10px; text-transform:uppercase; letter-spacing:.05em; }
 .statchip .v{ font-size:14px; font-weight:650; margin-top:1px; }
 
