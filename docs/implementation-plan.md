@@ -93,16 +93,16 @@ Stories: E15.1–E15.3, remaining E12 enforcement
 
 # Beta track — Nutrition (Phases 7–9)
 
-Lives on the **`beta` branch**, deployed as a **second Docker stack** (own `FORGE_PORT`, own Postgres volume, built from source via `docker-compose.build.yml`) while `main` stays the stable workout app; merges to main phase-by-phase once proven in beta. Stories: **E16**. Mockups: `docs/mockups/38–42`. Decisions locked Jul 2026: all meals planned · plan-first one-tap logging · auto carry-over · favorites + menu-paste lunch assist · household dinners · coach-owned targets.
+Lives on the **`beta` branch**, deployed as a **second Docker stack** (own `FORGE_PORT`, own Postgres volume, built from source via `docker-compose.build.yml`) while `main` stays the stable workout app; merges to main phase-by-phase once proven in beta. Stories: **E16**. Mockups: `docs/mockups/38–43`. Decisions locked Jul 2026: all meals planned · plan-first one-tap logging · auto carry-over · favorites + menu-paste lunch assist · household dinners · coach-owned targets.
 
 ## Phase 7 — Kitchen core (see it, log it)
 **Goal: every meal visible and loggable against targets that mean something.**
-Stories: E16.1, E16.2, E16.4, E16.8 (schema + scoping)
+Stories: E16.1, E16.2, E16.4, E16.10, E16.8 (schema + scoping)
 
 - Schema (new tables only, create_all-safe): `recipes`, `ingredients`, `recipe_ingredients`, `meal_revisions`, `meal_log`, `carryovers`, `lunch_favorites`. Household read scope for the food week; per-user scope for logs/targets — segregation tests extended **first**, demo user included.
-- Seed ~40 cholesterol-aligned recipes (easy/medium, batchable, ingredient-overlapping) + ingredient macro table; insert-missing like the exercise seed.
+- Seed ~40 cholesterol-aligned recipes (easy/medium, batchable, ingredient-overlapping, done-when method steps) + ingredient macro table + a `platefig` SVG composition per recipe (shared plate/tray/bowl engine, the formfig approach — no food photography); insert-missing like the exercise seed.
 - Coach nutrition intake → `prefs.nutrition_targets`; Settings → Nutrition (targets read-only, cook nights, budgets, household toggle).
-- **Food tab** (5th tab): day view (four meters + tick rows), week view, recipe detail; dinner lines woven into Plan's hero card + day rows; offline tick queue alongside the set queue.
+- **Food tab** (5th tab): day view (four meters + tick rows with plate thumbnails), week view, recipe detail (plate art, done-when steps), **cook mode** (one step per screen, local countdown ring via the rest-ring pattern, batch checkpoints, finish logs the meal); dinner lines woven into Plan's hero card + day rows; offline tick queue alongside the set queue.
 - Hand-written first food week as the active revision (Phase 2's seed-plan trick).
 
 **Exit:** a full week of meals logged one-tap on the phone; meters live; Shelby sees shared dinners but her own targets; main app untouched.

@@ -235,7 +235,7 @@ As James, I want to chat with my coach anytime so that questions and data entry 
 **E15.3 — Export**
 - AC1: Authenticated JSON export of all of a user's own data (and only theirs).
 
-## E16 · Nutrition *(beta track — designed Jul 2026, mockups 38–42)*
+## E16 · Nutrition *(beta track — designed Jul 2026, mockups 38–43)*
 
 Decisions (James, Jul 2026): all meals planned weekly; plan-first one-tap logging (no food-database diary); auto carry-over for waste; lunch assist = favorites ledger + menu paste (MealPal/Grubhub have no public APIs); dinners are household-shared; targets tuned for cholesterol — high protein, high fiber, sat-fat cap.
 
@@ -250,6 +250,8 @@ As the Coach, I want a curated recipe library so that plans only contain meals w
 - AC1: Recipes carry per-serving macros (kcal, protein, fiber, sat fat, carbs, fat), minutes, difficulty (**easy | medium only**), servings, steps, and quantified ingredients; ~40 cholesterol-aligned seeds, insert-missing like the exercise seed.
 - AC2: Only complete entries are proposable (mirror of E3.1 AC3), validated server-side.
 - AC3: Ingredients normalize into an `ingredients` table (name, aisle, pack size, per-100 g macros) so shopping lists and waste math work; storage stays canonical (g / ml / kcal), conversion at the display edge.
+- AC4: Every recipe carries a palette-native SVG plate illustration — a shared `platefig` engine (plate/tray/bowl primitives + per-recipe composition, the formfig approach): thumbnails on day/week/proposal rows, full art on recipe detail and the cook-mode finish. No food photography anywhere.
+- AC5: Method steps are written to be cooked from, not skimmed: each carries a duration, restated quantities where they matter, and a **done-when** checkpoint ("74° / juices run clear") rather than bare instructions.
 
 **E16.3 — Food week proposals**
 As James, I want next week's meals proposed each Sunday alongside training so that one review sets up the whole week.
@@ -285,6 +287,13 @@ As James, I want help choosing a healthy work lunch within budget so that orderi
 - AC1: The food week, recipes, and shopping list are household-shared (like the Home equipment profile); dinner portions scale with participants.
 - AC2: Targets, meal logs, and lunch favorites are strictly per-user — segregation tests extend to every nutrition table, demo user included.
 - AC3: Shelby's dinner participation is opt-in (default on); her plate logs against her targets.
+
+**E16.10 — Cook mode**
+As James, I want cooking walked one step at a time so that the phone works propped on the counter with messy hands.
+- AC1: "Cook step-by-step" renders the method one step per screen — kitchen-scale type, step-progress dots, the step's done-when checkpoint and quantities, plus a "while you wait" hint where one exists.
+- AC2: Steps with a duration run a countdown ring (the rest-ring pattern reused); timers are local and in-app only — E12.1's two push kinds are untouched.
+- AC3: Batch checkpoints ("box half before plating") are explicit tick rows; finishing cook mode logs the dinner (E16.4) with plate count, credits each participating user, and marks the linked zero-cook day as boxed.
+- AC4: Quick-log stays one tap for already-cooked meals — cook mode is optional, never a gate.
 
 **E16.9 — Nutrition × labs**
 - AC1: Dashboard + Progress gain weekly fiber and sat-fat trends with lipid-panel draw dates marked; protein adherence renders beside strength trends.

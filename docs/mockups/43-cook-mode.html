@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cook mode — guided steps + finish</title>
+<style>
+  :root{ --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
+         --ink:#edeef0; --mut:#8b9096; --dim:#565b61;
+         --volt:#c9f73a; --on-volt:#131602; --volt-dim:rgba(201,247,58,.12); --warn:#e8a360; }
+  *{ box-sizing:border-box; margin:0; }
+  body{ background:#0a0b0d; color:var(--ink); font:14px/1.45 -apple-system,Inter,system-ui,sans-serif;
+        display:flex; gap:34px; flex-wrap:wrap; justify-content:center; padding:34px 16px 60px; }
+  .opt{ text-align:center; }
+  .lab{ color:var(--mut); font-size:13px; margin-bottom:14px; }
+  .lab b{ color:var(--volt); }
+  .phone{ width:330px; background:var(--bg); border-radius:34px; padding:20px 14px 26px;
+          box-shadow:0 26px 70px rgba(0,0,0,.55); text-align:left; }
+  .num{ font-variant-numeric:tabular-nums; }
+  .kick{ color:var(--volt); font-size:10.5px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
+  .kickm{ color:var(--mut); }
+  h2{ font-size:24px; letter-spacing:-.015em; margin:2px 0 8px; line-height:1.15; }
+  .card{ background:var(--raised); border-radius:15px; padding:12px 13px; margin-bottom:8px; font-size:13px; }
+  .row{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .sub{ color:var(--mut); font-size:11.5px; margin-top:3px; }
+  .bigsub{ color:var(--mut); font-size:13.5px; line-height:1.5; }
+  .volt{ color:var(--volt); } .warn{ color:var(--warn); } .dim{ color:var(--dim); }
+  .pill{ background:var(--volt); color:var(--on-volt); text-align:center; font-weight:700;
+         border-radius:999px; padding:12px; font-size:14px; }
+  .ghost{ text-align:center; color:var(--volt); border:1px solid var(--hair); border-radius:999px;
+          padding:11px; font-size:12.5px; }
+  .btnrow{ display:flex; gap:8px; margin-top:12px; }
+  .btnrow .pill{ flex:1.5; } .btnrow .ghost{ flex:1; }
+
+  .stepdots{ display:flex; gap:7px; margin:12px 0 14px; }
+  .sdot{ width:30px; height:30px; border-radius:50%; background:var(--sunken); color:var(--dim);
+         display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; }
+  .sdot.done{ background:var(--volt); color:var(--on-volt); font-weight:800; }
+  .sdot.cur{ background:var(--volt-dim); color:var(--volt); box-shadow:inset 0 0 0 1.6px var(--volt); }
+  .sdot small{ font-size:8px; }
+  .steplab{ flex:1; display:flex; align-items:center; color:var(--dim); font-size:10px;
+            letter-spacing:.1em; text-transform:uppercase; justify-content:flex-end; }
+
+  .ringwrap{ display:flex; flex-direction:column; align-items:center; padding:8px 0 4px; }
+  .ring{ width:158px; height:158px; }
+  .ringnum{ font-weight:300; font-size:34px; letter-spacing:-.01em; fill:var(--ink); }
+  .ringsub{ font-size:9.5px; fill:var(--mut); letter-spacing:.1em; text-transform:uppercase; }
+
+  .fchips{ display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+  .fchip{ background:var(--volt-dim); color:var(--volt); border-radius:999px; padding:3px 10px; font-size:10.5px; font-weight:600; }
+  .fchip.mut{ background:var(--sunken); color:var(--mut); font-weight:400; }
+
+  .tickrow{ display:flex; gap:10px; align-items:center; padding:10px 2px; font-size:13.5px; }
+  .tickrow+.tickrow{ border-top:1px solid var(--hair); }
+  .tk{ width:24px; height:24px; border-radius:50%; background:var(--volt); color:var(--on-volt);
+       display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; flex:none; }
+  .heroart{ width:100%; height:auto; display:block; margin:2px 0 10px; }
+  .statline{ display:flex; gap:6px; margin-top:8px; }
+  .stat{ flex:1; background:var(--sunken); border-radius:11px; padding:7px 9px; text-align:center; }
+  .stat .l{ display:block; color:var(--dim); font-size:8.5px; letter-spacing:.09em; text-transform:uppercase; }
+  .stat .v{ display:block; font-weight:300; font-size:15px; margin-top:1px; }
+</style>
+</head>
+<body>
+
+<div class="opt">
+  <div class="lab"><b>Cook mode — mid-step</b> · one step per screen, kitchen-scale type for a propped-up phone,<br>done-when checkpoints, and the rest-ring pattern reused as a local roast timer</div>
+  <div class="phone num">
+    <div class="row"><span class="kick kickm">‹ exit</span><span class="kick kickm" style="letter-spacing:.08em">Harissa chicken traybake</span></div>
+
+    <div class="stepdots">
+      <span class="sdot done">✓</span><span class="sdot done">✓</span><span class="sdot cur">3</span>
+      <span class="sdot">4</span><span class="sdot">5</span>
+      <span class="steplab">Step 3 of 5</span>
+    </div>
+
+    <h2>Roast — hands off</h2>
+    <p class="bigsub"><span class="volt">220° fan.</span> Done when the thighs read <span class="volt">74°</span> / juices run clear and the chickpeas just blister. No turning — let the edges char.</p>
+
+    <div class="ringwrap">
+      <svg class="ring" viewBox="0 0 140 140">
+        <circle cx="70" cy="70" r="56" fill="none" stroke="var(--sunken)" stroke-width="7"/>
+        <circle cx="70" cy="70" r="56" fill="none" stroke="var(--volt)" stroke-width="7"
+                stroke-linecap="round" stroke-dasharray="232 352" transform="rotate(-90 70 70)"/>
+        <text x="70" y="74" text-anchor="middle" class="ringnum">14:32</text>
+        <text x="70" y="92" text-anchor="middle" class="ringsub">of 22:00</text>
+      </svg>
+      <div class="sub" style="margin-top:2px">Chimes at 19:04 — a local timer, same as your rest ring.</div>
+    </div>
+
+    <div class="card" style="margin-top:10px"><span class="volt" style="font-weight:600">While it roasts</span>
+      <div class="sub" style="margin-top:3px">Get Wednesday's box out — step 5 needs it. Spinach stays in the fridge until the tray is out of the oven.</div></div>
+
+    <div class="btnrow"><div class="ghost">‹ Dress</div><div class="pill">Finish ›</div></div>
+  </div>
+</div>
+
+<div class="opt">
+  <div class="lab"><b>Cook mode — plated</b> · the last step's batch checkpoint, then the kitchen's session summary:<br>plates logged, Wednesday boxed, the day's trio closed — mirroring the workout summary</div>
+  <div class="phone num">
+    <div class="kick">Cook mode · done in 24 min</div>
+    <h2>Plated. Logged.</h2>
+
+    <svg class="heroart" viewBox="0 0 160 84">
+      <rect x="6" y="4" width="148" height="76" rx="12" fill="#16181c"/>
+      <rect x="13" y="11" width="134" height="62" rx="8" fill="#0d0e10"/>
+      <ellipse cx="44" cy="34" rx="13" ry="9" fill="#9aa0a8"/>
+      <circle cx="39" cy="31" r="1.9" fill="#6b7178"/><circle cx="49" cy="36" r="1.6" fill="#6b7178"/>
+      <ellipse cx="84" cy="54" rx="13" ry="9" fill="#9aa0a8"/>
+      <circle cx="79" cy="52" r="1.8" fill="#6b7178"/><circle cx="89" cy="56" r="1.5" fill="#6b7178"/>
+      <ellipse cx="116" cy="30" rx="12" ry="8.5" fill="#9aa0a8"/>
+      <circle cx="26" cy="52" r="2.4" fill="#6b7178"/><circle cx="35" cy="62" r="2.2" fill="#7d838b"/>
+      <circle cx="60" cy="34" r="2.3" fill="#7d838b"/><circle cx="66" cy="22" r="2.2" fill="#6b7178"/>
+      <circle cx="98" cy="24" r="2.3" fill="#6b7178"/><circle cx="104" cy="46" r="2.4" fill="#7d838b"/>
+      <circle cx="120" cy="62" r="2.3" fill="#6b7178"/><circle cx="134" cy="48" r="2.2" fill="#7d838b"/>
+      <rect x="24" y="20" width="18" height="4.4" rx="2.2" fill="#83898f" transform="rotate(-18 33 22)"/>
+      <rect x="60" y="46" width="17" height="4.2" rx="2.1" fill="#83898f" transform="rotate(24 68 48)"/>
+      <rect x="128" y="18" width="15" height="4" rx="2" fill="#83898f" transform="rotate(30 135 20)"/>
+      <rect x="98" y="64" width="16" height="4.2" rx="2.1" fill="#83898f" transform="rotate(-12 106 66)"/>
+      <circle cx="30" cy="26" r="2.2" fill="#7d838b"/><circle cx="52" cy="58" r="2.3" fill="#6b7178"/>
+      <circle cx="70" cy="64" r="2.2" fill="#7d838b"/><circle cx="76" cy="34" r="2.3" fill="#6b7178"/>
+      <circle cx="110" cy="52" r="2.2" fill="#6b7178"/><circle cx="128" cy="34" r="2.3" fill="#7d838b"/>
+      <path d="M26 42 a7 7 0 0 1 9 -5" fill="none" stroke="#c7cad0" stroke-width="1.8"/>
+      <path d="M96 38 a6.5 6.5 0 0 1 8 -4.5" fill="none" stroke="#c7cad0" stroke-width="1.7"/>
+      <ellipse cx="58" cy="60" rx="5.2" ry="2.7" fill="#c9f73a" opacity=".85" transform="rotate(-22 58 60)"/>
+      <ellipse cx="101" cy="36" rx="4.8" ry="2.5" fill="#c9f73a" opacity=".55" transform="rotate(30 101 36)"/>
+      <ellipse cx="36" cy="44" rx="4.4" ry="2.3" fill="#c9f73a" opacity=".7" transform="rotate(12 36 44)"/>
+      <ellipse cx="128" cy="56" rx="4.8" ry="2.5" fill="#c9f73a" opacity=".8" transform="rotate(-30 128 56)"/>
+      <ellipse cx="66" cy="18" rx="4.2" ry="2.2" fill="#c9f73a" opacity=".5" transform="rotate(18 66 18)"/>
+      <circle cx="140" cy="66" r="4.5" fill="#c7cad0"/><circle cx="140" cy="66" r="2.7" fill="#9aa0a8"/>
+    </svg>
+
+    <div class="card" style="padding:4px 13px">
+      <div class="tickrow"><span class="tk">✓</span><span style="flex:1">Wednesday's dinner boxed<div class="sub" style="margin:0">zero-cook night locked in · fridge, 3 days</div></span></div>
+      <div class="tickrow"><span class="tk">✓</span><span style="flex:1">Dinner logged — 2 plates<div class="sub" style="margin:0">you + Shelby · her plate on her day, her targets</div></span></div>
+    </div>
+
+    <div class="card">
+      <div class="kick" style="font-size:9.5px">Per plate</div>
+      <div class="statline">
+        <span class="stat"><span class="l">kcal</span><span class="v">520</span></span>
+        <span class="stat"><span class="l">Protein</span><span class="v">42</span></span>
+        <span class="stat"><span class="l">Fiber</span><span class="v">11</span></span>
+        <span class="stat"><span class="l">Sat fat</span><span class="v">4.5</span></span>
+      </div>
+      <div class="sub" style="margin-top:8px">Your Monday lands <span class="volt">P 156 · fiber 41 · sat 12.5</span> — on plan, headroom banked for Friday.</div>
+    </div>
+
+    <div class="sub" style="text-align:center;margin:2px 0 10px">Cook streak: <span class="volt">3 nights this week</span> · waste so far: 0 items</div>
+
+    <div class="pill">Done</div>
+    <div class="ghost" style="margin-top:7px">Tell the coach how it went</div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -41,9 +41,14 @@
   .ing+.ing{ border-top:1px solid var(--hair); }
   .ing .q{ color:var(--mut); font-size:11.5px; white-space:nowrap; }
 
-  .step{ display:flex; gap:10px; padding:7px 2px; font-size:12.5px; }
+  .step{ display:flex; gap:10px; padding:8px 2px; font-size:12.5px; }
   .step+.step{ border-top:1px solid var(--hair); }
   .step .n{ color:var(--volt); font-weight:700; width:14px; flex:none; }
+  .step .t{ font-weight:650; }
+  .step .tm{ color:var(--mut); font-weight:400; font-size:11px; }
+  .heroart{ width:100%; height:auto; display:block; margin:2px 0 8px; }
+  .quicklog{ text-align:center; color:var(--mut); font-size:11.5px; margin-top:9px; }
+  .quicklog b{ color:var(--volt); font-weight:600; }
 
   .bub{ background:var(--raised); border-radius:14px 14px 14px 4px; padding:10px 12px;
         font-size:12.5px; margin:6px 0; max-width:92%; }
@@ -61,7 +66,7 @@
 <body>
 
 <div class="opt">
-  <div class="lab"><b>Recipe detail</b> · macros + the cholesterol trio per serving, a "why it's in your week" line,<br>carry-over badges on ingredients, batch callout, one-tap log</div>
+  <div class="lab"><b>Recipe detail</b> · plate art up top (palette-native SVG, formfig-style — no photos), the cholesterol trio<br>per serving, carry-over badges, steps with done-when checkpoints, cook mode as the main CTA</div>
   <div class="phone num">
     <div class="kick kickm">‹ Food week</div>
     <div class="kick" style="margin-top:8px">Monday dinner · cook once, eat twice</div>
@@ -72,6 +77,36 @@
     <div class="fchips" style="margin-bottom:8px">
       <span class="fchip">520 kcal</span><span class="fchip">P 42</span><span class="fchip">fiber 11</span><span class="fchip">sat fat 4.5</span>
     </div>
+
+    <svg class="heroart" viewBox="0 0 160 100">
+      <rect x="6" y="6" width="148" height="88" rx="13" fill="#16181c"/>
+      <rect x="13" y="13" width="134" height="74" rx="9" fill="#0d0e10"/>
+      <ellipse cx="42" cy="38" rx="14" ry="9.5" fill="#9aa0a8"/>
+      <circle cx="37" cy="35" r="2" fill="#6b7178"/><circle cx="47" cy="40" r="1.7" fill="#6b7178"/>
+      <ellipse cx="82" cy="62" rx="14" ry="9.5" fill="#9aa0a8"/>
+      <circle cx="77" cy="60" r="1.9" fill="#6b7178"/><circle cx="87" cy="64" r="1.6" fill="#6b7178"/>
+      <ellipse cx="116" cy="34" rx="13" ry="9" fill="#9aa0a8"/>
+      <circle cx="112" cy="31" r="1.8" fill="#6b7178"/><circle cx="121" cy="37" r="1.6" fill="#6b7178"/>
+      <circle cx="26" cy="60" r="2.5" fill="#6b7178"/><circle cx="33" cy="70" r="2.3" fill="#7d838b"/>
+      <circle cx="45" cy="65" r="2.5" fill="#6b7178"/><circle cx="56" cy="74" r="2.2" fill="#7d838b"/>
+      <circle cx="62" cy="40" r="2.4" fill="#7d838b"/><circle cx="68" cy="26" r="2.3" fill="#6b7178"/>
+      <circle cx="96" cy="28" r="2.4" fill="#6b7178"/><circle cx="104" cy="52" r="2.5" fill="#7d838b"/>
+      <circle cx="118" cy="70" r="2.4" fill="#6b7178"/><circle cx="130" cy="56" r="2.3" fill="#7d838b"/>
+      <circle cx="137" cy="42" r="2.2" fill="#6b7178"/><circle cx="52" cy="24" r="2.2" fill="#7d838b"/>
+      <rect x="22" y="24" width="19" height="4.6" rx="2.3" fill="#83898f" transform="rotate(-18 31 26)"/>
+      <rect x="58" y="52" width="18" height="4.4" rx="2.2" fill="#83898f" transform="rotate(24 67 54)"/>
+      <rect x="100" y="76" width="19" height="4.6" rx="2.3" fill="#83898f" transform="rotate(-10 109 78)"/>
+      <rect x="128" y="22" width="16" height="4.2" rx="2.1" fill="#83898f" transform="rotate(30 136 24)"/>
+      <path d="M22 44 a8 8 0 0 1 10 -6" fill="none" stroke="#c7cad0" stroke-width="2"/>
+      <path d="M94 44 a7 7 0 0 1 9 -5" fill="none" stroke="#c7cad0" stroke-width="1.8"/>
+      <ellipse cx="60" cy="66" rx="5.5" ry="2.8" fill="#c9f73a" opacity=".85" transform="rotate(-22 60 66)"/>
+      <ellipse cx="103" cy="42" rx="5" ry="2.6" fill="#c9f73a" opacity=".55" transform="rotate(30 103 42)"/>
+      <ellipse cx="34" cy="52" rx="4.6" ry="2.4" fill="#c9f73a" opacity=".7" transform="rotate(12 34 52)"/>
+      <ellipse cx="128" cy="64" rx="5" ry="2.6" fill="#c9f73a" opacity=".8" transform="rotate(-30 128 64)"/>
+      <ellipse cx="76" cy="20" rx="4.4" ry="2.3" fill="#c9f73a" opacity=".5" transform="rotate(18 76 20)"/>
+      <circle cx="140" cy="78" r="6" fill="#c7cad0"/><circle cx="140" cy="78" r="3.6" fill="#9aa0a8"/>
+      <circle cx="24" cy="78" r="5" fill="#c7cad0"/><circle cx="24" cy="78" r="3" fill="#9aa0a8"/>
+    </svg>
 
     <div class="card"><span class="volt" style="font-weight:600">Why it's here</span>
       <div class="sub" style="margin-top:4px">Your highest-protein traybake; chickpeas carry the fiber. 4.5 g sat fat banks headroom for Friday night out. Doubles into Wednesday — one cook, two dinners.</div></div>
@@ -86,15 +121,17 @@
       <div class="ing"><span class="dim">Olive oil · cumin · lemon</span><span class="q dim">pantry</span></div>
     </div>
 
-    <div class="sect">Method</div>
+    <div class="sect">Method · 5 steps</div>
     <div class="card" style="padding:4px 13px">
-      <div class="step"><span class="n">1</span><span>Toss thighs, chickpeas, peppers, onion in harissa + oil.</span></div>
-      <div class="step"><span class="n">2</span><span>Roast 22 min at 220°. No turning, no stress.</span></div>
-      <div class="step"><span class="n">3</span><span>Fold spinach through off the heat; lemon over.</span></div>
-      <div class="step"><span class="n">4</span><span>Box half before plating — that's Wednesday done.</span></div>
+      <div class="step"><span class="n">1</span><span><span class="t">Prep <span class="tm">· 5 min</span></span><div class="sub" style="margin:1px 0 0">Oven to 220° fan. Pat the thighs dry — dry meat browns, wet meat steams. Peppers into strips, onions into wedges, chickpeas drained well.</div></span></div>
+      <div class="step"><span class="n">2</span><span><span class="t">Dress <span class="tm">· 2 min</span></span><div class="sub" style="margin:1px 0 0">Everything into the tray with harissa, oil, cumin and half the lemon. Toss until slicked; thighs on top so they roast, not stew.</div></span></div>
+      <div class="step"><span class="n">3</span><span><span class="t">Roast <span class="tm">· 22 min · timer</span></span><div class="sub" style="margin:1px 0 0">Done when thighs read 74° / juices run clear and the chickpeas just blister. No turning — let the edges char.</div></span></div>
+      <div class="step"><span class="n">4</span><span><span class="t">Finish <span class="tm">· 1 min</span></span><div class="sub" style="margin:1px 0 0">Off the heat: fold the spinach through the hot chickpeas to wilt, squeeze the rest of the lemon over.</div></span></div>
+      <div class="step"><span class="n">5</span><span><span class="t">Box &amp; plate</span><div class="sub" style="margin:1px 0 0">Half into Wednesday's box <i>before</i> plating — portion now, no willpower needed Wednesday night.</div></span></div>
     </div>
 
-    <div class="pill">Cooked it — log dinner ×2 plates</div>
+    <div class="pill">Cook step-by-step · 25 min</div>
+    <div class="quicklog">Already cooked? <b>Log it in one tap</b></div>
     <div class="ghost">Swap this dinner</div>
   </div>
 </div>
