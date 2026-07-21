@@ -195,7 +195,7 @@ export interface WeekDay {
   session: { id: string; kind: string; status: string; stats: any; name: string } | null;
 }
 export interface WeekResp {
-  start: string; rationale: string; days: WeekDay[];
+  start: string; today: string; rationale: string; days: WeekDay[];
   dangling: { id: string; date: string; day_name: string; name: string; sets_done: number } | null;
 }
 
@@ -286,6 +286,20 @@ export function plateStr(kind: string, weight: number, profile?: Profile | null,
 
 export function fmtT(s: number): string {
   return Math.floor(s / 60) + ':' + String(Math.max(0, s % 60)).padStart(2, '0');
+}
+/** Seconds → wall-clock length: "42 min" / "1h 24m". For workout durations —
+ *  fmtT stays mm:ss for live timers and holds. */
+export function fmtDur(s: number): string {
+  const m = Math.round(s / 60);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+}
+export function addDaysISO(iso: string, days: number): string {
+  return new Date(new Date(iso + 'T12:00:00Z').getTime() + days * 86400000).toISOString().slice(0, 10);
+}
+/** Monday of the week containing the given ISO date — mirrors the server's
+ *  Mon–Sun alignment of /api/week. */
+export function weekStartISO(iso: string): string {
+  return addDaysISO(iso, -((new Date(iso + 'T12:00:00Z').getUTCDay() + 6) % 7));
 }
 /** Today as the user's LOCAL date — toISOString alone is the UTC date, which is
  *  still yesterday for the first hour after midnight during BST. */

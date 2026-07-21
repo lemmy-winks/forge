@@ -45,7 +45,7 @@ TOOLS: list[dict] = [
      "input_schema": {"type": "object", "properties": {}}},
     {"name": "get_active_plan", "description": "The active plan revision: goal, week content, rationale.",
      "input_schema": {"type": "object", "properties": {}}},
-    {"name": "get_week", "description": "The rolling 7-day view starting today: each day's plan entry plus any logged session (status + stats). The fastest way to see what's done and what's left this week.",
+    {"name": "get_week", "description": "The current calendar week (Mon–Sun): each day's plan entry plus any logged session (status + stats). The fastest way to see what's done and what's left this week.",
      "input_schema": {"type": "object", "properties": {}}},
     {"name": "get_proposal", "description": "The pending proposed revision awaiting the user's approval (null if none). Read this before discussing or revising a proposal.",
      "input_schema": {"type": "object", "properties": {}}},
