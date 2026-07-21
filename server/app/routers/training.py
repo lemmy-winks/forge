@@ -187,8 +187,10 @@ def today(date: str | None = None, budget: int | None = Query(default=None, ge=2
 
 @router.get("/week")
 def week(date: str | None = None, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """Rolling 7-day view: today first, then the six days ahead."""
+    """Calendar-week view (Mon–Sun) of the week containing `date` (default:
+    today). The client pages weeks by passing any date in the target week."""
     base = parse_date(date)
+    base = base - timedelta(days=base.weekday())  # snap to Monday
     actual_today = local_today()
     rev = active_revision(db, user.id)
     days = ((rev.content or {}).get("days", {}) or {}) if rev else {}
@@ -236,7 +238,8 @@ def week(date: str | None = None, user: User = Depends(current_user), db: Sessio
                     "day_name": DAY_NAMES[dangling.day.weekday()],
                     "name": dangling.name, "sets_done": n_sets}
 
-    return {"start": str(base), "rationale": rev.rationale if rev else "", "days": out,
+    return {"start": str(base), "today": str(actual_today),
+            "rationale": rev.rationale if rev else "", "days": out,
             "dangling": dang_out}
 
 
@@ -531,12 +534,13 @@ def alternatives(slug: str, user: User = Depends(current_user), db: Session = De
 # ---------- history / progress / records ----------
 
 @router.get("/history")
-def history(user: User = Depends(current_user), db: Session = Depends(get_db)):
+def history(limit: int = Query(default=30, ge=1, le=100), offset: int = Query(default=0, ge=0),
+            user: User = Depends(current_user), db: Session = Depends(get_db)):
     rows = (db.query(WorkoutSession)
             .filter(WorkoutSession.user_id == user.id,
                     WorkoutSession.status.in_(["completed", "unplanned"]))
             .order_by(WorkoutSession.day.desc(), WorkoutSession.started_at.desc())
-            .limit(60).all())
+            .offset(offset).limit(limit).all())
     return [{"id": s.id, "day": str(s.day), "name": s.name, "kind": s.kind,
              "status": s.status, "stats": s.stats or {}} for s in rows]
 
