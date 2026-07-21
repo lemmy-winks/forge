@@ -107,6 +107,8 @@ Stories: E16.1, E16.2, E16.4, E16.10, E16.8 (schema + scoping)
 
 **Exit:** a full week of meals logged one-tap on the phone; meters live; Shelby sees shared dinners but her own targets; main app untouched.
 
+> **As built (Jul 2026, first pass — commits fa2cc7c + be9d952)**: everything above plus cook mode, except (a) the recipe pool starts at 25 (16 dinners + templates) — grows toward ~40 via insert-missing seed additions and Phase 8's `import_recipe`; (b) recipe ingredients live as a JSON list on `recipes` joined to the `ingredients` macro table by name in code (exercise-library style), not a join table; (c) targets are seeded prefs defaults — the coach intake conversation that proposes them moves to Phase 8 with the other coach tools; (d) the offline meal queue is localStorage + `client_id` idempotency rather than the IndexedDB set-queue machinery; (e) the day view shipped Option A (plate-first) — flip to B is cheap if preferred. Verified by driving the app headless end-to-end (dark + light).
+
 ## Phase 8 — Coached food weeks & the waste loop
 **Goal: Sunday proposes the eating week; the fridge stops throwing food away.**
 Stories: E16.3, E16.5, E16.6 (list + export v1), E16.9, E16.11
