@@ -1,17 +1,68 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, type ReactNode } from 'react';
 import {
-  api, fmtLoad, fmtT, kgDisp, kgToDisp, loadUnitFor,
+  api, fmtDur, fmtLoad, kgDisp, kgToDisp, loadUnitFor,
   type HistoryItem, type LoadUnit, type MetricHistory, type Progress, type RecordRow,
   type SeriesPoint, type SessionDetail,
 } from '../api';
 import { smoothPath } from '../chart';
 import { Back, Chip, Loading, Shell, Title, toast, useApp } from '../ui';
 
+/** What was actually done, at a glance: strength barbell, or the cardio
+    flavour (run / walk / hike / ride / swim) sniffed from the matched
+    prescription or the Watch workout name. */
+function ActivityGlyph({ h }: { h: HistoryItem }) {
+  const c = h.status === 'completed' ? 'var(--volt)' : 'var(--mut)';
+  const sw = { fill: 'none' as const, stroke: c, strokeWidth: 1.6,
+               strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  const svg = (kids: ReactNode) =>
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">{kids}</svg>;
+  if (h.kind !== 'cardio') {
+    return svg(<>
+      <line x1="4" y1="8" x2="12" y2="8" stroke={c} strokeWidth="1.6" />
+      <rect x="1.2" y="4.5" width="2.4" height="7" rx="1" fill={c} />
+      <rect x="12.4" y="4.5" width="2.4" height="7" rx="1" fill={c} /></>);
+  }
+  const sub = `${h.stats?.target?.type || ''} ${h.name || ''}`.toLowerCase();
+  if (sub.includes('hik')) {
+    return svg(<polyline points="1,12.5 5.5,4.5 8.5,9.5 11,6 15,12.5" {...sw} />);
+  }
+  if (sub.includes('walk')) {
+    return svg(<>
+      <ellipse cx="5" cy="4.5" rx="1.7" ry="2.4" fill={c} transform="rotate(-14 5 4.5)" />
+      <ellipse cx="11" cy="10.5" rx="1.7" ry="2.4" fill={c} transform="rotate(14 11 10.5)" /></>);
+  }
+  if (sub.includes('run')) {
+    return svg(<>
+      <polyline points="3,3.5 8,8 3,12.5" {...sw} />
+      <polyline points="8,3.5 13,8 8,12.5" {...sw} /></>);
+  }
+  if (sub.includes('cycl') || sub.includes('ride') || sub.includes('bike')) {
+    return svg(<>
+      <circle cx="4.2" cy="10.5" r="3" {...sw} />
+      <circle cx="11.8" cy="10.5" r="3" {...sw} />
+      <polyline points="4.2,10.5 6.8,5 11,5" {...sw} /></>);
+  }
+  if (sub.includes('swim')) {
+    return svg(<>
+      <path d="M1 6 q1.8 -2.4 3.5 0 t3.5 0 t3.5 0 t3.5 0" {...sw} />
+      <path d="M1 10.5 q1.8 -2.4 3.5 0 t3.5 0 t3.5 0 t3.5 0" {...sw} /></>);
+  }
+  return svg(<polyline points="1,9 4.5,9 6.5,4 9,12 10.8,8 15,8" {...sw} />);
+}
+
+const HISTORY_PAGE = 30;
+
 export function HistoryScreen() {
   const { go } = useApp();
-  const q = useQuery<HistoryItem[]>({ queryKey: ['history'], queryFn: () => api('/api/history') });
-  const items = q.data;
+  const q = useInfiniteQuery<HistoryItem[]>({
+    queryKey: ['history'],
+    queryFn: ({ pageParam }) => api(`/api/history?limit=${HISTORY_PAGE}&offset=${pageParam}`),
+    initialPageParam: 0,
+    getNextPageParam: (last, all) =>
+      last.length === HISTORY_PAGE ? all.reduce((n, p) => n + p.length, 0) : undefined,
+  });
+  const items = q.data?.pages.flat();
   return (
     <Shell>
       <Title kick="All sessions">History</Title>
@@ -21,17 +72,24 @@ export function HistoryScreen() {
         const s = h.stats || {};
         const head = h.kind === 'cardio'
           ? [s.distance ? s.distance.toFixed(1) + ' km' : null,
-             s.duration_s ? fmtT(s.duration_s) : null,
+             s.duration_s ? fmtDur(s.duration_s) : null,
              s.avg_hr ? Math.round(s.avg_hr) + ' bpm' : null].filter(Boolean).join(' · ')
           : [s.tonnage != null ? s.tonnage + ' t' : null,
              s.sets_done != null ? s.sets_done + ' sets' : null,
              s.partial ? 'partial' : null].filter(Boolean).join(' · ');
         return (
           <button key={h.id} className="lrow press num" onClick={() => go('detail', { detailId: h.id })}>
+            <span className="glyphslot"><ActivityGlyph h={h} /></span>
             <b>{h.day} · {h.name}</b><span className="rsub">{head || h.status}</span><span className="chev">›</span>
           </button>
         );
       })}
+      {q.hasNextPage && (
+        <button className="ghost press" disabled={q.isFetchingNextPage}
+          onClick={() => q.fetchNextPage()}>
+          {q.isFetchingNextPage ? 'Loading…' : 'Earlier sessions'}
+        </button>
+      )}
     </Shell>
   );
 }
@@ -87,11 +145,11 @@ function CardioStats({ d }: { d: SessionDetail }) {
   const s = d.stats || {};
   const t = s.target;
   const fmt = (k: string, v: any) =>
-    k === 'duration_s' ? fmtT(v) :
+    k === 'duration_s' ? fmtDur(v) :
     k === 'pace_min_km' ? `${Math.floor(v)}:${String(Math.round((v % 1) * 60)).padStart(2, '0')} /km` :
     typeof v === 'number' ? String(+v.toFixed(1)) : String(v);
   const rows: [string, string][] = [
-    ['Time', s.duration_s != null ? fmtT(s.duration_s) : '—'],
+    ['Time', s.duration_s != null ? fmtDur(s.duration_s) : '—'],
     ['Distance', s.distance != null ? s.distance.toFixed(2) + ' km' : '—'],
     ['Pace', s.pace_min_km != null ? fmt('pace_min_km', s.pace_min_km) : '—'],
     ['Avg HR', s.avg_hr != null ? Math.round(s.avg_hr) + ' bpm' : '—'],
