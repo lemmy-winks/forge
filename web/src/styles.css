@@ -160,11 +160,14 @@ h2.title{ font-size:26px; line-height:1.08; margin:2px 0 0; font-weight:650; let
       padding:10px 13px; font-size:14.5px; line-height:1.5; }
 .bub.me{ align-self:flex-end; background:var(--volt); color:var(--on-volt);
          border-radius:16px 16px 5px 16px; font-weight:500; }
-.chatin{ display:flex; gap:8px; padding:8px 16px calc(10px + env(safe-area-inset-bottom));
+.chatin{ display:flex; gap:8px; align-items:flex-end;
+         padding:8px 16px calc(10px + env(safe-area-inset-bottom));
          border-top:1px solid var(--hair); background:var(--bg); }
-.chatin input{ flex:1; background:var(--raised); border:0; border-radius:999px; padding:10px 14px; font-size:16px; } /* ≥16px or iOS zooms on focus */
-.chatin input::placeholder{ color:var(--dim); }
-.chatin button{ background:var(--volt); color:var(--on-volt); border-radius:999px; padding:0 18px; font-weight:700; }
+.chatin textarea{ flex:1; background:var(--raised); border:0; border-radius:18px; padding:10px 14px;
+                  font:inherit; font-size:16px; color:var(--ink); resize:none; line-height:1.4;
+                  max-height:96px; overflow-y:auto; } /* ≥16px or iOS zooms on focus */
+.chatin textarea::placeholder{ color:var(--dim); }
+.chatin button{ background:var(--volt); color:var(--on-volt); border-radius:999px; padding:11px 18px; font-weight:700; }
 
 .fchips{ display:flex; gap:6px; flex-wrap:wrap; }
 .fchip{ font-size:12px; padding:4px 10px; border-radius:999px; background:var(--sunken);

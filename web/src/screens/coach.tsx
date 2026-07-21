@@ -113,7 +113,10 @@ export function CoachScreen() {
   const [pending, setPending] = useState<ChatMsg[]>([]);
   const [reviewing, setReviewing] = useState(false);
   const [propOpen, setPropOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [draft, setDraft] = useState('');
+  const [focused, setFocused] = useState(false);
+  const [sentThisVisit, setSentThisVisit] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const thinking = q.data?.pending ?? false;
@@ -148,10 +151,14 @@ export function CoachScreen() {
   }, [thinking, qc]);
 
   const send = async (raw?: string) => {
-    const el = inputRef.current;
-    const text = (raw ?? el?.value ?? '').trim();
+    const text = (raw ?? draft).trim();
     if (!text || thinking) return;
-    if (el && raw === undefined) el.value = '';
+    if (raw === undefined) {
+      setDraft('');
+      const el = inputRef.current;
+      if (el) el.style.height = 'auto';
+    }
+    setSentThisVisit(true);
     const ctx = chatContext;
     setChatContext(null);
     setPending((p) => [...p, { who: 'me', text }]);
@@ -162,6 +169,7 @@ export function CoachScreen() {
     } catch (e) {
       toast((e as Error).message === 'network' ? 'Offline — message not sent' : String((e as Error).message));
       setPending((p) => p.slice(0, -1));
+      if (raw === undefined) setDraft(text); // give the typed message back
       if (ctx) setChatContext(ctx);
     }
   };
@@ -226,7 +234,9 @@ export function CoachScreen() {
           <span style={{ color: 'var(--volt)', fontWeight: 700, fontSize: 13 }}>Review ›</span>
         </button>
       )}
-      {!thinking && (
+      {/* conversation starters, not furniture: gone the moment you're actually
+          chatting (typing, focused, or already sent something this visit) */}
+      {!thinking && !focused && !draft && !sentThisVisit && (
         <div className="sugg">
           {suggestionsFor(hasProposal, msgs.length).map((s) => (
             <button key={s} className="fchip press" onClick={() => send(s)}>{s}</button>
@@ -243,9 +253,19 @@ export function CoachScreen() {
         </div>
       )}
       <div className="chatin">
-        <input ref={inputRef} placeholder={thinking ? 'Coach is thinking…' : 'Message your coach…'}
+        <textarea ref={inputRef} rows={1} value={draft}
+          placeholder={thinking ? 'Coach is thinking…' : 'Message your coach…'}
           autoComplete="off" disabled={thinking}
-          onKeyDown={(e) => { if (e.key === 'Enter') send(); }} />
+          onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            // auto-grow up to ~4 lines, then scroll inside
+            e.target.style.height = 'auto';
+            e.target.style.height = Math.min(e.target.scrollHeight, 96) + 'px';
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+          }} />
         <button className="press" onClick={() => send()} disabled={thinking}
           style={thinking ? { opacity: 0.5 } : undefined}>Send</button>
       </div>
