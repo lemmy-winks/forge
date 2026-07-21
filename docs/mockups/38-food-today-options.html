@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Food tab · day view — two options</title>
+<style>
+  :root{ --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
+         --ink:#edeef0; --mut:#8b9096; --dim:#565b61;
+         --volt:#c9f73a; --on-volt:#131602; --volt-dim:rgba(201,247,58,.12); --warn:#e8a360; }
+  *{ box-sizing:border-box; margin:0; }
+  body{ background:#0a0b0d; color:var(--ink); font:14px/1.45 -apple-system,Inter,system-ui,sans-serif;
+        display:flex; gap:34px; flex-wrap:wrap; justify-content:center; padding:34px 16px 60px; }
+  .opt{ text-align:center; }
+  .lab{ color:var(--mut); font-size:13px; margin-bottom:14px; }
+  .lab b{ color:var(--volt); }
+  .phone{ width:330px; background:var(--bg); border-radius:34px; padding:20px 14px 18px;
+          box-shadow:0 26px 70px rgba(0,0,0,.55); text-align:left; }
+  .num{ font-variant-numeric:tabular-nums; }
+  .kick{ color:var(--volt); font-size:10.5px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
+  .kickm{ color:var(--mut); }
+  h2{ font-size:22px; letter-spacing:-.01em; margin:2px 0 10px; }
+  .card{ background:var(--raised); border-radius:15px; padding:12px 13px; margin-bottom:8px; font-size:13px; }
+  .row{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .sub{ color:var(--mut); font-size:11.5px; margin-top:3px; }
+  .volt{ color:var(--volt); }
+  .warn{ color:var(--warn); }
+  .dim{ color:var(--dim); }
+  .pill{ background:var(--volt); color:var(--on-volt); text-align:center; font-weight:700;
+         border-radius:999px; padding:11px; font-size:13.5px; margin-top:6px; }
+  .ghost{ text-align:center; color:var(--volt); border:1px solid var(--hair); border-radius:999px;
+          padding:9px; font-size:12.5px; margin-top:7px; }
+
+  .meter{ padding:7px 0; }
+  .meter+.meter{ border-top:1px solid var(--hair); }
+  .meter .val{ font-weight:300; font-size:15px; }
+  .meter .val b{ font-weight:700; color:var(--volt); font-size:15px; }
+  .mtrack{ height:5px; border-radius:3px; background:var(--sunken); margin-top:6px; position:relative; }
+  .mtrack i{ position:absolute; left:0; top:0; bottom:0; width:var(--w); background:var(--volt); border-radius:3px; opacity:.9; }
+
+  .meal{ display:flex; gap:10px; align-items:center; padding:9px 2px; font-size:13px; }
+  .meal+.meal{ border-top:1px solid var(--hair); }
+  .tick{ width:23px; height:23px; border-radius:50%; background:var(--sunken); flex:none;
+         display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--dim); }
+  .tick.done{ background:var(--volt); color:var(--on-volt); font-weight:800; }
+  .meal .nm{ flex:1; min-width:0; }
+  .meal .rt{ color:var(--mut); font-size:11px; white-space:nowrap; }
+  .slot{ color:var(--dim); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; }
+
+  .fchips{ display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+  .fchip{ background:var(--volt-dim); color:var(--volt); border-radius:999px; padding:3px 10px; font-size:10.5px; font-weight:600; }
+  .fchip.mut{ background:var(--sunken); color:var(--mut); font-weight:400; }
+
+  .hero{ background:var(--raised); border-radius:17px; padding:14px; margin-bottom:8px; }
+  .hero .nm{ font-size:17px; font-weight:650; letter-spacing:-.01em; }
+
+  .ministrip{ display:flex; gap:6px; margin-bottom:8px; }
+  .mini{ flex:1; background:var(--raised); border-radius:12px; padding:8px 9px; }
+  .mini .l{ display:block; color:var(--dim); font-size:9px; letter-spacing:.09em; text-transform:uppercase; }
+  .mini .v{ display:block; white-space:nowrap; font-weight:300; font-size:14.5px; margin-top:2px; }
+  .mini .t{ height:3px; border-radius:2px; background:var(--sunken); margin-top:5px; position:relative; }
+  .mini .t i{ position:absolute; left:0; top:0; bottom:0; width:var(--w); background:var(--volt); border-radius:2px; }
+
+  .tabs{ display:flex; justify-content:space-around; border-top:1px solid var(--hair);
+         margin:12px -6px 0; padding-top:10px; font-size:9px; color:var(--dim); text-align:center; }
+  .tabs span{ display:block; }
+  .tabs .g{ font-size:12px; display:block; margin-bottom:2px; }
+  .tabs b{ color:var(--volt); font-weight:700; }
+</style>
+</head>
+<body>
+
+<div class="opt">
+  <div class="lab"><b>Option A — Plate-first</b> · the four cholesterol levers as meters up top,<br>then today's meals as one-tap tick rows. New 5th tab: Food.</div>
+  <div class="phone num">
+    <div class="kick">Tuesday · 22 Jul</div>
+    <h2>Food</h2>
+
+    <div class="card">
+      <div class="meter"><div class="row"><span class="sub" style="margin:0">Protein</span><span class="val"><b>94</b> / 160 g</span></div><div class="mtrack"><i style="--w:59%"></i></div></div>
+      <div class="meter"><div class="row"><span class="sub" style="margin:0">Fiber</span><span class="val"><b>21</b> / 38 g</span></div><div class="mtrack"><i style="--w:55%"></i></div></div>
+      <div class="meter"><div class="row"><span class="sub" style="margin:0">Sat fat · cap</span><span class="val"><b>8.5</b> / ≤18 g</span></div><div class="mtrack"><i style="--w:47%"></i></div></div>
+      <div class="meter"><div class="row"><span class="sub" style="margin:0">Calories</span><span class="val"><b>1,270</b> / 2,300</span></div><div class="mtrack"><i style="--w:55%"></i></div></div>
+      <div class="sub volt" style="margin-top:8px">On plan — dinner closes protein and fiber.</div>
+    </div>
+
+    <div class="card" style="padding:4px 13px">
+      <div class="meal"><span class="tick done">✓</span><span class="nm">Oats №1 + yogurt<div class="sub" style="margin:0"><span class="slot">Breakfast</span> · 420 kcal · P 34 · fiber 11</div></span><span class="rt">7:40</span></div>
+      <div class="meal"><span class="tick done">✓</span><span class="nm">MealPal — shawarma bowl<div class="sub" style="margin:0"><span class="slot">Lunch · ordered</span> · 640 kcal · P 52 · sat 5</div></span><span class="rt">12:50</span></div>
+      <div class="meal"><span class="tick done">✓</span><span class="nm">Apple + peanut butter<div class="sub" style="margin:0"><span class="slot">Snack</span> · 210 kcal · fiber 4</div></span><span class="rt">15:30</span></div>
+      <div class="meal"><span class="tick">○</span><span class="nm">Salmon, puy lentils &amp; broccoli<div class="sub" style="margin:0"><span class="slot">Dinner</span> · 20 min · P +38 · fiber +9</div></span><span class="rt volt" style="color:var(--volt);font-weight:700">Cook ›</span></div>
+    </div>
+
+    <div class="ghost">Ate something else? Tell the coach — it logs it</div>
+
+    <div class="tabs">
+      <span><span class="g">▤</span>Plan</span>
+      <span><b><span class="g">◉</span>Food</b></span>
+      <span><span class="g">◷</span>History</span>
+      <span><span class="g">↗</span>Progress</span>
+      <span><span class="g">✳</span>Coach</span>
+    </div>
+  </div>
+</div>
+
+<div class="opt">
+  <div class="lab"><b>Option B — Next-plate-first</b> · tonight's cook is the hero (like Plan's workout hero),<br>meters compressed to a strip, timeline below.</div>
+  <div class="phone num">
+    <div class="kick">Tuesday · 22 Jul</div>
+    <h2>Food</h2>
+
+    <div class="hero">
+      <div class="kick" style="font-size:9.5px">Tonight · 20 min · easy</div>
+      <div class="nm" style="margin-top:3px">Salmon, puy lentils &amp; long-stem broccoli</div>
+      <div class="fchips">
+        <span class="fchip">P 38</span><span class="fchip">fiber 9</span><span class="fchip">sat 3.5</span>
+        <span class="fchip mut">uses: lentils · lemon</span>
+      </div>
+      <div class="pill" style="margin-top:11px">Start cooking</div>
+    </div>
+
+    <div class="ministrip">
+      <div class="mini"><span class="l">Protein</span><span class="v">94<span class="dim" style="font-size:10px">/160</span></span><div class="t"><i style="--w:59%"></i></div></div>
+      <div class="mini"><span class="l">Fiber</span><span class="v">21<span class="dim" style="font-size:10px">/38</span></span><div class="t"><i style="--w:55%"></i></div></div>
+      <div class="mini"><span class="l">Sat fat</span><span class="v">8.5<span class="dim" style="font-size:10px">/≤18</span></span><div class="t"><i style="--w:47%"></i></div></div>
+      <div class="mini"><span class="l">kcal</span><span class="v">1.3k<span class="dim" style="font-size:10px">/2.3</span></span><div class="t"><i style="--w:55%"></i></div></div>
+    </div>
+
+    <div class="card" style="padding:4px 13px">
+      <div class="meal"><span class="tick done">✓</span><span class="nm">Oats №1 + yogurt</span><span class="rt">P 34</span></div>
+      <div class="meal"><span class="tick done">✓</span><span class="nm">MealPal — shawarma bowl</span><span class="rt">P 52 · sat 5</span></div>
+      <div class="meal"><span class="tick done">✓</span><span class="nm">Apple + peanut butter</span><span class="rt">fiber 4</span></div>
+      <div class="meal"><span class="tick">○</span><span class="nm dim">Evening yogurt — optional</span><span class="rt">P +18</span></div>
+    </div>
+
+    <div class="sub" style="text-align:center;margin-top:2px">Week so far: <span class="volt">2 of 2 days on plan</span> · Fri is your night out</div>
+
+    <div class="tabs">
+      <span><span class="g">▤</span>Plan</span>
+      <span><b><span class="g">◉</span>Food</b></span>
+      <span><span class="g">◷</span>History</span>
+      <span><span class="g">↗</span>Progress</span>
+      <span><span class="g">✳</span>Coach</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

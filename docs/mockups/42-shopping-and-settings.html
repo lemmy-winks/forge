@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shopping list + nutrition settings</title>
+<style>
+  :root{ --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
+         --ink:#edeef0; --mut:#8b9096; --dim:#565b61;
+         --volt:#c9f73a; --on-volt:#131602; --volt-dim:rgba(201,247,58,.12); --warn:#e8a360; }
+  *{ box-sizing:border-box; margin:0; }
+  body{ background:#0a0b0d; color:var(--ink); font:14px/1.45 -apple-system,Inter,system-ui,sans-serif;
+        display:flex; gap:34px; flex-wrap:wrap; justify-content:center; padding:34px 16px 60px; }
+  .opt{ text-align:center; }
+  .lab{ color:var(--mut); font-size:13px; margin-bottom:14px; }
+  .lab b{ color:var(--volt); }
+  .phone{ width:330px; background:var(--bg); border-radius:34px; padding:20px 14px 26px;
+          box-shadow:0 26px 70px rgba(0,0,0,.55); text-align:left; }
+  .num{ font-variant-numeric:tabular-nums; }
+  .kick{ color:var(--volt); font-size:10.5px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
+  .kickm{ color:var(--mut); }
+  h2{ font-size:21px; letter-spacing:-.01em; margin:2px 0 10px; }
+  .card{ background:var(--raised); border-radius:15px; padding:12px 13px; margin-bottom:8px; font-size:13px; }
+  .row{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .sub{ color:var(--mut); font-size:11.5px; margin-top:3px; }
+  .volt{ color:var(--volt); } .warn{ color:var(--warn); } .dim{ color:var(--dim); }
+  .pill{ background:var(--volt); color:var(--on-volt); text-align:center; font-weight:700;
+         border-radius:999px; padding:11px; font-size:13.5px; margin-top:6px; }
+  .ghost{ text-align:center; color:var(--volt); border:1px solid var(--hair); border-radius:999px;
+          padding:9px; font-size:12.5px; margin-top:7px; }
+
+  .sect{ display:flex; align-items:center; gap:8px; color:var(--dim); font-size:10.5px;
+         letter-spacing:.12em; text-transform:uppercase; margin:11px 2px 5px; }
+  .sect::after{ content:""; flex:1; height:1px; background:var(--hair); }
+
+  .ing{ display:flex; gap:9px; padding:7px 2px; font-size:12.5px; align-items:baseline; }
+  .ing+.ing{ border-top:1px solid var(--hair); }
+  .bx{ width:15px; height:15px; border-radius:5px; background:var(--sunken); flex:none; align-self:center; }
+  .ing .nm{ flex:1; }
+  .ing .q{ color:var(--mut); font-size:11px; white-space:nowrap; }
+  .ing .for{ color:var(--dim); font-size:10.5px; }
+
+  .wastecard{ background:var(--volt-dim); border-radius:15px; padding:12px 13px; margin-bottom:8px;
+              display:flex; gap:12px; align-items:center; font-size:12.5px; }
+  .ring{ width:44px; height:44px; flex:none; }
+
+  .seg{ display:flex; background:var(--sunken); border-radius:999px; padding:3px; margin-top:8px; font-size:11.5px; }
+  .seg span{ flex:1; text-align:center; padding:6px 0; border-radius:999px; color:var(--mut); }
+  .seg .sel{ background:var(--volt); color:var(--on-volt); font-weight:700; }
+  .lrow{ display:flex; gap:10px; align-items:center; padding:10px 2px; font-size:13px; }
+  .lrow+.lrow{ border-top:1px solid var(--hair); }
+  .lrow .nm{ flex:1; }
+  .lrow .rt{ color:var(--mut); font-size:11.5px; white-space:nowrap; }
+  .chev{ color:var(--dim); }
+  .field{ display:flex; justify-content:space-between; align-items:center; padding:9px 2px; font-size:13px; }
+  .field+.field{ border-top:1px solid var(--hair); }
+  .field .in{ background:var(--sunken); border-radius:9px; padding:5px 11px; font-weight:300; font-size:14px; }
+</style>
+</head>
+<body>
+
+<div class="opt">
+  <div class="lab"><b>Shopping list</b> · recipes minus carry-overs, grouped by aisle, every item says which meals<br>want it · waste score up top · Amazon Fresh export now, auto-cart later</div>
+  <div class="phone num">
+    <div class="kick kickm">‹ Food week</div>
+    <div class="kick" style="margin-top:8px">Week of 21 Jul · 21 items · est $92 of $110</div>
+    <h2>Shopping</h2>
+
+    <div class="wastecard">
+      <svg class="ring" viewBox="0 0 44 44">
+        <circle cx="22" cy="22" r="18" fill="none" stroke="var(--sunken)" stroke-width="4"/>
+        <circle cx="22" cy="22" r="18" fill="none" stroke="var(--volt)" stroke-width="4"
+                stroke-dasharray="113 113" stroke-linecap="round" transform="rotate(-90 22 22)"/>
+        <text x="22" y="26" text-anchor="middle" fill="var(--volt)" font-size="11" font-weight="700">0</text>
+      </svg>
+      <span>Zero likely-waste items — every fresh buy is used across the week. 3 carry-overs consumed.</span>
+    </div>
+
+    <div class="sect">Produce</div>
+    <div class="card" style="padding:3px 13px">
+      <div class="ing"><span class="bx"></span><span class="nm">Long-stem broccoli <span class="for">· Tue</span></span><span class="q">400 g</span></div>
+      <div class="ing"><span class="bx"></span><span class="nm">Peppers <span class="for">· Mon ×2 nights</span></span><span class="q">3</span></div>
+      <div class="ing"><span class="bx"></span><span class="nm">Spring greens <span class="for">· Sat + Sun stew</span></span><span class="q">200 g</span></div>
+      <div class="ing"><span class="bx"></span><span class="nm">Berries <span class="for">· oats, all week</span></span><span class="q">400 g</span></div>
+      <div class="ing"><span class="bx"></span><span class="nm">Apples <span class="for">· snacks</span></span><span class="q">6</span></div>
+    </div>
+
+    <div class="sect">Fish · meat · dairy</div>
+    <div class="card" style="padding:3px 13px">
+      <div class="ing"><span class="bx"></span><span class="nm">Chicken thighs, skinless <span class="for">· Mon→Wed</span></span><span class="q">900 g</span></div>
+      <div class="ing"><span class="bx"></span><span class="nm">Salmon fillets <span class="for">· Tue</span></span><span class="q">2</span></div>
+      <div class="ing"><span class="bx"></span><span class="nm">Turkey mince 5% <span class="for">· Thu→Fri lunch</span></span><span class="q">500 g</span></div>
+      <div class="ing"><span class="bx"></span><span class="nm">Cod fillets <span class="for">· Sun</span></span><span class="q">2</span></div>
+      <div class="ing"><span class="bx"></span><span class="nm">Greek yogurt 0% <span class="for">· breakfasts</span></span><span class="q">1 kg</span></div>
+    </div>
+
+    <div class="sect">Cupboard</div>
+    <div class="card" style="padding:3px 13px">
+      <div class="ing"><span class="bx"></span><span class="nm">Chickpeas · black beans <span class="for">· fiber backbone</span></span><span class="q">2 + 2 tins</span></div>
+      <div class="ing"><span class="bx"></span><span class="nm">Puy lentils · soba · bulgur</span><span class="q">1 each</span></div>
+    </div>
+
+    <div class="sect">Already have · not on the list</div>
+    <div class="card" style="padding:3px 13px">
+      <div class="ing dim"><span class="nm">Harissa ⅔ jar · feta 120 g · spinach ½ bag</span><span class="q">carry-over</span></div>
+      <div class="ing dim"><span class="nm">Oats · flax · peanut butter · olive oil</span><span class="q">pantry</span></div>
+    </div>
+
+    <div class="pill">Send to Amazon Fresh</div>
+    <div class="ghost">Copy list</div>
+    <div class="sub" style="text-align:center;margin-top:8px">Opens Fresh with each item queued for one-tap add.<br>Full auto-cart lands in Phase 9 — you always confirm checkout.</div>
+  </div>
+</div>
+
+<div class="opt">
+  <div class="lab"><b>Settings → Nutrition</b> · targets are coach-owned (chat to change), budgets and cook-nights<br>are yours, household dinner sharing, and the HelloFresh sunset tracked honestly</div>
+  <div class="phone num">
+    <div class="kick kickm">‹ Settings</div>
+    <h2 style="margin-top:8px">Nutrition</h2>
+
+    <div class="card">
+      <div class="kick" style="font-size:9.5px">Daily targets · set by your coach</div>
+      <div class="row" style="margin-top:8px"><span style="font-weight:300;font-size:16px">2,300 kcal · P 160 · fiber 38 · sat ≤18</span></div>
+      <div class="sub">Proposed from your goals, training load and April's lipid panel. Change them in chat — the coach explains the trade-offs first.</div>
+      <div class="ghost" style="margin-top:9px">Discuss targets with the coach</div>
+    </div>
+
+    <div class="card">
+      <div class="kick" style="font-size:9.5px">Cook nights per week</div>
+      <div class="seg"><span>3</span><span class="sel">4</span><span>5</span><span>6</span></div>
+      <div class="sub">The Sunday proposal plans this many dinners; the rest are leftovers or out. Batch nights count once.</div>
+    </div>
+
+    <div class="card" style="padding:5px 13px">
+      <div class="field"><span>Grocery budget · week</span><span class="in">$110</span></div>
+      <div class="field"><span>Lunch cap · work day</span><span class="in">$15</span></div>
+    </div>
+
+    <div class="card" style="padding:5px 13px">
+      <div class="lrow"><span class="nm">Dinners feed the household<div class="sub" style="margin:0">Portions ×2 when Shelby's in — her plate logs to her day, her targets stay hers</div></span><span class="volt" style="font-weight:700">On</span></div>
+    </div>
+
+    <div class="card" style="padding:5px 13px">
+      <div class="lrow"><span class="nm">Amazon Fresh<div class="sub" style="margin:0">List export live · auto-cart in Phase 9</div></span><span class="chev">›</span></div>
+      <div class="lrow"><span class="nm">HelloFresh<div class="sub" style="margin:0">Pause after two good Fresh weeks — coach will call it</div></span><span class="rt warn">winding down</span></div>
+    </div>
+
+    <div class="sub" style="text-align:center;margin-top:6px">No new notification kinds — your food week rides the<br>existing Sunday proposal push.</div>
+  </div>
+</div>
+
+</body>
+</html>

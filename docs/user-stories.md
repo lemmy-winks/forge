@@ -234,3 +234,59 @@ As James, I want to chat with my coach anytime so that questions and data entry 
 
 **E15.3 — Export**
 - AC1: Authenticated JSON export of all of a user's own data (and only theirs).
+
+## E16 · Nutrition *(beta track — designed Jul 2026, mockups 38–42)*
+
+Decisions (James, Jul 2026): all meals planned weekly; plan-first one-tap logging (no food-database diary); auto carry-over for waste; lunch assist = favorites ledger + menu paste (MealPal/Grubhub have no public APIs); dinners are household-shared; targets tuned for cholesterol — high protein, high fiber, sat-fat cap.
+
+**E16.1 — Coach-set nutrition targets**
+As James, I want daily targets (kcal, protein, fiber, sat-fat cap) set by my coach from my goals and labs so that the numbers mean something.
+- AC1: Targets live in `prefs.nutrition_targets`, proposed via a nutrition intake conversation and changed only through chat with a confirmation card; Settings → Nutrition renders them read-only with "discuss with the coach".
+- AC2: Target rationale references training load and the latest lipid panel, keeping the E7.2 GP-framing boundary.
+- AC3: The cholesterol trio (protein, fiber, sat-fat cap) is first-class wherever macros render — never buried behind calories.
+
+**E16.2 — Recipe library**
+As the Coach, I want a curated recipe library so that plans only contain meals we can actually cook.
+- AC1: Recipes carry per-serving macros (kcal, protein, fiber, sat fat, carbs, fat), minutes, difficulty (**easy | medium only**), servings, steps, and quantified ingredients; ~40 cholesterol-aligned seeds, insert-missing like the exercise seed.
+- AC2: Only complete entries are proposable (mirror of E3.1 AC3), validated server-side.
+- AC3: Ingredients normalize into an `ingredients` table (name, aisle, pack size, per-100 g macros) so shopping lists and waste math work; storage stays canonical (g / ml / kcal), conversion at the display edge.
+
+**E16.3 — Food week proposals**
+As James, I want next week's meals proposed each Sunday alongside training so that one review sets up the whole week.
+- AC1: `meal_revisions` mirror plan_revisions (proposed/active/superseded, JSONB days→slots, rationale, `changes` delta list, per-day `why`); exactly one pending; banner + bottom-sheet approval reuse the proposal UX.
+- AC2: Every slot is planned: dinners as recipes (`prefs.cook_nights`, batch nights allowed, ≥1 zero-cook night), work-day lunches as order-assist slots carrying target macros + budget, breakfasts/snacks from reusable templates.
+- AC3: Validators: weekly averages within targets; sat-fat cap honored with planned exceptions (night out) explicitly banked in the rationale; every kept carry-over consumed (E16.5) or excused; est. grocery cost within `prefs.budget_grocery` or the overage explained.
+- AC4: No new push kinds — the food proposal rides the existing Sunday proposal notification (E12.1 unchanged).
+
+**E16.4 — One-tap logging**
+As James, I want eating on plan to be one tap so that tracking survives real life.
+- AC1: Each planned slot is a tick row; ticking writes a `meal_log` row snapshotting macros (later recipe edits never rewrite history); household dinners log one plate per participating user.
+- AC2: Off-plan food is described in chat (text or photo); the coach estimates macros and writes via confirmation card, flagged `estimated`.
+- AC3: The day view shows four meters — protein, fiber, sat-fat cap, kcal — vs targets; ticks queue offline like logged sets.
+
+**E16.5 — Carry-over & waste**
+As James, I want each week's plan to use up what the last one left so that food stops going in the bin.
+- AC1: Approving a food week computes expected leftovers (purchased packs minus recipe consumption) into `carryovers` with use-by estimates; the Sunday review opens with a keep/bin confirm list.
+- AC2: Kept items must appear in the new proposal or the rationale says why not; binned items feed a waste log the coach learns from (stop buying formats that get binned).
+- AC3: The weekly review reports waste like cool-down skips; Progress shows the bought-vs-used trend.
+
+**E16.6 — Shopping list & Amazon Fresh**
+- AC1: The approved week generates one list — recipes minus carry-overs minus pantry staples — grouped by aisle, each item annotated with the meals that want it, with est. cost vs budget.
+- AC2: Export v1: "Send to Amazon Fresh" opens per-item Fresh search links (share-sheet/copy fallback); no retailer credentials stored.
+- AC3: Automation v2 (Phase 9): a server-side browser job assembles the Fresh cart; **checkout is always manual**. HelloFresh sunset is tracked in Settings until cancelled.
+
+**E16.7 — Lunch assist**
+As James, I want help choosing a healthy work lunch within budget so that ordering out doesn't undo the week.
+- AC1: `lunch_favorites` ledger (vendor, item, price, macros, notes); favorites render as chips in chat and on the day view's lunch slot.
+- AC2: A pasted/screenshotted MealPal or Grubhub menu returns ranked picks scored against the day's remaining targets + `prefs.budget_lunch`, with modifications ("skip the white sauce") and explicit skips with reasons; choosing one logs it.
+- AC3: Repeat orders auto-promote to favorites; no vendor API is assumed anywhere.
+
+**E16.8 — Household semantics**
+- AC1: The food week, recipes, and shopping list are household-shared (like the Home equipment profile); dinner portions scale with participants.
+- AC2: Targets, meal logs, and lunch favorites are strictly per-user — segregation tests extend to every nutrition table, demo user included.
+- AC3: Shelby's dinner participation is opt-in (default on); her plate logs against her targets.
+
+**E16.9 — Nutrition × labs**
+- AC1: Dashboard + Progress gain weekly fiber and sat-fat trends with lipid-panel draw dates marked; protein adherence renders beside strength trends.
+- AC2: The weekly review references nutrition adherence with verifiable numbers ("fiber averaged 41 g; the cap slipped twice — both takeaway Fridays").
+- AC3: Panel-change interpretation references diet levers, always with GP framing (E8.1 AC3 extended).

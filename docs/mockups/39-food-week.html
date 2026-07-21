@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Food week + Plan integration</title>
+<style>
+  :root{ --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
+         --ink:#edeef0; --mut:#8b9096; --dim:#565b61;
+         --volt:#c9f73a; --on-volt:#131602; --volt-dim:rgba(201,247,58,.12); --warn:#e8a360; }
+  *{ box-sizing:border-box; margin:0; }
+  body{ background:#0a0b0d; color:var(--ink); font:14px/1.45 -apple-system,Inter,system-ui,sans-serif;
+        display:flex; gap:34px; flex-wrap:wrap; justify-content:center; padding:34px 16px 60px; }
+  .opt{ text-align:center; }
+  .lab{ color:var(--mut); font-size:13px; margin-bottom:14px; }
+  .lab b{ color:var(--volt); }
+  .phone{ width:330px; background:var(--bg); border-radius:34px; padding:20px 14px 18px;
+          box-shadow:0 26px 70px rgba(0,0,0,.55); text-align:left; }
+  .num{ font-variant-numeric:tabular-nums; }
+  .kick{ color:var(--volt); font-size:10.5px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
+  .kickm{ color:var(--mut); }
+  h2{ font-size:22px; letter-spacing:-.01em; margin:2px 0 10px; }
+  .card{ background:var(--raised); border-radius:15px; padding:12px 13px; margin-bottom:8px; font-size:13px; }
+  .row{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .sub{ color:var(--mut); font-size:11.5px; margin-top:3px; }
+  .volt{ color:var(--volt); } .warn{ color:var(--warn); } .dim{ color:var(--dim); }
+
+  .statchips{ display:flex; gap:6px; margin-bottom:8px; }
+  .statchip{ flex:1; background:var(--raised); border-radius:12px; padding:8px 9px; }
+  .statchip .l{ display:block; color:var(--dim); font-size:9px; letter-spacing:.09em; text-transform:uppercase; }
+  .statchip .v{ display:block; white-space:nowrap; font-weight:300; font-size:15px; margin-top:2px; }
+  .statchip .v b{ font-weight:700; color:var(--volt); font-size:11px; margin-left:2px; }
+
+  .day{ display:flex; gap:10px; align-items:center; padding:10px 2px; font-size:13px; }
+  .day+.day{ border-top:1px solid var(--hair); }
+  .dcol{ width:30px; flex:none; text-align:center; }
+  .dcol .dn{ color:var(--mut); font-size:10px; text-transform:uppercase; letter-spacing:.06em; }
+  .dcol .dd{ font-weight:300; font-size:15px; }
+  .day .nm{ flex:1; min-width:0; }
+  .day .rt{ color:var(--mut); font-size:11px; white-space:nowrap; }
+  .day.today{ background:var(--volt-dim); border-radius:12px; padding:10px 8px; border-top:none; }
+  .day.today+.day{ border-top:none; }
+  .slotdots{ display:flex; gap:3px; margin-top:4px; }
+  .sd{ width:14px; height:14px; border-radius:50%; background:var(--sunken); color:var(--dim);
+       font-size:7.5px; display:flex; align-items:center; justify-content:center; font-weight:700; }
+  .sd.done{ background:var(--volt); color:var(--on-volt); }
+  .sd.out{ background:transparent; border:1px dashed var(--dim); }
+
+  .pill{ background:var(--volt); color:var(--on-volt); text-align:center; font-weight:700;
+         border-radius:999px; padding:11px; font-size:13.5px; margin-top:6px; }
+
+  .propbanner{ background:var(--volt-dim); border-radius:13px; padding:10px 12px; font-size:12px;
+               display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .pulse{ width:7px; height:7px; border-radius:50%; background:var(--volt); flex:none; }
+  .hero{ background:var(--raised); border-radius:17px; padding:14px; margin-bottom:8px; }
+  .hero .nm{ font-size:17px; font-weight:650; letter-spacing:-.01em; }
+  .fchips{ display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+  .fchip{ background:var(--volt-dim); color:var(--volt); border-radius:999px; padding:3px 10px; font-size:10.5px; font-weight:600; }
+  .fchip.mut{ background:var(--sunken); color:var(--mut); font-weight:400; }
+  .dinline{ display:flex; justify-content:space-between; border-top:1px solid var(--hair);
+            margin-top:11px; padding-top:9px; font-size:12px; color:var(--mut); }
+  .lrow{ display:flex; gap:10px; align-items:center; padding:10px 2px; font-size:13.5px; }
+  .lrow+.lrow{ border-top:1px solid var(--hair); }
+  .glyph{ width:20px; color:var(--dim); text-align:center; flex:none; }
+  .lrow .nm{ flex:1; }
+  .chev{ color:var(--dim); }
+
+  .tabs{ display:flex; justify-content:space-around; border-top:1px solid var(--hair);
+         margin:12px -6px 0; padding-top:10px; font-size:9px; color:var(--dim); text-align:center; }
+  .tabs .g{ font-size:12px; display:block; margin-bottom:2px; }
+  .tabs b{ color:var(--volt); font-weight:700; }
+</style>
+</head>
+<body>
+
+<div class="opt">
+  <div class="lab"><b>Food · Week</b> · the approved food week — dinner titles lead each row,<br>slot dots show B/L/D/S state · totals vs targets up top</div>
+  <div class="phone num">
+    <div class="kick">Week of 21 Jul · approved</div>
+    <h2>Food week</h2>
+
+    <div class="statchips">
+      <div class="statchip"><span class="l">Protein avg</span><span class="v">158g<b>✓</b></span></div>
+      <div class="statchip"><span class="l">Fiber avg</span><span class="v">39g<b>✓</b></span></div>
+      <div class="statchip"><span class="l">Sat fat avg</span><span class="v">14g<b>✓</b></span></div>
+      <div class="statchip"><span class="l">Est cost</span><span class="v">$92</span></div>
+    </div>
+
+    <div class="card" style="padding:4px 11px">
+      <div class="day"><div class="dcol"><div class="dn">Mon</div><div class="dd">21</div></div>
+        <span class="nm">Harissa chicken traybake ×2<div class="slotdots"><span class="sd done">B</span><span class="sd done">L</span><span class="sd done">D</span><span class="sd done">S</span></div></span><span class="rt volt">✓ on plan</span></div>
+      <div class="day today"><div class="dcol"><div class="dn">Tue</div><div class="dd">22</div></div>
+        <span class="nm">Salmon, puy lentils &amp; broccoli<div class="slotdots"><span class="sd done">B</span><span class="sd done">L</span><span class="sd">D</span><span class="sd done">S</span></div></span><span class="rt">20 min ›</span></div>
+      <div class="day"><div class="dcol"><div class="dn">Wed</div><div class="dd">23</div></div>
+        <span class="nm">Traybake leftovers<div class="sub" style="margin:2px 0 0">zero-cook · boxed Monday</div></span><span class="rt">↻ batch</span></div>
+      <div class="day"><div class="dcol"><div class="dn">Thu</div><div class="dd">24</div></div>
+        <span class="nm">Turkey &amp; black-bean chili<div class="sub" style="margin:2px 0 0">35 min · batch → Fri lunch</div></span><span class="rt">medium</span></div>
+      <div class="day"><div class="dcol"><div class="dn">Fri</div><div class="dd">25</div></div>
+        <span class="nm dim">Night out — enjoy it<div class="sub" style="margin:2px 0 0">sat-fat headroom banked Mon–Thu</div></span><span class="rt dim">out</span></div>
+      <div class="day"><div class="dcol"><div class="dn">Sat</div><div class="dd">26</div></div>
+        <span class="nm">Prawn &amp; soba stir-fry</span><span class="rt">15 min</span></div>
+      <div class="day"><div class="dcol"><div class="dn">Sun</div><div class="dd">27</div></div>
+        <span class="nm">Baked cod, white bean stew<div class="sub" style="margin:2px 0 0">finishes the harissa jar</div></span><span class="rt">30 min</span></div>
+    </div>
+
+    <div class="pill">Shopping list · 21 items</div>
+
+    <div class="tabs">
+      <span><span class="g">▤</span>Plan</span>
+      <span><b><span class="g">◉</span>Food</b></span>
+      <span><span class="g">◷</span>History</span>
+      <span><span class="g">↗</span>Progress</span>
+      <span><span class="g">✳</span>Coach</span>
+    </div>
+  </div>
+</div>
+
+<div class="opt">
+  <div class="lab"><b>Plan · with dinner woven in</b> · training stays the hero — tonight's cook is one quiet line<br>on the hero card, dinners ride the day rows, food proposal shares the banner slot</div>
+  <div class="phone num">
+    <div class="kick kickm" style="font-size:10px">Today + the six days ahead</div>
+    <h2>Plan</h2>
+
+    <div class="propbanner"><span class="pulse"></span><span style="flex:1">Food week proposed alongside training</span><span class="volt" style="font-weight:700">Review ›</span></div>
+
+    <div class="hero">
+      <div class="kick" style="font-size:9.5px">Tuesday · today · ~50 min</div>
+      <div class="nm" style="margin-top:3px">Upper A — press focus</div>
+      <div class="fchips"><span class="fchip">Chest</span><span class="fchip">Shoulders</span><span class="fchip mut">triceps</span></div>
+      <div class="dinline"><span>◉ Tonight · Salmon, lentils &amp; broccoli</span><span class="volt" style="font-weight:600">20 min ›</span></div>
+    </div>
+
+    <div class="card" style="padding:3px 13px">
+      <div class="lrow"><span class="glyph">♥</span><span class="nm">Wednesday<div class="sub" style="margin:0">Zone 2 run · 40 min · dinner: traybake leftovers</div></span><span class="chev">›</span></div>
+      <div class="lrow"><span class="glyph">▦</span><span class="nm">Thursday<div class="sub" style="margin:0">Lower A · dinner: turkey chili</div></span><span class="chev">›</span></div>
+      <div class="lrow"><span class="glyph">·</span><span class="nm dim">Friday<div class="sub" style="margin:0">Rest · night out</div></span><span class="chev">›</span></div>
+      <div class="lrow"><span class="glyph">▦</span><span class="nm">Saturday<div class="sub" style="margin:0">Upper B · dinner: prawn stir-fry</div></span><span class="chev">›</span></div>
+    </div>
+
+    <div class="sub" style="text-align:center">Dinner lines are quiet on purpose — Plan stays a training screen.<br>Tapping one opens the recipe in Food.</div>
+
+    <div class="tabs">
+      <span><b><span class="g">▤</span>Plan</b></span>
+      <span><span class="g">◉</span>Food</span>
+      <span><span class="g">◷</span>History</span>
+      <span><span class="g">↗</span>Progress</span>
+      <span><span class="g">✳</span>Coach</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

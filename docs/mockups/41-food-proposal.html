@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Food week proposal + carry-over check</title>
+<style>
+  :root{ --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
+         --ink:#edeef0; --mut:#8b9096; --dim:#565b61;
+         --volt:#c9f73a; --on-volt:#131602; --volt-dim:rgba(201,247,58,.12); --warn:#e8a360; }
+  *{ box-sizing:border-box; margin:0; }
+  body{ background:#0a0b0d; color:var(--ink); font:14px/1.45 -apple-system,Inter,system-ui,sans-serif;
+        display:flex; gap:34px; flex-wrap:wrap; justify-content:center; padding:34px 16px 60px; }
+  .opt{ text-align:center; }
+  .lab{ color:var(--mut); font-size:13px; margin-bottom:14px; }
+  .lab b{ color:var(--volt); }
+  .phone{ width:330px; background:var(--bg); border-radius:34px; padding:20px 14px 26px;
+          box-shadow:0 26px 70px rgba(0,0,0,.55); text-align:left; position:relative; overflow:hidden; }
+  .num{ font-variant-numeric:tabular-nums; }
+  .kick{ color:var(--volt); font-size:10.5px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
+  .kickm{ color:var(--mut); }
+  h2{ font-size:21px; letter-spacing:-.01em; margin:2px 0 10px; }
+  .card{ background:var(--raised); border-radius:15px; padding:12px 13px; margin-bottom:8px; font-size:13px; }
+  .row{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .sub{ color:var(--mut); font-size:11.5px; margin-top:3px; }
+  .volt{ color:var(--volt); } .warn{ color:var(--warn); } .dim{ color:var(--dim); }
+  .pill{ background:var(--volt); color:var(--on-volt); text-align:center; font-weight:700;
+         border-radius:999px; padding:11px; font-size:13.5px; }
+  .ghost{ text-align:center; color:var(--volt); border:1px solid var(--hair); border-radius:999px;
+          padding:10px; font-size:12.5px; }
+
+  .dimtop{ opacity:.25; filter:blur(1px); pointer-events:none; }
+  .sheet{ background:var(--raised); border-radius:22px 22px 26px 26px; padding:15px 14px;
+          margin:-6px -4px 0; box-shadow:0 -18px 40px rgba(0,0,0,.5); position:relative; }
+  .grab{ width:36px; height:4px; border-radius:2px; background:var(--hair); margin:0 auto 12px; }
+
+  .chg{ display:flex; gap:9px; padding:7px 0; font-size:12.5px; align-items:baseline; }
+  .chg+.chg{ border-top:1px solid var(--hair); }
+  .sign{ width:14px; font-weight:800; flex:none; text-align:center; }
+  .chg .what{ flex:1; }
+  .chg .why{ color:var(--mut); font-size:11px; text-align:right; max-width:104px; }
+
+  .dayrow{ display:flex; gap:8px; padding:6px 0; font-size:12px; align-items:baseline; }
+  .dayrow+.dayrow{ border-top:1px solid var(--hair); }
+  .dayrow .d{ width:32px; color:var(--dim); text-transform:uppercase; font-size:10px; letter-spacing:.06em; flex:none; }
+  .dayrow .nm{ flex:1; }
+  .dayrow .why{ color:var(--mut); font-size:10.5px; }
+  .btnrow{ display:flex; gap:8px; margin-top:12px; }
+  .btnrow .pill{ flex:1.4; } .btnrow .ghost{ flex:1; }
+
+  .keep{ display:flex; gap:10px; align-items:center; padding:10px 2px; font-size:13px; }
+  .keep+.keep{ border-top:1px solid var(--hair); }
+  .keep .nm{ flex:1; }
+  .keep .nm .sub{ margin:1px 0 0; }
+  .yn{ display:flex; gap:5px; flex:none; }
+  .yn span{ width:27px; height:27px; border-radius:50%; background:var(--sunken); color:var(--dim);
+            display:flex; align-items:center; justify-content:center; font-size:12px; }
+  .yn .on{ background:var(--volt); color:var(--on-volt); font-weight:800; }
+  .yn .off{ background:rgba(232,163,96,.15); color:var(--warn); font-weight:700; }
+  .gone .strike{ text-decoration:line-through; color:var(--dim); }
+  .fchip{ display:inline-block; background:rgba(232,163,96,.12); color:var(--warn); border-radius:999px;
+          padding:2px 8px; font-size:10px; font-weight:600; }
+</style>
+</head>
+<body>
+
+<div class="opt">
+  <div class="lab"><b>Food week proposal</b> · same bottom-sheet + diff grammar as the training ProposalCard —<br>signed changes with a why, rationale leads with outcomes, day rows expand below</div>
+  <div class="phone num">
+    <div class="dimtop">
+      <div class="kick kickm">Coach</div>
+      <h2 style="margin-top:6px">Sunday review</h2>
+      <div class="card">Training week proposed — approved ✓</div>
+    </div>
+
+    <div class="sheet">
+      <div class="grab"></div>
+      <div class="kick">Proposed Sun 20 Jul · food week №1 · awaiting your OK</div>
+
+      <div class="card" style="background:var(--sunken); margin-top:10px">
+        <span class="volt" style="font-weight:600">What this week does</span>
+        <div class="sub" style="margin-top:4px">Protein lands 158 g/day without red meat. Fiber averages 39 g — beans, lentils, oats doing the work. Sat fat holds at 14 g/day, leaving honest room for Friday out. Est. $92 of your $110.</div>
+      </div>
+
+      <div class="card" style="padding:5px 13px">
+        <div class="chg"><span class="sign volt">+</span><span class="what">Traybake cooks twice — Mon → Wed</span><span class="why">one cook night saved, zero waste</span></div>
+        <div class="chg"><span class="sign volt">+</span><span class="what">Fiber +6 g/day vs last week</span><span class="why">the LDL lever</span></div>
+        <div class="chg"><span class="sign" style="color:var(--mut)">~</span><span class="what">Sunday salmon → baked cod</span><span class="why">keeps sat fat under the cap</span></div>
+        <div class="chg"><span class="sign warn">−</span><span class="what">Granola breakfasts dropped</span><span class="why">2 g fiber, 9 g sugar — oats instead</span></div>
+      </div>
+
+      <div class="card" style="padding:5px 13px">
+        <div class="dayrow"><span class="d">Mon</span><span class="nm">Harissa chicken traybake ×2<div class="why">uses your spinach before Tuesday</div></span></div>
+        <div class="dayrow"><span class="d">Tue</span><span class="nm">Salmon, puy lentils &amp; broccoli<div class="why">omega-3 day; lentils carry fiber</div></span></div>
+        <div class="dayrow"><span class="d">Wed</span><span class="nm">Traybake leftovers<div class="why">zero-cook on your run day</div></span></div>
+        <div class="dayrow"><span class="d">Thu</span><span class="nm">Turkey &amp; black-bean chili<div class="why">batch feeds Friday lunch</div></span></div>
+        <div class="dayrow"><span class="d">Fri</span><span class="nm dim">Out — no plan, no guilt<div class="why">headroom already banked</div></span></div>
+        <div class="dayrow dim" style="border-top:1px solid var(--hair)"><span class="d"></span><span class="nm dim">Sat · Sun ▾</span></div>
+      </div>
+
+      <div class="btnrow"><div class="pill">Approve food week</div><div class="ghost">Changes…</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="opt">
+  <div class="lab"><b>Carry-over check</b> · first step of the Sunday review — confirm what last week's shop<br>left behind; kept items must appear in the new proposal. The coach learns from bins.</div>
+  <div class="phone num">
+    <div class="kick">Sunday review · step 1 of 2</div>
+    <h2>Still in the fridge?</h2>
+    <div class="sub" style="margin:-4px 0 10px">Last week's shop leaves these. Keep what's good —<br>next week's meals use them up first.</div>
+
+    <div class="card" style="padding:4px 13px">
+      <div class="keep"><span class="nm">Spinach · ½ bag<div class="sub">goes in Monday's traybake <span class="fchip">use by Tue</span></div></span><span class="yn"><span class="on">✓</span><span>✕</span></span></div>
+      <div class="keep"><span class="nm">Feta · 120 g<div class="sub">Monday's lentil salad lunch</div></span><span class="yn"><span class="on">✓</span><span>✕</span></span></div>
+      <div class="keep"><span class="nm">Harissa · ⅔ jar<div class="sub">traybake Monday, cod stew Sunday — jar done</div></span><span class="yn"><span class="on">✓</span><span>✕</span></span></div>
+      <div class="keep gone"><span class="nm"><span class="strike">Red cabbage · ½ head</span><div class="sub">binned</div></span><span class="yn"><span>✓</span><span class="off">✕</span></span></div>
+    </div>
+
+    <div class="card" style="background:var(--sunken)">
+      <span class="volt" style="font-weight:600">Noted</span>
+      <div class="sub" style="margin-top:3px">That's the second cabbage half we've lost. I'll stop planning whole heads — pre-shredded packs from now on, sized to the week.</div>
+    </div>
+
+    <div class="pill" style="margin-top:4px">Looks right — propose my week</div>
+    <div class="sub" style="text-align:center;margin-top:8px">3 carry-overs → into next week's plan · waste this week: 1 item</div>
+  </div>
+</div>
+
+</body>
+</html>

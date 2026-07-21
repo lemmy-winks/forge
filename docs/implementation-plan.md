@@ -91,6 +91,50 @@ Stories: E15.1–E15.3, remaining E12 enforcement
 
 ---
 
+# Beta track — Nutrition (Phases 7–9)
+
+Lives on the **`beta` branch**, deployed as a **second Docker stack** (own `FORGE_PORT`, own Postgres volume, built from source via `docker-compose.build.yml`) while `main` stays the stable workout app; merges to main phase-by-phase once proven in beta. Stories: **E16**. Mockups: `docs/mockups/38–42`. Decisions locked Jul 2026: all meals planned · plan-first one-tap logging · auto carry-over · favorites + menu-paste lunch assist · household dinners · coach-owned targets.
+
+## Phase 7 — Kitchen core (see it, log it)
+**Goal: every meal visible and loggable against targets that mean something.**
+Stories: E16.1, E16.2, E16.4, E16.8 (schema + scoping)
+
+- Schema (new tables only, create_all-safe): `recipes`, `ingredients`, `recipe_ingredients`, `meal_revisions`, `meal_log`, `carryovers`, `lunch_favorites`. Household read scope for the food week; per-user scope for logs/targets — segregation tests extended **first**, demo user included.
+- Seed ~40 cholesterol-aligned recipes (easy/medium, batchable, ingredient-overlapping) + ingredient macro table; insert-missing like the exercise seed.
+- Coach nutrition intake → `prefs.nutrition_targets`; Settings → Nutrition (targets read-only, cook nights, budgets, household toggle).
+- **Food tab** (5th tab): day view (four meters + tick rows), week view, recipe detail; dinner lines woven into Plan's hero card + day rows; offline tick queue alongside the set queue.
+- Hand-written first food week as the active revision (Phase 2's seed-plan trick).
+
+**Exit:** a full week of meals logged one-tap on the phone; meters live; Shelby sees shared dinners but her own targets; main app untouched.
+
+## Phase 8 — Coached food weeks & the waste loop
+**Goal: Sunday proposes the eating week; the fridge stops throwing food away.**
+Stories: E16.3, E16.5, E16.6 (list + export v1), E16.9
+
+- Coach tools: `get_food_week`, `propose_food_week` (validators: complete recipes only, targets met on weekly average, sat-fat banking for planned nights out, carry-over consumption, cost vs budget, difficulty ceiling), `update_carryovers`, `log_meal`.
+- Sunday review extended: carry-over keep/bin step → food proposal alongside training; food ProposalCard variant (signed changes + per-day why); shared proposal push (no new kinds).
+- Shopping list generation (recipes − carry-overs − pantry), aisle grouping, cost estimate; Amazon Fresh search-link export + copy list.
+- Dashboard/Progress: fiber + sat-fat weeklies with lipid draw markers, protein adherence, waste trend.
+
+**Exit:** one Sunday review yields two approved weeks; the list matches the fridge; HelloFresh paused.
+
+## Phase 9 — Ordering assist & automation
+**Goal: the out-of-house meals meet the plan; the shop orders itself (almost).**
+Stories: E16.7, E16.6 (v2)
+
+- Lunch assist: favorites ledger + menu-screenshot ranking against remaining day targets + lunch cap; one-tap log from a pick; auto-promotion to favorites.
+- Amazon Fresh auto-cart: feature-flagged headless-browser job on the home server assembles the cart for **manual checkout**; retailer credentials only in `app_settings` (admin-managed), never compose. This is the riskiest integration — it ships last, degrades to Phase 8's link export, and never auto-purchases.
+- Off-plan photo estimates hardened; food-run token spend visible in `agent_runs` like coach runs.
+
+**Exit:** work lunch chosen from ranked picks in under a minute; Fresh cart built with one confirmation; a month of nutrition data on the dashboard next to the following lipid panel.
+
+### Beta-track risks
+- **Macro numbers are estimates** — per-serving values from curated ingredient data, coach estimates for off-plan/ordered food. The UI never implies lab precision; the trio (protein/fiber/sat-fat) is coached on weekly averages, not single meals.
+- **MealPal/Grubhub/Amazon Fresh have no public APIs** — every integration is workflow-shaped (paste, links, supervised browser); nothing depends on scraping that can silently rot.
+- **Two stacks, one household** — beta runs its own Postgres; nothing syncs between stable and beta until merge, so beta is the only place food data lives during the trial.
+
+---
+
 ## Cross-cutting definition of done
 Every story: typed API schema, migration, tests for the server logic (auth/scoping always), PWA state handled offline where relevant, Void×Volt tokens only (no ad-hoc colors), and user-visible copy matching the spec's voice.
 

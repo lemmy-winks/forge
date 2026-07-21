@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recipe detail + lunch assist</title>
+<style>
+  :root{ --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
+         --ink:#edeef0; --mut:#8b9096; --dim:#565b61;
+         --volt:#c9f73a; --on-volt:#131602; --volt-dim:rgba(201,247,58,.12); --warn:#e8a360; }
+  *{ box-sizing:border-box; margin:0; }
+  body{ background:#0a0b0d; color:var(--ink); font:14px/1.45 -apple-system,Inter,system-ui,sans-serif;
+        display:flex; gap:34px; flex-wrap:wrap; justify-content:center; padding:34px 16px 60px; }
+  .opt{ text-align:center; }
+  .lab{ color:var(--mut); font-size:13px; margin-bottom:14px; }
+  .lab b{ color:var(--volt); }
+  .phone{ width:330px; background:var(--bg); border-radius:34px; padding:20px 14px 26px;
+          box-shadow:0 26px 70px rgba(0,0,0,.55); text-align:left; }
+  .num{ font-variant-numeric:tabular-nums; }
+  .kick{ color:var(--volt); font-size:10.5px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
+  .kickm{ color:var(--mut); }
+  h2{ font-size:21px; letter-spacing:-.01em; margin:2px 0 8px; line-height:1.2; }
+  .card{ background:var(--raised); border-radius:15px; padding:12px 13px; margin-bottom:8px; font-size:13px; }
+  .row{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .sub{ color:var(--mut); font-size:11.5px; margin-top:3px; }
+  .volt{ color:var(--volt); } .warn{ color:var(--warn); } .dim{ color:var(--dim); }
+  .pill{ background:var(--volt); color:var(--on-volt); text-align:center; font-weight:700;
+         border-radius:999px; padding:11px; font-size:13.5px; margin-top:6px; }
+  .ghost{ text-align:center; color:var(--volt); border:1px solid var(--hair); border-radius:999px;
+          padding:9px; font-size:12.5px; margin-top:7px; }
+  .fchips{ display:flex; flex-wrap:wrap; gap:5px; margin:6px 0 2px; }
+  .fchip{ background:var(--volt-dim); color:var(--volt); border-radius:999px; padding:3px 10px; font-size:10.5px; font-weight:600; }
+  .fchip.mut{ background:var(--sunken); color:var(--mut); font-weight:400; }
+  .fchip.warnc{ background:rgba(232,163,96,.12); color:var(--warn); }
+
+  .sect{ display:flex; align-items:center; gap:8px; color:var(--dim); font-size:10.5px;
+         letter-spacing:.12em; text-transform:uppercase; margin:12px 2px 6px; }
+  .sect::after{ content:""; flex:1; height:1px; background:var(--hair); }
+
+  .ing{ display:flex; justify-content:space-between; gap:8px; padding:7px 2px; font-size:12.5px; align-items:baseline; }
+  .ing+.ing{ border-top:1px solid var(--hair); }
+  .ing .q{ color:var(--mut); font-size:11.5px; white-space:nowrap; }
+
+  .step{ display:flex; gap:10px; padding:7px 2px; font-size:12.5px; }
+  .step+.step{ border-top:1px solid var(--hair); }
+  .step .n{ color:var(--volt); font-weight:700; width:14px; flex:none; }
+
+  .bub{ background:var(--raised); border-radius:14px 14px 14px 4px; padding:10px 12px;
+        font-size:12.5px; margin:6px 0; max-width:92%; }
+  .bub.me{ background:var(--volt); color:var(--on-volt); border-radius:14px 14px 4px 14px;
+           margin-left:auto; max-width:78%; font-weight:600; }
+  .pick{ display:flex; gap:8px; padding:7px 0; font-size:12px; align-items:baseline; }
+  .pick+.pick{ border-top:1px solid var(--hair); }
+  .pick .pn{ font-weight:800; color:var(--volt); width:14px; flex:none; }
+  .pick .nm{ flex:1; }
+  .pick .st{ color:var(--mut); font-size:11px; white-space:nowrap; }
+  .chatin{ display:flex; gap:8px; align-items:center; background:var(--raised); border-radius:999px;
+           padding:9px 14px; color:var(--dim); font-size:12.5px; margin-top:10px; }
+</style>
+</head>
+<body>
+
+<div class="opt">
+  <div class="lab"><b>Recipe detail</b> · macros + the cholesterol trio per serving, a "why it's in your week" line,<br>carry-over badges on ingredients, batch callout, one-tap log</div>
+  <div class="phone num">
+    <div class="kick kickm">‹ Food week</div>
+    <div class="kick" style="margin-top:8px">Monday dinner · cook once, eat twice</div>
+    <h2>Harissa chicken traybake</h2>
+    <div class="fchips">
+      <span class="fchip mut">25 min</span><span class="fchip mut">easy</span><span class="fchip mut">serves 2 + 2 boxed</span>
+    </div>
+    <div class="fchips" style="margin-bottom:8px">
+      <span class="fchip">520 kcal</span><span class="fchip">P 42</span><span class="fchip">fiber 11</span><span class="fchip">sat fat 4.5</span>
+    </div>
+
+    <div class="card"><span class="volt" style="font-weight:600">Why it's here</span>
+      <div class="sub" style="margin-top:4px">Your highest-protein traybake; chickpeas carry the fiber. 4.5 g sat fat banks headroom for Friday night out. Doubles into Wednesday — one cook, two dinners.</div></div>
+
+    <div class="sect">Ingredients · 2 nights</div>
+    <div class="card" style="padding:4px 13px">
+      <div class="ing"><span>Chicken thighs, skinless</span><span class="q">900 g</span></div>
+      <div class="ing"><span>Chickpeas</span><span class="q">2 tins</span></div>
+      <div class="ing"><span>Peppers ×3 · red onion ×2</span><span class="q"></span></div>
+      <div class="ing"><span>Harissa <span class="fchip" style="padding:2px 8px">carry-over · ⅔ jar</span></span><span class="q">2 tbsp</span></div>
+      <div class="ing"><span>Spinach <span class="fchip warnc" style="padding:2px 8px">use by Tue</span></span><span class="q">½ bag</span></div>
+      <div class="ing"><span class="dim">Olive oil · cumin · lemon</span><span class="q dim">pantry</span></div>
+    </div>
+
+    <div class="sect">Method</div>
+    <div class="card" style="padding:4px 13px">
+      <div class="step"><span class="n">1</span><span>Toss thighs, chickpeas, peppers, onion in harissa + oil.</span></div>
+      <div class="step"><span class="n">2</span><span>Roast 22 min at 220°. No turning, no stress.</span></div>
+      <div class="step"><span class="n">3</span><span>Fold spinach through off the heat; lemon over.</span></div>
+      <div class="step"><span class="n">4</span><span>Box half before plating — that's Wednesday done.</span></div>
+    </div>
+
+    <div class="pill">Cooked it — log dinner ×2 plates</div>
+    <div class="ghost">Swap this dinner</div>
+  </div>
+</div>
+
+<div class="opt">
+  <div class="lab"><b>Lunch assist — in Coach chat</b> · favorites answer instantly; a pasted MealPal/Grubhub<br>menu gets ranked against targets + budget. "Log it" writes the meal, one tap.</div>
+  <div class="phone num">
+    <div class="kick kickm">‹ Coach</div>
+    <div class="kick" style="margin-top:8px">Tuesday 12:38 · lunch window</div>
+
+    <div class="bub me">Ordering lunch — today's MealPal 📷 <span style="font-weight:400;opacity:.75">(menu screenshot)</span></div>
+
+    <div class="bub">
+      Ranked for you — protein's at 34 g, fiber needs help, $15 cap:
+      <div style="margin-top:6px">
+        <div class="pick"><span class="pn">1</span><span class="nm">Naya — chicken shawarma bowl<div class="sub" style="margin:1px 0 0">extra pickles, skip the white sauce</div></span><span class="st">P 52 · sat 5 · credit</span></div>
+        <div class="pick"><span class="pn">2</span><span class="nm">Dig — charred chicken harvest</span><span class="st">P 41 · fiber 12</span></div>
+        <div class="pick"><span class="pn">3</span><span class="nm">sweetgreen — miso salmon</span><span class="st">P 33 · $14.20</span></div>
+      </div>
+      <div class="sub warn" style="margin-top:6px">Skip: Pret carbonara — 21 g sat fat, that's your whole day.</div>
+    </div>
+
+    <div class="bub me">1 it is</div>
+
+    <div class="bub">Logged: shawarma bowl · 640 kcal · P 52 · fiber 8 · sat 5.<br><span class="sub" style="margin:0">That's 3 weeks running — it's in your favorites. Dinner tonight closes fiber.</span></div>
+
+    <div class="fchips" style="margin-top:10px">
+      <span class="fchip">★ shawarma bowl</span><span class="fchip">★ harvest bowl</span><span class="fchip mut">rank a menu</span><span class="fchip mut">log off-plan</span>
+    </div>
+
+    <div class="chatin"><span style="flex:1">Message your coach…</span><span class="volt" style="font-weight:700">Send</span></div>
+  </div>
+</div>
+
+</body>
+</html>
