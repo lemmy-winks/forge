@@ -1,8 +1,10 @@
 name: Publish image
 
+# main → :latest (the stable stack) · beta → :beta (the nutrition beta stack).
+# The branch name IS the tag except main, so the mapping needs no per-branch jobs.
 on:
   push:
-    branches: [main]
+    branches: [main, beta]
 
 permissions:
   contents: read
@@ -26,6 +28,6 @@ jobs:
           file: server/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/forge:latest
+          tags: ghcr.io/${{ github.repository_owner }}/forge:${{ github.ref_name == 'main' && 'latest' || github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
