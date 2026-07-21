@@ -918,3 +918,153 @@ def test_demo_food_rows_cleaned_up():
             "demo meal rows must not survive demo removal"
     finally:
         db.close()
+
+
+def _food_week_content():
+    """A valid proposal: the seeded week (it satisfies every validator)."""
+    from app.food_seed import _first_week
+    return _first_week()
+
+
+FOOD_CHANGES = [{"sign": "~", "what": "Salmon moves to Thursday", "why": "test diff row"}]
+
+
+def test_food_proposal_validation_and_approve_flow():
+    """Phase 8 core (E16.3): validators catch broken weeks; a good proposal
+    round-trips proposed → approved → active, exactly one pending at a time."""
+    import copy
+
+    from app.db import SessionLocal
+    from app.food_coach import create_food_proposal
+    from app.models import MealRevision, User
+
+    login()
+    db = SessionLocal()
+    try:
+        james = db.query(User).filter(User.email == "james@test.dev").first()
+        good = _food_week_content()
+
+        # structural validators, one broken thing at a time
+        c = copy.deepcopy(good)
+        del c["days"]["6"]
+        assert "missing day" in create_food_proposal(db, james, c, FOOD_CHANGES, "r")["error"]
+
+        c = copy.deepcopy(good)
+        del c["days"]["0"]["slots"]["snack"]
+        assert "every slot" in create_food_proposal(db, james, c, FOOD_CHANGES, "r")["error"]
+
+        c = copy.deepcopy(good)
+        c["days"]["0"]["slots"]["dinner"] = {"recipe": "no-such-recipe", "why": "x"}
+        assert "unknown recipe" in create_food_proposal(db, james, c, FOOD_CHANGES, "r")["error"]
+
+        c = copy.deepcopy(good)
+        c["days"]["0"]["slots"]["dinner"] = {"recipe": "oats-no1", "why": "x"}
+        assert "kind 'dinner'" in create_food_proposal(db, james, c, FOOD_CHANGES, "r")["error"]
+
+        c = copy.deepcopy(good)
+        c["days"]["1"]["slots"]["dinner"].pop("why")
+        assert "why" in create_food_proposal(db, james, c, FOOD_CHANGES, "r")["error"]
+
+        c = copy.deepcopy(good)
+        c["days"]["2"]["slots"]["dinner"] = {"recipe": "prawn-soba-stirfry", "why": "x"}
+        c["days"]["4"]["slots"]["dinner"] = {"recipe": "salmon-puy-lentils", "why": "x"}
+        assert "zero-cook" in create_food_proposal(db, james, c, FOOD_CHANGES, "r")["error"]
+
+        assert "changes[]" in create_food_proposal(db, james, good, [], "r")["error"]
+        assert "rationale" in create_food_proposal(db, james, good, FOOD_CHANGES, " ")["error"]
+
+        # the real thing
+        out = create_food_proposal(db, james, good, FOOD_CHANGES, "Test food week — same as the baseline.")
+        assert out.get("ok"), out
+        assert out["status"] == "proposed"
+
+        # a second proposal supersedes the first — never more than one pending
+        out2 = create_food_proposal(db, james, good, FOOD_CHANGES, "Re-proposal.")
+        assert out2.get("ok")
+        assert (db.query(MealRevision).filter(MealRevision.user_id.is_(None),
+                                              MealRevision.status == "proposed").count()) == 1
+    finally:
+        db.close()
+
+    prop = client.get("/api/food/proposal").json()["proposal"]
+    assert prop and prop["rationale"] == "Re-proposal."
+    assert prop["changes"][0]["sign"] == "~"
+    assert prop["recipes"]["harissa-chicken-traybake"]["platefig"] == "tray-chicken"
+
+    # Shelby (same household) sees and can approve the shared proposal
+    login("shelby@test.dev")
+    assert client.get("/api/food/proposal").json()["proposal"]["id"] == prop["id"]
+    assert client.post(f"/api/food/proposal/{prop['id']}/approve").status_code == 200
+    assert client.get("/api/food/proposal").json()["proposal"] is None
+    w = client.get(f"/api/food/week?date={MONDAY}").json()
+    assert w["rationale"] == "Re-proposal.", "approved food proposal is the active week"
+    login()
+
+
+def test_food_proposal_demo_wall_and_coach_tools():
+    """Phase 8: the demo seat's food proposals live in its own scope; the coach
+    tools read/write food through the same guarded paths."""
+    from app.coach import _exec_tool, _food_context
+    from app.db import SessionLocal
+    from app.food_coach import create_food_proposal
+    from app.models import MealLog, User
+
+    login()
+    client.post("/api/admin/demo")
+
+    db = SessionLocal()
+    try:
+        james = db.query(User).filter(User.email == "james@test.dev").first()
+        bruce = db.query(User).filter(User.role == "demo").first()
+
+        # a demo proposal is invisible to members, and vice versa
+        out = create_food_proposal(db, bruce, _food_week_content(), FOOD_CHANGES, "Demo week.")
+        assert out.get("ok"), out
+        member_prop = create_food_proposal(db, james, _food_week_content(), FOOD_CHANGES, "Member week.")
+        assert member_prop.get("ok")
+
+        assert client.get("/api/food/proposal").json()["proposal"]["rationale"] == "Member week."
+        client.post("/auth/demo")
+        demo_view = client.get("/api/food/proposal").json()["proposal"]
+        assert demo_view["rationale"] == "Demo week."
+        # demo cannot decide the household's proposal
+        member_id = (db.query(__import__("app.models", fromlist=["MealRevision"]).MealRevision)
+                     .filter_by(rationale="Member week.").first().id)
+        assert client.post(f"/api/food/proposal/{member_id}/approve").status_code == 404
+        login()
+
+        # coach tools: read the week, the pool, the proposal; log an off-plan estimate
+        assert len(_exec_tool(db, james, "get_food_week", {})["days"]) == 7
+        pool = _exec_tool(db, james, "get_recipes", {"kind": "dinner"})
+        assert pool and all(p["kind"] == "dinner" for p in pool)
+        assert _exec_tool(db, james, "get_food_proposal", {})["proposal"]["rationale"] == "Member week."
+        r = _exec_tool(db, james, "log_meal", {"slot": "lunch", "label": "burrito bowl",
+                                               "kcal": 700, "protein_g": 45, "fiber_g": 12,
+                                               "satfat_g": 8, "estimated": True})
+        assert r.get("id")
+        row = db.query(MealLog).filter(MealLog.id == r["id"]).first()
+        assert row.estimated == 1 and row.source == "chat" and row.user_id == james.id
+        db.delete(row)
+
+        # carry-overs: add, list, keep/bin
+        assert _exec_tool(db, james, "update_carryovers",
+                          {"add": [{"item": "½ jar harissa", "qty": "½ jar", "use_by": "2026-08-01"}]})["ok"]
+        rows = _exec_tool(db, james, "get_carryovers", {})
+        assert rows and rows[0]["item"] == "½ jar harissa"
+        assert _exec_tool(db, james, "update_carryovers",
+                          {"updates": [{"id": rows[0]["id"], "status": "kept"}]})["ok"]
+        assert _exec_tool(db, james, "get_carryovers", {})[0]["status"] == "kept"
+        # demo can't touch the household's carry-overs
+        assert "error" in _exec_tool(db, bruce, "update_carryovers",
+                                     {"updates": [{"id": rows[0]["id"], "status": "binned"}]})
+
+        # dynamic prompt grounds the food half
+        ctx = _food_context(db, james)
+        assert "Nutrition targets" in ctx and "food week is awaiting" in ctx
+    finally:
+        db.close()
+
+    # tidy: reject the pending member proposal, drop the demo
+    prop_id = client.get("/api/food/proposal").json()["proposal"]["id"]
+    assert client.post(f"/api/food/proposal/{prop_id}/reject").status_code == 200
+    client.delete("/api/admin/demo")

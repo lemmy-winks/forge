@@ -233,6 +233,19 @@ export interface FoodDay {
 export interface FoodWeek {
   start: string; days: FoodDay[]; targets: NutritionTargets; rationale: string; has_plan: boolean;
 }
+/** One planned slot inside a food proposal's raw content (Phase 8). */
+export interface FoodPropSlot {
+  recipe?: string; why?: string; note?: string;
+  order?: boolean; out?: boolean; leftover_of?: string | number;
+}
+export interface FoodProposalResp {
+  proposal: {
+    id: string; num: number; rationale: string; created_at: string;
+    changes: ProposalChange[];
+    content: { days: Record<string, { slots: Record<string, FoodPropSlot> }> };
+    recipes: Record<string, RecipeCard>;
+  } | null;
+}
 export interface RecipeStep { title: string; minutes?: number; detail: string; timer?: boolean; }
 export interface RecipeIngredient {
   name: string; qty: number; unit: string; disp: string; note?: string; aisle: string; pantry: boolean;

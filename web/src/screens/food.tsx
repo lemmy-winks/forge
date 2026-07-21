@@ -7,7 +7,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import {
   api, ApiError, fmtT, todayISO,
-  type FoodDay, type FoodSlot, type FoodWeek, type RecipeFull,
+  type FoodDay, type FoodProposalResp, type FoodPropSlot, type FoodSlot, type FoodWeek,
+  type RecipeFull,
 } from '../api';
 import { PlateFig } from '../platefig';
 import { Back, Chip, Loading, Shell, Title, toast, useApp } from '../ui';
@@ -41,9 +42,120 @@ export function useFoodWeek() {
   return useQuery<FoodWeek>({ queryKey: ['foodweek'], queryFn: () => api('/api/food/week') });
 }
 
+export function useFoodProposal() {
+  return useQuery<FoodProposalResp>({
+    queryKey: ['foodproposal'], queryFn: () => api('/api/food/proposal'),
+  });
+}
+
 const SLOT_LABEL: Record<string, string> = {
   breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack',
 };
+
+/* ---------------- food week proposal (Phase 8, E16.3) ---------------- */
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+export function FoodProposalBanner({ onOpen }: { onOpen: () => void }) {
+  const q = useFoodProposal();
+  if (!q.data?.proposal) return null;
+  return (
+    <button className="propbanner press" onClick={onOpen}>
+      <span className="pulse" />
+      <b>Next food week proposed — awaiting your OK</b>
+      <span style={{ color: 'var(--volt)', fontWeight: 700, fontSize: 13 }}>Review ›</span>
+    </button>
+  );
+}
+
+export function FoodProposalCard({ onDecided }: { onDecided?: () => void }) {
+  const qc = useQueryClient();
+  const { openTab } = useApp();
+  const q = useFoodProposal();
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [daysOpen, setDaysOpen] = useState(false);
+  const p = q.data?.proposal;
+  const decide = useMutation({
+    mutationFn: (arg: { id: string; verb: 'approve' | 'reject' }) =>
+      api(`/api/food/proposal/${arg.id}/${arg.verb}`, { method: 'POST' }),
+    onSuccess: (_d, arg) => {
+      toast(arg.verb === 'approve' ? 'Food week approved — live now' : 'Proposal dismissed',
+        arg.verb === 'approve');
+      qc.invalidateQueries({ queryKey: ['foodproposal'] });
+      qc.invalidateQueries({ queryKey: ['foodweek'] });
+      onDecided?.();
+    },
+  });
+  if (!p) return null;
+  const proposedOn = new Date(p.created_at);
+  const signColor = (s: string) => s === '+' ? 'var(--volt)' : s === '-' ? 'var(--warn)' : 'var(--mut)';
+
+  const dinnerLine = (slots: Record<string, FoodPropSlot>): { name: string; why: string } => {
+    const d = slots.dinner || {};
+    if (d.out) return { name: 'Night out', why: d.note || '' };
+    if (d.leftover_of !== undefined) {
+      const src = p.content.days[String(d.leftover_of)]?.slots?.dinner?.recipe;
+      const r = src ? p.recipes[src] : undefined;
+      return { name: r ? `${r.name} · leftovers` : 'Leftovers', why: d.why || 'zero-cook night' };
+    }
+    const r = d.recipe ? p.recipes[d.recipe] : undefined;
+    return { name: r?.name || d.recipe || '—', why: d.why || '' };
+  };
+
+  return (
+    <div>
+      <div className="kick" style={{ fontSize: 11 }}>
+        Proposed {proposedOn.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}
+        {' · '}food week #{p.num} · awaiting your OK
+      </div>
+
+      <div style={{ margin: '8px 0' }}>
+        {p.changes.map((c, i) => (
+          <div key={i} style={{ display: 'flex', gap: 9, padding: '5px 0', fontSize: 14,
+            borderTop: i ? '1px solid var(--hair)' : 'none' }} className="num">
+            <b style={{ color: signColor(c.sign), width: 12, flex: 'none', textAlign: 'center' }}>{c.sign}</b>
+            <b style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{c.what}</b>
+            {c.why && <span style={{ fontSize: 12, color: 'var(--mut)', textAlign: 'right', maxWidth: '46%' }}>{c.why}</span>}
+          </div>
+        ))}
+      </div>
+
+      {p.rationale && (
+        <button className="coachnote press" onClick={() => setNoteOpen(!noteOpen)}
+          style={{ marginBottom: 10 }}>
+          <div className={noteOpen ? '' : 'clamp'}>{p.rationale}</div>
+          <div className="more">{noteOpen ? 'less' : 'more'}</div>
+        </button>
+      )}
+
+      <div className="btnrow">
+        <button className="cta press" style={{ padding: 11 }} disabled={decide.isPending}
+          onClick={() => decide.mutate({ id: p.id, verb: 'approve' })}>Approve food week</button>
+        <button className="ghost press" style={{ flex: '0 0 auto', width: 'auto', padding: '11px 14px' }}
+          onClick={() => { onDecided?.(); openTab('coach'); }}>Changes…</button>
+      </div>
+
+      <button className="coachnote press" style={{ marginTop: 10 }} onClick={() => setDaysOpen(!daysOpen)}>
+        <div className="more">{daysOpen ? 'hide the dinners' : 'dinner by dinner · 7 days'}</div>
+      </button>
+      {daysOpen && Object.entries(p.content.days).sort(([a], [b]) => +a - +b).map(([k, day]) => {
+        const din = dinnerLine(day.slots || {});
+        return (
+          <div key={k} style={{ borderTop: '1px solid var(--hair)', padding: '6px 0' }}>
+            <div className="row">
+              <span style={{ fontSize: 14.5, fontWeight: 600 }}>{DAY_NAMES[+k]} · {din.name}</span>
+            </div>
+            {din.why && <div className="sub" style={{ margin: 0 }}>{din.why}</div>}
+          </div>
+        );
+      })}
+      <button className="press" style={{ width: '100%', textAlign: 'center', fontSize: 13,
+        color: 'var(--mut)', marginTop: 8 }} disabled={decide.isPending}
+        onClick={() => decide.mutate({ id: p.id, verb: 'reject' })}>
+        Dismiss this proposal
+      </button>
+    </div>
+  );
+}
 
 function slotName(s: FoodSlot): string {
   if (s.out) return 'Night out — enjoy it';
@@ -73,6 +185,7 @@ export function FoodDayScreen() {
   const { go, openTab, foodDate } = useApp();
   const qc = useQueryClient();
   const wq = useFoodWeek();
+  const [propOpen, setPropOpen] = useState(false);
   const w = wq.data;
   if (!w) return <Shell><Loading /></Shell>;
 
@@ -139,6 +252,16 @@ export function FoodDayScreen() {
         <button className="press" style={{ fontSize: 13, color: 'var(--volt)', fontWeight: 700 }}
           onClick={() => go('food-week')}>Week ›</button>
       </div>
+
+      <FoodProposalBanner onOpen={() => setPropOpen(true)} />
+      {propOpen && (
+        <div className="overlay" onClick={() => setPropOpen(false)}>
+          <div className="sheet" style={{ maxHeight: '78vh', overflowY: 'auto' }}
+            onClick={(e) => e.stopPropagation()}>
+            <FoodProposalCard onDecided={() => setPropOpen(false)} />
+          </div>
+        </div>
+      )}
 
       {!w.has_plan && (
         <div className="card"><div className="xname">No food week yet</div>
@@ -213,6 +336,7 @@ export function FoodWeekScreen() {
   const wq = useFoodWeek();
   const w = wq.data;
   const [noteOpen, setNoteOpen] = useState(false);
+  const [propOpen, setPropOpen] = useState(false);
   if (!w) return <Shell><Loading /></Shell>;
 
   const planned = w.days.map((d) => {
@@ -238,6 +362,16 @@ export function FoodWeekScreen() {
     <Shell>
       <Back label="Food" onClick={() => go('food')} />
       <Title kick={`Week of ${w.start}`}>Food week</Title>
+
+      <FoodProposalBanner onOpen={() => setPropOpen(true)} />
+      {propOpen && (
+        <div className="overlay" onClick={() => setPropOpen(false)}>
+          <div className="sheet" style={{ maxHeight: '78vh', overflowY: 'auto' }}
+            onClick={(e) => e.stopPropagation()}>
+            <FoodProposalCard onDecided={() => setPropOpen(false)} />
+          </div>
+        </div>
+      )}
 
       <div className="statchips">
         <div className="statchip"><div className="k">Planned protein</div>
@@ -286,8 +420,8 @@ export function FoodWeekScreen() {
           </button>
         );
       })}
-      <Chip>Shopping list and coach-proposed food weeks land in Phase 8 — this week is the
-        hand-written baseline.</Chip>
+      <Chip>The coach proposes each week on Sundays alongside training — the shopping list
+        lands later in Phase 8.</Chip>
     </Shell>
   );
 }

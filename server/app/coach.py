@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from .config import get_settings, local_today
-from .models import AgentRun, ChatMessage, Exercise, Niggle, Plan, PlanRevision, User
+from .models import AgentRun, ChatMessage, Exercise, MealRevision, Niggle, Plan, PlanRevision, Recipe, User
 
 log = logging.getLogger("forge.coach")
 
@@ -85,6 +85,40 @@ TOOLS: list[dict] = [
                       "mobility_slug": {"type": "string"}}, "required": ["body_part"]}},
     {"name": "clear_niggle", "description": "Mark a niggle cleared after the user confirms. Args: niggle_id.",
      "input_schema": {"type": "object", "properties": {"niggle_id": {"type": "string"}}, "required": ["niggle_id"]}},
+    {"name": "get_food_week", "description": "The rolling 7-day food view: each day's planned slots (recipes with per-serving macros), what the user has logged, day totals, and their nutrition targets. Read this before any food conversation.",
+     "input_schema": {"type": "object", "properties": {}}},
+    {"name": "get_recipes", "description": "The recipe pool you may plan food weeks from: slug, name, kind (dinner/breakfast/lunch/snack), per-serving macros, minutes, difficulty, batch servings. Proposals draw ONLY from this pool — never invent recipes. Args: kind (optional filter).",
+     "input_schema": {"type": "object", "properties": {"kind": {"type": "string"}}}},
+    {"name": "get_food_proposal", "description": "The pending food-week proposal awaiting approval (null if none). Read this before discussing or revising a food proposal.",
+     "input_schema": {"type": "object", "properties": {}}},
+    {"name": "propose_food_week",
+     "description": ("Propose next week's food for the household. content = {\"days\": {\"0\"..\"6\": {\"slots\": "
+                     "{breakfast, lunch, dinner, snack}}}}. Every slot on every day must be planned. A slot is one of: "
+                     "{recipe: slug, why?: '...'} · {order: true, note: 'target macros + budget'} (lunches only) · "
+                     "{out: true, note: '...'} (dinner only — the planned night out) · {leftover_of: '0'} (inherits that "
+                     "day's dinner; at least one dinner per week must be zero-cook via leftover or out). Every cooked "
+                     "dinner needs a why one-liner. Validators enforce: complete recipes only, weekly-average protein/fiber "
+                     "at target, sat-fat cap honored with headroom banked for a night out, difficulty ≤ medium. "
+                     "changes = diff vs the current food week, each {sign:'+'|'-'|'~', what, why}. rationale = 2-3 "
+                     "sentences on what the week achieves (averages hit, carry-overs used, what the night out costs)."),
+     "input_schema": {"type": "object", "properties": {"content": {"type": "object"}, "changes": {"type": "array"},
+                      "rationale": {"type": "string"}}, "required": ["content", "changes", "rationale"]}},
+    {"name": "log_meal",
+     "description": ("Log something the user ate AFTER echoing your macro estimate and getting a yes. Off-plan food "
+                     "(described or photographed in chat) needs label + kcal + protein_g + fiber_g + satfat_g with "
+                     "estimated: true. Planned/known recipes: pass recipe (slug) + servings instead. "
+                     "Args: date (YYYY-MM-DD, optional = today), slot (breakfast|lunch|dinner|snack)."),
+     "input_schema": {"type": "object", "properties": {"date": {"type": "string"}, "slot": {"type": "string"},
+                      "recipe": {"type": "string"}, "servings": {"type": "number"}, "label": {"type": "string"},
+                      "kcal": {"type": "number"}, "protein_g": {"type": "number"}, "fiber_g": {"type": "number"},
+                      "satfat_g": {"type": "number"}, "estimated": {"type": "boolean"}},
+                      "required": ["slot"]}},
+    {"name": "get_carryovers", "description": "Leftover shop items from previous food weeks (the waste loop): item, qty, use-by, status (open|kept|binned|consumed). Kept items must be consumed by the next proposal or excused in its rationale.",
+     "input_schema": {"type": "object", "properties": {}}},
+    {"name": "update_carryovers",
+     "description": ("Record the Sunday keep/bin confirm and new leftovers. updates = [{id, status: open|kept|binned|consumed}]; "
+                     "add = [{item, qty, use_by?: YYYY-MM-DD}]. Binned items are waste — learn from the formats that get binned."),
+     "input_schema": {"type": "object", "properties": {"updates": {"type": "array"}, "add": {"type": "array"}}}},
     {"name": "log_lab_panel",
      "description": "Save a lab panel AFTER echoing the parsed values and getting the user's confirmation. Args: drawn_on (YYYY-MM-DD), results:[{marker, value, unit, ref_low, ref_high}].",
      "input_schema": {"type": "object", "properties": {"drawn_on": {"type": "string"},
@@ -255,6 +289,39 @@ def _exec_tool(db: Session, user: User, name: str, args: dict) -> object:
             n.status = "cleared"
             db.commit()
             return {"ok": True}
+        if name == "get_food_week":
+            from .routers import food
+            return food.food_week(date=None, user=user, db=db)
+        if name == "get_recipes":
+            kind = args.get("kind")
+            rows = db.query(Recipe).all()
+            return [{"slug": r.slug, "name": r.name, "kind": r.kind, "minutes": r.minutes,
+                     "difficulty": r.difficulty, "serves": r.serves, "batch": r.batch,
+                     "kcal": r.kcal, "protein_g": r.protein_g, "fiber_g": r.fiber_g,
+                     "satfat_g": r.satfat_g, "tags": r.tags, "complete": bool(r.complete)}
+                    for r in rows if not kind or r.kind == kind]
+        if name == "get_food_proposal":
+            from .routers.food import food_proposal
+            return food_proposal(user=user, db=db)
+        if name == "propose_food_week":
+            from .food_coach import create_food_proposal
+            return create_food_proposal(db, user, args.get("content") or {},
+                                        args.get("changes") or [], args.get("rationale") or "")
+        if name == "log_meal":
+            from .routers.food import LogIn, log_meal
+            body = LogIn(date=args.get("date"), slot=args["slot"], recipe=args.get("recipe"),
+                         servings=args.get("servings") or 1, label=args.get("label"),
+                         kcal=args.get("kcal"), protein_g=args.get("protein_g"),
+                         fiber_g=args.get("fiber_g"), satfat_g=args.get("satfat_g"),
+                         estimated=bool(args.get("estimated")),
+                         source="plan" if args.get("recipe") else "chat")
+            return log_meal(body, user=user, db=db)
+        if name == "get_carryovers":
+            from .food_coach import list_carryovers
+            return list_carryovers(db, user)
+        if name == "update_carryovers":
+            from .food_coach import update_carryovers
+            return update_carryovers(db, user, args.get("updates"), args.get("add"))
         if name == "log_lab_panel":
             from .routers.misc import LabPanelIn, LabResultIn, add_panel
             body = LabPanelIn(drawn_on=args["drawn_on"], source="coach-chat",
@@ -287,6 +354,23 @@ def _week_so_far(db: Session, user: User) -> str:
             + (" A proposed plan revision is awaiting their approval (get_proposal)." if pending else ""))
 
 
+def _food_context(db: Session, user: User) -> str:
+    """One grounding line for the food half: daily targets + pending proposal."""
+    from .food_coach import food_scope
+    from .routers.food import targets_for
+    t = targets_for(user)
+    prefs = user.prefs or {}
+    scope = food_scope(user)
+    q = db.query(MealRevision).filter(MealRevision.status == "proposed")
+    q = q.filter(MealRevision.user_id == scope) if scope else q.filter(MealRevision.user_id.is_(None))
+    pending = q.first() is not None
+    return (f"Nutrition targets (daily): {t['kcal']} kcal · protein {t['protein_g']} g · "
+            f"fiber {t['fiber_g']} g · sat-fat cap {t['satfat_g']} g. "
+            f"Cook nights: {prefs.get('cook_nights', 4)}/week; grocery budget {prefs.get('budget_grocery', '?')}; "
+            f"lunch cap {prefs.get('budget_lunch', '?')}."
+            + (" A proposed food week is awaiting approval (get_food_proposal)." if pending else ""))
+
+
 # Static half of the system prompt: identical for every user and every request,
 # so the prompt cache can share it (together with the TOOLS schemas that render
 # before it). Anything user- or day-specific belongs in _system_prompt below.
@@ -301,6 +385,8 @@ Rules:
 - Hard boundary: you are not a doctor. Never advise on medication or dosing. Lab trends: describe the data, connect it to training/weight changes, and suggest discussing decisions with their GP.
 - Plan rationales sell the week ahead, not the edit log: lead with what the athlete will achieve by Sunday (loads reached, minutes banked, what it unlocks). The changes list handles the diff.
 - Mid-week changes use amend_week (only the affected days); full next-week plans use propose_revision. When the user asks to tweak a pending proposal, read get_proposal first, then propose the revised version.
+- You also coach the household's food week (the Food tab). The cholesterol trio leads: protein up, fiber up, sat fat capped — coached on WEEKLY AVERAGES, never single meals, and macro numbers are estimates (never imply lab precision). Dinners are household-shared (one plan; each person logs their own plate against their own targets). Food proposals draw only from the in-app recipe pool (get_recipes) — never invent recipes or fetch the internet at proposal time. Full food weeks use propose_food_week; to tweak a pending one, read get_food_proposal first, then propose the revised version.
+- Off-plan food described in chat: estimate macros from what they tell you, echo the estimate, and log_meal it (estimated: true) once they confirm. Same consent rule as labs.
 - Messages may end with a bracketed context tag like "[re: session 2026-07-21 · Lower A]" — attached data for that item follows the message; treat it as what the user is looking at.
 - Voice: short, concrete, warm, zero fluff. You're read on a phone between sets."""
 
@@ -332,6 +418,7 @@ them it's waiting on the Today screen for approval. Do not lecture; keep it ligh
 
 Goal: {plan.goal if plan else 'not set'}
 {_week_so_far(db, user)}
+{_food_context(db, user)}
 Active niggles: {nig_txt}
 Active equipment profile: {prof.name if prof else 'unknown'} — prescribe only what get_equipment shows available.
 Progression style: {style}. Plan changes: {approval} mode{' — your proposals apply immediately, so be conservative' if approval == 'auto' else ' — proposals wait for approval in the app'}."""
@@ -498,7 +585,14 @@ REVIEW_INSTRUCTION = """Run my weekly review. Steps:
    current week (every load change, swap, and volume move gets a row), and a rationale that
    says what next week achieves — the loads it reaches, the minutes it banks, what it sets
    up — in real numbers, not a recap of the edits.
-4. Reply with a summary I can read in 30 seconds: what went well, what changes and why, anything you're watching. Mention that the proposal is waiting in the app (unless auto mode applied it)."""
+4. Food: read get_food_week (what got logged vs planned, day totals vs my targets) and
+   get_carryovers. If a food proposal is already pending (get_food_proposal), review it and
+   only re-propose if it needs changes. Otherwise call propose_food_week for next week:
+   recipes from get_recipes only, at least one zero-cook dinner (batch a recipe), open
+   carry-overs consumed or excused in the rationale, sat-fat headroom banked for any planned
+   night out, the changes diff and per-dinner why lines included. Report food adherence with
+   verifiable numbers ("fiber averaged 41 g; the cap slipped twice").
+5. Reply with a summary I can read in 30 seconds: what went well, what changes and why, anything you're watching. Mention that both proposals (training + food) are waiting in the app (unless auto mode applied them)."""
 
 
 def run_review(db: Session, user: User) -> str:

@@ -141,6 +141,8 @@ export function CoachScreen() {
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['niggles'] });
+      qc.invalidateQueries({ queryKey: ['foodproposal'] });
+      qc.invalidateQueries({ queryKey: ['foodweek'] });
     }
     wasThinking.current = thinking;
   }, [thinking, qc]);
@@ -172,6 +174,8 @@ export function CoachScreen() {
       await api('/api/coach/run-review', { method: 'POST' });
       qc.invalidateQueries({ queryKey: ['chat'] });
       qc.invalidateQueries({ queryKey: ['proposal'] });
+      qc.invalidateQueries({ queryKey: ['foodproposal'] });
+      qc.invalidateQueries({ queryKey: ['foodweek'] });
       toast('Review done — proposal ready', true);
     } catch (e) {
       toast(String((e as Error).message));

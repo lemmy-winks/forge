@@ -121,6 +121,52 @@ def food_week(date: str | None = None, user: User = Depends(current_user),
             "rationale": rev.rationale if rev else "", "has_plan": rev is not None}
 
 
+@router.get("/proposal")
+def food_proposal(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """The pending food-week proposal for this household (Phase 8, E16.3).
+    Ships a slug→card map so the UI renders names/plate art without N fetches."""
+    scope = food_scope(user)
+    q = db.query(MealRevision).filter(MealRevision.status == "proposed")
+    q = q.filter(MealRevision.user_id == scope) if scope else q.filter(MealRevision.user_id.is_(None))
+    rev = q.order_by(MealRevision.num.desc()).first()
+    if not rev:
+        return {"proposal": None}
+    days = (rev.content or {}).get("days", {}) or {}
+    slugs = {s.get("recipe") for d in days.values() for s in (d.get("slots") or {}).values()
+             if s and s.get("recipe")}
+    cards = {r.slug: recipe_card(r) for r in db.query(Recipe).filter(Recipe.slug.in_(slugs)).all()} if slugs else {}
+    return {"proposal": {"id": rev.id, "num": rev.num, "rationale": rev.rationale,
+                         "changes": rev.changes or [], "content": rev.content,
+                         "recipes": cards, "created_at": rev.created_at.isoformat()}}
+
+
+def _owned_food_proposal(db: Session, user: User, rid: str) -> MealRevision:
+    rev = db.get(MealRevision, rid)
+    if not rev or rev.status != "proposed" or rev.user_id != food_scope(user):
+        raise HTTPException(status_code=404, detail="proposal not found")
+    return rev
+
+
+@router.post("/proposal/{rid}/approve")
+def approve_food_proposal(rid: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    rev = _owned_food_proposal(db, user, rid)
+    scope = food_scope(user)
+    q = db.query(MealRevision).filter(MealRevision.status == "active")
+    q = q.filter(MealRevision.user_id == scope) if scope else q.filter(MealRevision.user_id.is_(None))
+    q.update({"status": "superseded"})
+    rev.status = "active"
+    db.commit()
+    return {"ok": True, "revision": rev.num}
+
+
+@router.post("/proposal/{rid}/reject")
+def reject_food_proposal(rid: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    rev = _owned_food_proposal(db, user, rid)
+    rev.status = "superseded"
+    db.commit()
+    return {"ok": True}
+
+
 @router.get("/recipes/{slug}")
 def recipe_detail(slug: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
     r = db.query(Recipe).filter(Recipe.slug == slug).first()

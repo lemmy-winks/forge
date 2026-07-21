@@ -121,6 +121,8 @@ Stories: E16.3, E16.5, E16.6 (list + export v1), E16.9, E16.11
 
 **Exit:** one Sunday review yields two approved weeks; the list matches the fridge; the card box is digitized and HelloFresh paused.
 
+> **As built (Jul 2026, first slice)**: the coach-tools core is live — `get_food_week` / `get_recipes` / `get_food_proposal` / `propose_food_week` (validators: all 28 slots planned, complete recipes only, ≥1 zero-cook dinner, weekly-average trio checks with the sat-fat cap absolute and banked −1 g for a night out, kcal ceiling), `log_meal` (chat estimates, `estimated` flag), `get_carryovers`/`update_carryovers`; household-scoped `meal_revisions` proposal flow (`/api/food/proposal` + approve/reject, exactly one pending, demo walled off); Sunday review step 4 proposes the food week; food ProposalCard (banner + sheet, signed changes, dinner-by-dinner). Still to come in Phase 8: `import_recipe` + card-box amnesty, shopping list + Fresh links, carry-over keep/bin UI in the review, dashboard fiber/sat-fat weeklies.
+
 ## Phase 9 — Ordering assist & automation
 **Goal: the out-of-house meals meet the plan; the shop orders itself (almost).**
 Stories: E16.7, E16.6 (v2)
