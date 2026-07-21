@@ -2,7 +2,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   api, fmtLoad, fmtT, kgDisp, kgToDisp, loadUnitFor,
-  type HistoryItem, type LoadUnit, type Progress, type RecordRow, type SeriesPoint, type SessionDetail,
+  type HistoryItem, type LoadUnit, type MetricHistory, type Progress, type RecordRow,
+  type SeriesPoint, type SessionDetail,
 } from '../api';
 import { smoothPath } from '../chart';
 import { Back, Chip, Loading, Shell, Title, toast, useApp } from '../ui';
@@ -289,6 +290,159 @@ function LineChart({ points }: { points: { d: string; v: number }[] }) {
   );
 }
 
+/* ---------------- metric drill-down (Progress → tap a number) ---------------- */
+
+interface MetricMeta {
+  title: string; unit: (units: string) => string;
+  /** convert canonical → display value */
+  disp: (v: number, units: string) => number;
+  band?: [number, number]; bandLabel?: string; higherBetter?: boolean;
+  blurb: string;
+}
+/** Reference bands are broad healthy-adult ranges — context, never diagnosis. */
+const METRIC_META: Record<string, MetricMeta> = {
+  weight: {
+    title: 'Bodyweight', unit: (u) => (u === 'lb' ? 'lb' : 'kg'),
+    disp: (v, u) => (u === 'lb' ? +(v * 2.20462).toFixed(1) : v),
+    blurb: 'Scale weight, whenever a reading syncs. Day-to-day swings of ±1–2 kg are water and food, not fat or muscle — read the month, not the morning.',
+  },
+  body_fat_pct: {
+    title: 'Body fat', unit: () => '%', disp: (v) => v,
+    band: [10, 20], bandLabel: 'broad healthy range · adult men',
+    blurb: 'Share of total weight that is fat tissue, estimated by your scale\'s bio-impedance. Single readings are noisy (hydration skews them) — the trend is the signal.',
+  },
+  water_pct: {
+    title: 'Body water', unit: () => '%', disp: (v) => v,
+    band: [50, 65], bandLabel: 'typical range · adult men',
+    blurb: 'Total body water as a share of weight, derived from the scale\'s water-mass reading. Tracks hydration and inversely mirrors body-fat %.',
+  },
+  muscle_mass: {
+    title: 'Muscle mass', unit: (u) => (u === 'lb' ? 'lb' : 'kg'),
+    disp: (v, u) => (u === 'lb' ? +(v * 2.20462).toFixed(1) : v),
+    blurb: 'Estimated lean muscle tissue. There is no universal "healthy range" — what matters is holding or growing it while training. Watch it against your strength trend.',
+  },
+  bone_mass: {
+    title: 'Bone mass', unit: (u) => (u === 'lb' ? 'lb' : 'kg'),
+    disp: (v, u) => (u === 'lb' ? +(v * 2.20462).toFixed(1) : v),
+    blurb: 'Estimated mineral mass of your skeleton. Very stable — big jumps are measurement noise, not biology.',
+  },
+  vo2max: {
+    title: 'VO₂max', unit: () => 'ml/kg/min', disp: (v) => v, higherBetter: true,
+    band: [42, 50], bandLabel: '"good" band · men 35–50 · higher is better',
+    blurb: 'Your engine size: the most oxygen you can use per minute per kg. The Watch estimates it after outdoor runs. It moves slowly — the coach reads it quarterly.',
+  },
+  resting_hr: {
+    title: 'Resting HR', unit: () => 'bpm', disp: (v) => v,
+    band: [50, 70], bandLabel: 'typical adult range · lower usually fitter',
+    blurb: 'Heart rate at full rest. Aerobic training pushes it down over months; a sudden +5–10 bpm above your normal often means fatigue or oncoming illness.',
+  },
+  sleep_h: {
+    title: 'Sleep', unit: () => 'h', disp: (v) => v,
+    band: [7, 9], bandLabel: 'recommended for adults',
+    blurb: 'Nightly sleep from Apple Health. Recovery is training — lifting progress and resting HR both track this closely.',
+  },
+};
+
+/** Full-history line with the healthy band shaded. */
+function BandChart({ points, band, disp, units }: {
+  points: SeriesPoint[]; band?: [number, number];
+  disp: (v: number, u: string) => number; units: string;
+}) {
+  if (points.length < 2) return <div className="sub">Not enough readings yet.</div>;
+  // cap the draw at ~240 points so years of history stay smooth
+  const step = Math.max(1, Math.floor(points.length / 240));
+  const pts = points.filter((_, i) => i % step === 0 || i === points.length - 1)
+    .map((p) => ({ d: p.d, v: disp(p.v, units) }));
+  const b = band ? [disp(band[0], units), disp(band[1], units)] as [number, number] : null;
+  const w = 340, h = 150;
+  const vals = pts.map((p) => p.v).concat(b ? b : []);
+  const min = Math.min(...vals) - 1, max = Math.max(...vals) + 1;
+  const X = (i: number) => 10 + (i * (w - 20)) / (pts.length - 1);
+  const Y = (v: number) => (h - 18) - ((v - min) / (max - min)) * (h - 38);
+  const path = smoothPath(pts.map((p, i) => [X(i), Y(p.v)]));
+  const yearMarks: { i: number; label: string }[] = [];
+  pts.forEach((p, i) => {
+    if (i > 0 && p.d.slice(0, 4) !== pts[i - 1].d.slice(0, 4)) yearMarks.push({ i, label: p.d.slice(0, 4) });
+  });
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', display: 'block' }}>
+      {b && (
+        <rect x="10" y={Y(b[1])} width={w - 20} height={Math.max(0, Y(b[0]) - Y(b[1]))}
+          fill="var(--volt)" opacity="0.10" />
+      )}
+      {b && b.map((v, i) => (
+        <g key={i}>
+          <line x1="10" x2={w - 10} y1={Y(v)} y2={Y(v)} stroke="var(--volt)" opacity="0.35" strokeDasharray="3 4" />
+          <text x={w - 12} y={Y(v) + (i ? -4 : 11)} textAnchor="end" fontSize="9" fill="var(--mut)">{v}</text>
+        </g>
+      ))}
+      {yearMarks.map((m) => (
+        <g key={m.label}>
+          <line x1={X(m.i)} x2={X(m.i)} y1={12} y2={h - 16} stroke="var(--hair)" />
+          <text x={X(m.i) + 3} y={h - 5} fontSize="9" fill="var(--dim)">{m.label}</text>
+        </g>
+      ))}
+      <path d={path} fill="none" stroke="var(--volt)" strokeWidth="2" strokeLinecap="round" />
+      <circle cx={X(pts.length - 1)} cy={Y(pts[pts.length - 1].v)} r="4"
+        fill="var(--volt)" stroke="var(--raised)" strokeWidth="2" />
+    </svg>
+  );
+}
+
+export function MetricScreen() {
+  const { openTab, lift: mtype, me } = useApp();
+  const meta = METRIC_META[mtype];
+  const q = useQuery<MetricHistory>({
+    queryKey: ['metric-history', mtype],
+    queryFn: () => api(`/api/metrics/${mtype}/history`),
+    enabled: !!meta,
+  });
+  if (!meta) return <Shell><Back label="Progress" onClick={() => openTab('progress')} /><Chip>Unknown metric.</Chip></Shell>;
+  const h = q.data;
+  const unit = meta.unit(me.units);
+  const pts = h?.points || [];
+  const lastV = pts.length ? meta.disp(pts[pts.length - 1].v, me.units) : null;
+  const firstD = pts.length ? pts[0].d : null;
+  const inBand = lastV != null && meta.band
+    ? lastV >= meta.disp(meta.band[0], me.units) && lastV <= meta.disp(meta.band[1], me.units)
+    : null;
+  const bandWord = inBand == null ? null
+    : inBand ? 'inside the reference range'
+    : (lastV! > meta.disp(meta.band![1], me.units)) === !!meta.higherBetter
+      ? 'above the reference range' : 'below the reference range';
+  return (
+    <Shell>
+      <Back label="Progress" onClick={() => openTab('progress')} />
+      <Title kick={`All readings${firstD ? ` · since ${firstD}` : ''}`}>{meta.title}</Title>
+      <div className="card num">
+        <div className="row">
+          <span style={{ fontSize: 13.5, fontWeight: 600 }}>Latest</span>
+          <span className="disp num" style={{ fontSize: 22, color: 'var(--volt)' }}>
+            {lastV != null ? lastV : '—'}
+            <small style={{ fontSize: 11.5, color: 'var(--mut)', fontWeight: 400 }}> {unit}</small>
+          </span>
+        </div>
+        {!h && <Loading />}
+        {h && <BandChart points={pts} band={meta.band} disp={meta.disp} units={me.units} />}
+        {meta.band && (
+          <div className="sub">
+            Shaded: {meta.disp(meta.band[0], me.units)}–{meta.disp(meta.band[1], me.units)} {unit} · {meta.bandLabel}
+            {bandWord && <> — you're <b style={{ color: inBand ? 'var(--volt)' : 'var(--warn)' }}>{bandWord}</b></>}
+          </div>
+        )}
+      </div>
+      <div className="card">
+        <div className="kick" style={{ fontSize: 11, marginBottom: 5 }}>What this is</div>
+        <p style={{ fontSize: 14, lineHeight: 1.55 }}>{meta.blurb}</p>
+      </div>
+      {meta.band && (
+        <Chip>Reference ranges are broad healthy-adult guidance, not targets or diagnosis — bring
+          questions about your numbers to your GP.</Chip>
+      )}
+    </Shell>
+  );
+}
+
 export function ProgressScreen() {
   const { go, lift, me } = useApp();
   const q = useQuery<Progress>({ queryKey: ['progress'], queryFn: () => api('/api/progress') });
@@ -367,47 +521,54 @@ export function ProgressScreen() {
         <DotTrendChart raw={p.vo2max} smooth={p.vo2max_smooth} />
         {p.vo2max.length >= 2 &&
           <div className="sub">Trend over single readings — the coach reads this quarterly.</div>}
+        <button className="press" style={{ fontSize: 12.5, color: 'var(--volt)', fontWeight: 600 }}
+          onClick={() => go('metric', { lift: 'vo2max' })}>Full history + healthy range ›</button>
         <div className="statchips num">
           <div className="statchip"><div className="k">Zone 2</div>
             <div className="v" style={p.zone2.target && p.zone2.done >= p.zone2.target ? { color: 'var(--volt)' } : undefined}>
               {Math.round(p.zone2.done)}<small style={{ color: 'var(--mut)', fontWeight: 400 }}>/{p.zone2.target || '—'} m</small></div></div>
-          <div className="statchip"><div className="k">Resting HR</div>
-            <div className="v">{p.resting_hr.length ? Math.round(p.resting_hr[p.resting_hr.length - 1].v) : '—'} <small style={{ color: 'var(--mut)', fontWeight: 400 }}>bpm</small></div></div>
-          <div className="statchip"><div className="k">Sleep</div>
-            <div className="v">{p.sleep_h.length ? p.sleep_h[p.sleep_h.length - 1].v.toFixed(1) : '—'} <small style={{ color: 'var(--mut)', fontWeight: 400 }}>h</small></div></div>
+          <button className="statchip press" onClick={() => go('metric', { lift: 'resting_hr' })}>
+            <div className="k">Resting HR ›</div>
+            <div className="v">{p.resting_hr.length ? Math.round(p.resting_hr[p.resting_hr.length - 1].v) : '—'} <small style={{ color: 'var(--mut)', fontWeight: 400 }}>bpm</small></div></button>
+          <button className="statchip press" onClick={() => go('metric', { lift: 'sleep_h' })}>
+            <div className="k">Sleep ›</div>
+            <div className="v">{p.sleep_h.length ? p.sleep_h[p.sleep_h.length - 1].v.toFixed(1) : '—'} <small style={{ color: 'var(--mut)', fontWeight: 400 }}>h</small></div></button>
         </div>
       </div>
 
       <div className="sect">Body</div>
-      <div className="card">
+      <button className="card press" style={{ width: '100%', textAlign: 'inherit' }}
+        onClick={() => go('metric', { lift: 'weight' })}>
         <div className="row">
-          <span style={{ fontSize: 13.5, fontWeight: 600 }}>Bodyweight</span>
+          <span style={{ fontSize: 13.5, fontWeight: 600 }}>Bodyweight ›</span>
           <span className="disp num" style={{ fontSize: 20 }}>
             {wLast != null ? kgDisp(wLast, me.units) : '—'}</span>
         </div>
         <LineChart points={p.weight} />
-      </div>
+      </button>
       {(bc.fat_pct.length > 0 || bc.muscle.length > 0) && (
         <div className="card num">
           <div className="row">
             <span style={{ fontSize: 13.5, fontWeight: 600 }}>Body composition</span>
-            <span style={{ fontSize: 11.5, color: 'var(--mut)' }}>scale readings</span>
+            <span style={{ fontSize: 11.5, color: 'var(--mut)' }}>latest scale readings</span>
           </div>
           <div className="row" style={{ marginTop: 6 }}>
-            {([['Fat', last(bc.fat_pct), '%'],
-               ['Water', last(bc.water_pct), '%'],
-               ['Muscle', last(bc.muscle), null],
-               ['Bone', last(bc.bone), null]] as const).map(([k, v, pct]) => (
-              <span key={k} style={{ textAlign: 'center' }}>
-                <span className="lab" style={{ display: 'block' }}>{k}</span>
+            {([['Fat %', last(bc.fat_pct), '%', 'body_fat_pct'],
+               ['Water %', last(bc.water_pct), '%', 'water_pct'],
+               ['Muscle', last(bc.muscle), null, 'muscle_mass'],
+               ['Bone', last(bc.bone), null, 'bone_mass']] as const).map(([k, v, pct, type]) => (
+              <button key={k} className="press" style={{ textAlign: 'center' }}
+                onClick={() => go('metric', { lift: type })}>
+                <span className="lab" style={{ display: 'block' }}>{k} ›</span>
                 <span className="disp num" style={{ fontSize: 17 }}>
                   {v == null ? '—' : pct ? v.toFixed(1) + pct : kgDisp(v, me.units)}
                 </span>
-              </span>
+              </button>
             ))}
           </div>
           {bc.fat_pct.length >= 2 && <LineChart points={bc.fat_pct} />}
-          {bc.fat_pct.length >= 2 && <div className="sub">Body-fat % trend</div>}
+          {bc.fat_pct.length >= 2 && <div className="sub">Chart: body-fat % over the last year</div>}
+          <div className="sub">Tap any number for its full history and healthy range.</div>
         </div>
       )}
     </Shell>

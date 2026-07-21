@@ -15,7 +15,7 @@ export function toast(text: string, volt = false) {
 export type Tab = 'today' | 'history' | 'progress' | 'coach';
 export type Screen =
   | 'today' | 'day' | 'learn' | 'log' | 'swap' | 'cooldown' | 'summary'
-  | 'history' | 'detail' | 'progress' | 'records' | 'coach'
+  | 'history' | 'detail' | 'progress' | 'records' | 'metric' | 'coach'
   | 'settings' | 'set-conn' | 'set-equip' | 'set-niggles' | 'set-labs' | 'library' | 'set-notif'
   | 'set-coach' | 'set-units' | 'set-server';
 
@@ -63,6 +63,7 @@ export type LogAction =
   | { type: 'w'; d: number } | { type: 'r'; d: number } | { type: 'rpe'; n: number }
   | { type: 'wuDone' }
   | { type: 'logged'; slug: string; set: LoggedSetLocal; rest: number; moreLeft: boolean }
+  | { type: 'editSet'; slug: string; i: number; set: LoggedSetLocal }
   | { type: 'tick' } | { type: 'skipRest' } | { type: 'next' }
   | { type: 'swap'; alt: { slug: string; name: string; kind?: string } } | { type: 'swapBack' }
   | { type: 'unit'; u: LoadUnit }

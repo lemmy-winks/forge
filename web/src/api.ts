@@ -209,6 +209,9 @@ export interface ProposalResp {
   proposal: { id: string; num: number; rationale: string; created_at: string;
     content: { days: Record<string, ProposalDay>; changes?: ProposalChange[] } } | null;
 }
+/** Full-history series for one body/engine metric (Progress drill-down). */
+export interface MetricHistory { type: string; unit: string; points: SeriesPoint[]; }
+
 export interface Connections {
   apple_health: { configured: boolean; token_masked: string | null; last_push: string | null;
     samples: number; endpoint: string };
@@ -247,9 +250,28 @@ export async function enablePush(): Promise<string> {
   return 'ok';
 }
 
+/* ---------- timed (isometric / carry) exercises ---------- */
+/** Reps for these are SECONDS held, not repetitions — the UI shows a hold
+    timer and speaks in seconds. Matched on slug or name so coach-added
+    exercises (e.g. "Copenhagen Plank") classify without a library flag. */
+export function isTimed(slugOrName: string): boolean {
+  return /plank|hold|carry|wall.?sit|dead.?hang|farmer/i.test(slugOrName);
+}
+
 /* ---------- client-side helpers mirrored from server fitting ---------- */
-export function plateStr(kind: string, weight: number, profile?: Profile | null): string {
-  if (kind === 'db') return weight ? `2 × ${weight} kg dumbbells` : '';
+/** Single-implement dumbbell moves where "2 × w" would mislead. */
+const ONE_DB_BOTH_HANDS = /goblet|kettlebell|overhead-triceps/;
+const ONE_HAND = /one-arm|single-arm|db-row|suitcase/;
+
+export function plateStr(kind: string, weight: number, profile?: Profile | null,
+                         unit: LoadUnit = 'kg', slug = ''): string {
+  if (kind === 'db') {
+    if (!weight) return '';
+    const w = fmtLoad(weight, unit);
+    if (ONE_HAND.test(slug)) return `${w} in one hand — work each side in turn`;
+    if (ONE_DB_BOTH_HANDS.test(slug)) return `One ${w} — held with both hands`;
+    return `2 × ${w} — one per hand`;
+  }
   if (kind !== 'bb' || !profile || !profile.plates_kg?.length) return '';
   let per = (weight - profile.bar_kg) / 2;
   if (per < 0.01) return `Empty bar (${profile.bar_kg} kg)`;

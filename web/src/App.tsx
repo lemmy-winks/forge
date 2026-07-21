@@ -7,7 +7,7 @@ import {
 import { flushQueue } from './queue';
 import { AuthScreen, DeniedScreen } from './screens/auth';
 import { CoachScreen } from './screens/coach';
-import { DetailScreen, HistoryScreen, ProgressScreen, RecordsScreen } from './screens/data';
+import { DetailScreen, HistoryScreen, MetricScreen, ProgressScreen, RecordsScreen } from './screens/data';
 import { LearnScreen } from './screens/learn';
 import { OnboardingFlow } from './screens/onboarding';
 import { CooldownScreen, LogScreen, SummaryScreen, SwapScreen } from './screens/session';
@@ -43,7 +43,13 @@ function logReducer(state: LogState | null, a: LogAction): LogState | null {
     case 'w': {
       const t = curTarget(state);
       const step = loadStep(t.unit, t.kind);
-      return { ...state, w: Math.max(0, +(state.w + a.d * step).toFixed(1)) };
+      // Snap to the step grid, don't just add: a kg prescription displayed in
+      // lb starts at e.g. 126.8, and naive ±5 would never reach a round number.
+      const eps = 1e-6;
+      const next = a.d > 0
+        ? (Math.floor(state.w / step + eps) + 1) * step
+        : (Math.ceil(state.w / step - eps) - 1) * step;
+      return { ...state, w: Math.max(0, +next.toFixed(1)) };
     }
     case 'unit': {
       const t = state.targets[state.idx];
@@ -59,6 +65,10 @@ function logReducer(state: LogState | null, a: LogAction): LogState | null {
       const arr = [...(state.done[a.slug] || []), a.set];
       return { ...state, done: { ...state.done, [a.slug]: arr }, rpe: null, goFlag: false,
         remain: a.moreLeft ? a.rest : 0 };
+    }
+    case 'editSet': {
+      const arr = (state.done[a.slug] || []).map((s, i) => (i === a.i ? a.set : s));
+      return { ...state, done: { ...state.done, [a.slug]: arr } };
     }
     case 'tick': {
       if (state.remain <= 0) return state;
@@ -237,6 +247,7 @@ function AppInner({ me }: { me: Me }) {
     today: PlanScreen, day: DayScreen, learn: LearnScreen, log: LogScreen, swap: SwapScreen,
     cooldown: CooldownScreen, summary: SummaryScreen,
     history: HistoryScreen, detail: DetailScreen, progress: ProgressScreen, records: RecordsScreen,
+    metric: MetricScreen,
     coach: CoachScreen, settings: SettingsScreen, 'set-conn': ConnectionsScreen,
     'set-equip': EquipmentScreen, 'set-niggles': NigglesScreen, 'set-labs': LabsScreen,
     library: LibraryScreen, 'set-notif': NotifScreen, 'set-coach': CoachSettingsScreen,

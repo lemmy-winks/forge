@@ -808,3 +808,56 @@ def test_demo_cannot_reach_member_data():
 
     login()
     client.delete("/api/admin/demo")
+
+
+def test_edit_logged_set_and_stats_recompute():
+    """A mis-logged set can be corrected (active AND completed sessions);
+    completed-session stats are recomputed so the summary stays honest."""
+    login()
+    s = client.post("/api/sessions", json={"date": MONDAY, "budget": 60}).json()
+    sid = s["id"]
+    r = client.post(f"/api/sessions/{sid}/sets",
+                    json={"slug": "back-squat", "set_no": 1, "weight": 60, "reps": 3, "rpe": 9})
+    assert r.status_code == 200
+
+    # fat-fingered: it was actually 5 reps at RPE 7
+    r = client.patch(f"/api/sessions/{sid}/sets",
+                     json={"slug": "back-squat", "set_no": 1, "weight": 60, "reps": 5, "rpe": 7})
+    assert r.status_code == 200
+    detail = client.get(f"/api/sessions/{sid}").json()
+    sq = next(g for g in detail["exercises"] if g["slug"] == "back-squat")
+    assert sq["sets"][0]["reps"] == 5 and sq["sets"][0]["rpe"] == 7
+
+    # unknown set 404s; then complete and correct again — tonnage follows
+    assert client.patch(f"/api/sessions/{sid}/sets",
+                        json={"slug": "back-squat", "set_no": 9, "weight": 60, "reps": 5}).status_code == 404
+    client.post(f"/api/sessions/{sid}/complete", json={"cooldown_status": "done"})
+    r = client.patch(f"/api/sessions/{sid}/sets",
+                     json={"slug": "back-squat", "set_no": 1, "weight": 80, "reps": 5, "rpe": 8})
+    assert r.status_code == 200
+    stats = client.get(f"/api/sessions/{sid}").json()["stats"]
+    assert stats["tonnage"] == 0.4, "80 kg × 5 = 0.4 t after the correction"
+    assert stats["avg_rpe"] == 8
+
+
+def test_metric_history_and_vo2_aliases():
+    """Progress drill-down serves full history; HAE's alternate VO2max metric
+    names all land as vo2max (historical exports used different spellings)."""
+    login()
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+    payload = {"data": {"metrics": [
+        {"name": "vo2max", "units": "ml/kg/min",
+         "data": [{"date": "2024-03-01 18:00:00 +0100", "qty": 38.9}]},
+        {"name": "vo2 max", "units": "ml/kg/min",
+         "data": [{"date": "2024-06-01 18:00:00 +0100", "qty": 39.4}]},
+        {"name": "body_fat_percentage", "units": "%",
+         "data": [{"date": "2026-07-10 07:00:00 +0100", "qty": 21.4}]}]}}
+    r = client.post("/ingest", json=payload, headers={"Authorization": f"Bearer {tok}"})
+    assert r.json()["stored"] == 3
+
+    h = client.get("/api/metrics/vo2max/history").json()
+    assert h["unit"] == "ml/kg/min"
+    assert [p["v"] for p in h["points"][:2]] == [38.9, 39.4], "2024 readings included — full history"
+    assert 21.4 in [p["v"] for p in client.get("/api/metrics/body_fat_pct/history").json()["points"]]
+    assert client.get("/api/metrics/nope/history").status_code == 404
+    assert client.get("/api/metrics/water_pct/history").status_code == 200
