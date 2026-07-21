@@ -235,7 +235,7 @@ As James, I want to chat with my coach anytime so that questions and data entry 
 **E15.3 — Export**
 - AC1: Authenticated JSON export of all of a user's own data (and only theirs).
 
-## E16 · Nutrition *(beta track — designed Jul 2026, mockups 38–43)*
+## E16 · Nutrition *(beta track — designed Jul 2026, mockups 38–44)*
 
 Decisions (James, Jul 2026): all meals planned weekly; plan-first one-tap logging (no food-database diary); auto carry-over for waste; lunch assist = favorites ledger + menu paste (MealPal/Grubhub have no public APIs); dinners are household-shared; targets tuned for cholesterol — high protein, high fiber, sat-fat cap.
 
@@ -294,6 +294,14 @@ As James, I want cooking walked one step at a time so that the phone works propp
 - AC2: Steps with a duration run a countdown ring (the rest-ring pattern reused); timers are local and in-app only — E12.1's two push kinds are untouched.
 - AC3: Batch checkpoints ("box half before plating") are explicit tick rows; finishing cook mode logs the dinner (E16.4) with plate count, credits each participating user, and marks the linked zero-cook day as boxed.
 - AC4: Quick-log stays one tap for already-cooked meals — cook mode is optional, never a gate.
+
+**E16.11 — Recipe import (sourcing)**
+As James, I want recipes I already like — a BBC Good Food link, a photo of a HelloFresh card — pulled into the pool so that the library grows from taste, without me browsing the internet for dinner.
+- AC1: Pasting a recipe URL in chat imports it: the server fetches **that single page** and parses its schema.org Recipe JSON-LD when present; otherwise (and for photographed HelloFresh cards or screenshots) the coach reads the content directly. No crawling, no search — one page per explicit ask.
+- AC2: Imports are **normalized, not copied**: ingredients map to the `ingredients` table (new ones added with per-100 g macros), per-serving macros recomputed from ingredients and cross-checked against the source's published nutrition (BBC GF and HelloFresh both publish sat fat + fiber; large disagreement is surfaced, not averaged), steps rewritten in Forge's done-when voice (original prose never stored — app voice, and keeps the shared library clean for the public demo seat), platefig assigned, difficulty capped at medium or the recipe is flagged.
+- AC3: A confirmation card shows the parsed recipe (name, macros, mapped ingredients, `source` + `source_url` attribution) before anything is written; incomplete parses land as drafts the coach cannot propose.
+- AC4: The coach may **adapt on import** to fit targets (e.g. yogurt for cream, sat 19 → 7) with the change stated, or park a recipe as an explicit occasional treat — never silently reject.
+- AC5: Proposals draw only from the in-app pool; the coach never fetches the internet at proposal time. New imports become proposable at the next review (or immediately via swap).
 
 **E16.9 — Nutrition × labs**
 - AC1: Dashboard + Progress gain weekly fiber and sat-fat trends with lipid-panel draw dates marked; protein adherence renders beside strength trends.
