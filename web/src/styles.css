@@ -308,3 +308,46 @@ input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%;
              font:inherit; color:var(--ink); border-radius:14px; padding:12px 13px; font-size:13.5px;
              width:100%; text-align:left; }
 .warnbanner b{ flex:1; font-weight:600; }
+
+/* ---- Food tab (beta track, Phase 7): meters, meal rows, cook mode ---- */
+.meter{ padding:8px 0; }
+.meter + .meter{ border-top:1px solid var(--hair); }
+.meter .mval{ font-weight:300; font-size:15.5px; color:var(--mut); }
+.meter .mval b{ font-weight:700; color:var(--volt); font-style:normal; }
+.mtrack{ height:5px; border-radius:3px; background:var(--sunken); margin-top:6px; overflow:hidden; }
+.mtrack i{ display:block; height:100%; border-radius:3px; background:var(--volt); opacity:.9;
+           transition:width .35s ease; }
+
+.mealrow{ display:flex; align-items:center; gap:10px; border-top:1px solid var(--hair);
+          padding:11px 2px; font-size:15px; width:100%; text-align:left; }
+.mealrow .mname{ flex:1; min-width:0; }
+.mealrow .mname b{ font-weight:550; }
+.mtick{ width:24px; height:24px; border-radius:50%; background:var(--sunken); color:var(--dim);
+        display:flex; align-items:center; justify-content:center; font-size:12px; flex:none; }
+.mtick.done{ background:var(--volt); color:var(--on-volt); font-weight:800; }
+.mealrow .dcol{ width:34px; flex:none; text-align:center; }
+.mealrow .dcol .dn{ display:block; font-size:10px; color:var(--mut); text-transform:uppercase;
+                    letter-spacing:.06em; }
+.mealrow .dcol .dd{ display:block; font-size:16px; }
+
+.ingrow{ display:flex; align-items:baseline; gap:8px; border-top:1px solid var(--hair);
+         padding:9px 2px; font-size:14px; }
+.ingrow:first-child{ border-top:0; }
+.steprow{ display:flex; gap:10px; border-top:1px solid var(--hair); padding:10px 2px; font-size:14px; }
+.steprow:first-child{ border-top:0; }
+.steprow .n{ color:var(--volt); font-weight:700; width:16px; flex:none; }
+
+.dinline{ display:flex; justify-content:space-between; gap:8px; border-top:1px solid var(--hair);
+          margin-top:11px; padding-top:10px; font-size:13px; color:var(--mut); }
+
+.bigsub{ color:var(--mut); font-size:15px; line-height:1.55; }
+.stepdots{ display:flex; gap:7px; align-items:center; margin:2px 0; }
+.sdot{ width:30px; height:30px; border-radius:50%; background:var(--sunken); color:var(--dim);
+       display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; flex:none; }
+.sdot.done{ background:var(--volt); color:var(--on-volt); font-weight:800; }
+.sdot.cur{ background:var(--volt-dim); color:var(--volt); box-shadow:inset 0 0 0 1.6px var(--volt); }
+.steplab{ flex:1; text-align:right; color:var(--dim); font-size:10.5px; letter-spacing:.1em;
+          text-transform:uppercase; }
+.ringcook{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:6px 0; }
+.ringcook .ringnum{ font-weight:300; font-size:34px; letter-spacing:-.01em; fill:var(--ink); }
+.ringcook .ringcap{ font-size:9.5px; fill:var(--mut); letter-spacing:.1em; text-transform:uppercase; }

@@ -8,12 +8,13 @@ import { flushQueue } from './queue';
 import { AuthScreen, DeniedScreen } from './screens/auth';
 import { CoachScreen } from './screens/coach';
 import { DetailScreen, HistoryScreen, ProgressScreen, RecordsScreen } from './screens/data';
+import { CookScreen, FoodDayScreen, FoodWeekScreen, RecipeScreen, flushFoodQueue } from './screens/food';
 import { LearnScreen } from './screens/learn';
 import { OnboardingFlow } from './screens/onboarding';
 import { CooldownScreen, LogScreen, SummaryScreen, SwapScreen } from './screens/session';
 import {
   CoachSettingsScreen, ConnectionsScreen, EquipmentScreen, LabsScreen, LibraryScreen,
-  NigglesScreen, NotifScreen, ServerScreen, SettingsScreen, UnitsScreen,
+  NigglesScreen, NotifScreen, NutritionScreen, ServerScreen, SettingsScreen, UnitsScreen,
 } from './screens/settings';
 import { DayScreen, PlanScreen } from './screens/today';
 import {
@@ -100,6 +101,8 @@ function AppInner({ me }: { me: Me }) {
   const [detailId, setDetailId] = useState('');
   const [lift, setLift] = useState('');
   const [dayDate, setDayDate] = useState<string | null>(null);
+  const [foodSlug, setFoodSlug] = useState('');
+  const [foodDate, setFoodDate] = useState<string | null>(null);
   const [budget, setBudget] = useState<number | null>(null);
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [chatContext, setChatContext] = useState<AppCtxType['chatContext']>(null);
@@ -111,9 +114,12 @@ function AppInner({ me }: { me: Me }) {
     if (extra?.detailId !== undefined) setDetailId(extra.detailId);
     if (extra?.lift !== undefined) setLift(extra.lift);
     if (extra && 'dayDate' in extra) setDayDate(extra.dayDate ?? null);
+    if (extra?.foodSlug !== undefined) setFoodSlug(extra.foodSlug);
+    if (extra && 'foodDate' in extra) setFoodDate(extra.foodDate ?? null);
     if (extra && 'chatContext' in extra) setChatContext(extra.chatContext ?? null);
     setScreen(s);
     if (s === 'coach') setTab('coach');
+    if (s === 'food') setTab('food');
   }, []);
 
   const openTab = useCallback((t: Tab) => { setTab(t); setScreen(t); }, []);
@@ -228,22 +234,27 @@ function AppInner({ me }: { me: Me }) {
   }, []);
 
   const ctx = useMemo<AppCtxType>(() => ({
-    me, screen, tab, learnSlug, learnFrom, detailId, lift, dayDate, chatContext, setChatContext,
+    me, screen, tab, learnSlug, learnFrom, detailId, lift, dayDate, foodSlug, foodDate,
+    chatContext, setChatContext,
     go, openTab, budget, setBudget, log, logDispatch, startSession, resumeSession, finishSession, summary, signOut,
-  }), [me, screen, tab, learnSlug, learnFrom, detailId, lift, dayDate, chatContext, go, openTab,
-       budget, log, startSession, resumeSession, finishSession, summary, signOut]);
+  }), [me, screen, tab, learnSlug, learnFrom, detailId, lift, dayDate, foodSlug, foodDate,
+       chatContext, go, openTab, budget, log, startSession, resumeSession, finishSession, summary, signOut]);
 
   const SCREENS: Record<Screen, () => JSX.Element> = {
     today: PlanScreen, day: DayScreen, learn: LearnScreen, log: LogScreen, swap: SwapScreen,
     cooldown: CooldownScreen, summary: SummaryScreen,
+    food: FoodDayScreen, 'food-week': FoodWeekScreen, recipe: RecipeScreen, cook: CookScreen,
     history: HistoryScreen, detail: DetailScreen, progress: ProgressScreen, records: RecordsScreen,
     coach: CoachScreen, settings: SettingsScreen, 'set-conn': ConnectionsScreen,
     'set-equip': EquipmentScreen, 'set-niggles': NigglesScreen, 'set-labs': LabsScreen,
     library: LibraryScreen, 'set-notif': NotifScreen, 'set-coach': CoachSettingsScreen,
-    'set-units': UnitsScreen, 'set-server': ServerScreen,
+    'set-units': UnitsScreen, 'set-server': ServerScreen, 'set-food': NutritionScreen,
   };
   const Cur = SCREENS[screen];
-  const curKey = screen === 'day' ? 'day:' + (dayDate || 'today') : screen;
+  const curKey = screen === 'day' ? 'day:' + (dayDate || 'today')
+    : screen === 'food' ? 'food:' + (foodDate || 'today')
+    : screen === 'recipe' || screen === 'cook' ? screen + ':' + foodSlug
+    : screen;
   return <AppCtx.Provider value={ctx}><Cur key={curKey} /></AppCtx.Provider>;
 }
 
@@ -277,6 +288,7 @@ const qc = new QueryClient({
 
 window.addEventListener('online', () => {
   flushQueue((n) => toast('Synced ' + n + ' queued set' + (n > 1 ? 's' : '')));
+  flushFoodQueue((n) => toast('Synced ' + n + ' queued meal' + (n > 1 ? 's' : '')));
 });
 
 export default function App() {

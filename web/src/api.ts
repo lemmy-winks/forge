@@ -209,6 +209,39 @@ export interface ProposalResp {
   proposal: { id: string; num: number; rationale: string; created_at: string;
     content: { days: Record<string, ProposalDay>; changes?: ProposalChange[] } } | null;
 }
+/* ---------- nutrition (beta track, Phase 7) ---------- */
+export interface NutritionTargets { kcal: number; protein_g: number; fiber_g: number; satfat_g: number; }
+export interface RecipeCard {
+  slug: string; name: string; kind: string; minutes: number; difficulty: string;
+  serves: number; batch: number; platefig: string; why: string;
+  kcal: number; protein_g: number; fiber_g: number; satfat_g: number;
+}
+export interface FoodSlot {
+  slot: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  logged: boolean; log_id: string | null; why?: string;
+  recipe?: RecipeCard; order?: boolean; out?: boolean; leftover?: boolean; note?: string;
+}
+export interface FoodExtra {
+  id: string; slot: string; label: string;
+  kcal: number; protein_g: number; fiber_g: number; satfat_g: number; estimated: boolean;
+}
+export interface FoodDay {
+  date: string; day_name: string; is_today: boolean;
+  slots: FoodSlot[]; extras: FoodExtra[];
+  totals: { kcal: number; protein_g: number; fiber_g: number; satfat_g: number };
+}
+export interface FoodWeek {
+  start: string; days: FoodDay[]; targets: NutritionTargets; rationale: string; has_plan: boolean;
+}
+export interface RecipeStep { title: string; minutes?: number; detail: string; timer?: boolean; }
+export interface RecipeIngredient {
+  name: string; qty: number; unit: string; disp: string; note?: string; aisle: string; pantry: boolean;
+}
+export interface RecipeFull extends RecipeCard {
+  steps: RecipeStep[]; ingredients: RecipeIngredient[]; tags: string[];
+  carbs_g: number; fat_g: number; source: string; source_url: string;
+}
+
 export interface Connections {
   apple_health: { configured: boolean; token_masked: string | null; last_push: string | null;
     samples: number; endpoint: string };

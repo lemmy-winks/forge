@@ -12,12 +12,13 @@ export function toast(text: string, volt = false) {
 }
 
 /* ---------------- navigation / app context ---------------- */
-export type Tab = 'today' | 'history' | 'progress' | 'coach';
+export type Tab = 'today' | 'food' | 'history' | 'progress' | 'coach';
 export type Screen =
   | 'today' | 'day' | 'learn' | 'log' | 'swap' | 'cooldown' | 'summary'
+  | 'food' | 'food-week' | 'recipe' | 'cook'
   | 'history' | 'detail' | 'progress' | 'records' | 'coach'
   | 'settings' | 'set-conn' | 'set-equip' | 'set-niggles' | 'set-labs' | 'library' | 'set-notif'
-  | 'set-coach' | 'set-units' | 'set-server';
+  | 'set-coach' | 'set-units' | 'set-server' | 'set-food';
 
 export interface LoggedSetLocal { weight: number; reps: number; rpe: number | null; } // weight in kg
 /** unit = display unit for this lift; target weights stay kg, LogState.w is display-unit. */
@@ -42,9 +43,10 @@ export interface AppCtxType {
   screen: Screen; tab: Tab;
   learnSlug: string; learnFrom: Screen; detailId: string; lift: string;
   dayDate: string | null;
+  foodSlug: string; foodDate: string | null;
   chatContext: ChatContext | null;
   setChatContext: (c: ChatContext | null) => void;
-  go: (s: Screen, extra?: Partial<Pick<AppCtxType, 'learnSlug' | 'learnFrom' | 'detailId' | 'lift' | 'dayDate' | 'chatContext'>>) => void;
+  go: (s: Screen, extra?: Partial<Pick<AppCtxType, 'learnSlug' | 'learnFrom' | 'detailId' | 'lift' | 'dayDate' | 'foodSlug' | 'foodDate' | 'chatContext'>>) => void;
   openTab: (t: Tab) => void;
   budget: number | null;
   setBudget: (n: number) => void;
@@ -95,6 +97,7 @@ export function useOnline(): boolean {
 /* ---------------- chrome components ---------------- */
 const ICONS: Record<Tab, ReactNode> = {
   today: <><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 9h16M8 3v4M16 3v4" /></>,
+  food: <><path d="M4 13a8 8 0 0 0 16 0z" /><path d="M9 9c0-1.6 1.2-1.6 1.2-3.2M14 9c0-1.6 1.2-1.6 1.2-3.2" /></>,
   history: <><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></>,
   progress: <path d="M4 18l5-6 4 3 7-9" />,
   coach: <path d="M5 5h14v10H10l-5 4z" />,
@@ -116,7 +119,9 @@ export function Header() {
   );
 }
 
-const TAB_LABELS: Record<Tab, string> = { today: 'Plan', history: 'History', progress: 'Progress', coach: 'Coach' };
+const TAB_LABELS: Record<Tab, string> = {
+  today: 'Plan', food: 'Food', history: 'History', progress: 'Progress', coach: 'Coach',
+};
 
 /** Volt dot on the Coach tab when the last coach message is newer than the last visit. */
 function useCoachUnread(active: boolean): boolean {
@@ -133,7 +138,7 @@ export function Tabs() {
   const unread = useCoachUnread(tab === 'coach');
   return (
     <nav className="tabs">
-      {(['today', 'history', 'progress', 'coach'] as Tab[]).map((t) => (
+      {(['today', 'food', 'history', 'progress', 'coach'] as Tab[]).map((t) => (
         <button key={t} className={'tab' + (tab === t ? ' on' : '')} onClick={() => openTab(t)}
           style={{ position: 'relative' }}>
           <svg viewBox="0 0 24 24">{ICONS[t]}</svg>

@@ -28,6 +28,7 @@ export function SettingsScreen() {
     a.click();
   };
   const rows: [string, string, () => void][] = [
+    ['Nutrition', 'targets, cook nights, budgets', () => go('set-food')],
     ['Units', 'loads, body, labs', () => go('set-units')],
     ['Connections', connQ.data ? (connQ.data.apple_health.last_push ? 'Apple Health ✓' : 'Apple Health — not seen yet') : '…', () => go('set-conn')],
     ['Coach', connQ.data?.coach_mcp.active ? 'agent live · Sun 20:00 review' : 'not configured', () => go('set-coach')],
@@ -79,6 +80,86 @@ function UnitSeg({ value, options, onPick }: {
         <button key={v} className={value === v ? 'sel' : ''} onClick={() => onPick(v)}>{label}</button>
       ))}
     </div>
+  );
+}
+
+/* ---------------- nutrition (beta track, Phase 7 — E16.1) ---------------- */
+export function NutritionScreen() {
+  const { me, go, openTab } = useApp();
+  const qc = useQueryClient();
+  const [prefs, setPrefs] = useState<Record<string, any>>(me.prefs || {});
+  const groceryRef = useRef<HTMLInputElement>(null);
+  const lunchRef = useRef<HTMLInputElement>(null);
+  const t = prefs.nutrition_targets || { kcal: 2300, protein_g: 160, fiber_g: 38, satfat_g: 18 };
+
+  const savePrefs = (patch: Record<string, any>) => {
+    const next = { ...prefs, ...patch };
+    setPrefs(next);
+    qc.setQueryData<Me>(['me'], (old) => old && { ...old, prefs: next });
+    api('/api/prefs', { method: 'PATCH', body: { prefs: patch } }).catch(() => toast('Offline — not saved'));
+  };
+  const saveBudgets = () => {
+    const g = parseFloat(groceryRef.current?.value || '');
+    const l = parseFloat(lunchRef.current?.value || '');
+    const patch: Record<string, any> = {};
+    if (g > 0) patch.budget_grocery = g;
+    if (l > 0) patch.budget_lunch = l;
+    if (!Object.keys(patch).length) { toast('Enter a number first'); return; }
+    savePrefs(patch);
+    toast('Budgets saved', true);
+  };
+
+  return (
+    <Shell>
+      <Back label="Settings" onClick={() => go('settings')} />
+      <h2 className="title">Nutrition</h2>
+
+      <div className="card">
+        <div className="kick" style={{ fontSize: 11, marginBottom: 6 }}>Daily targets · set by your coach</div>
+        <div className="disp num" style={{ fontSize: 17 }}>
+          {t.kcal} kcal · P {t.protein_g} · fiber {t.fiber_g} · sat ≤{t.satfat_g}
+        </div>
+        <div className="sub">Proposed from your goals, training load and labs. Change them in chat —
+          the coach explains the trade-offs first.</div>
+        <button className="ghost press" style={{ marginTop: 8, padding: 9 }} onClick={() => openTab('coach')}>
+          Discuss targets with the coach
+        </button>
+      </div>
+
+      <div className="card">
+        <div className="kick" style={{ fontSize: 11, marginBottom: 6 }}>Cook nights per week</div>
+        <UnitSeg value={String(prefs.cook_nights ?? 4)}
+          options={[['3', '3'], ['4', '4'], ['5', '5'], ['6', '6']]}
+          onPick={(v) => savePrefs({ cook_nights: +v })} />
+        <div className="sub">The weekly proposal plans this many dinners; the rest are leftovers or out.
+          Batch nights count once.</div>
+      </div>
+
+      <div className="card">
+        <div className="kick" style={{ fontSize: 11, marginBottom: 8 }}>Budgets</div>
+        <div className="btnrow">
+          <div className="field" style={{ flex: 1 }}><label>Grocery · week</label>
+            <input ref={groceryRef} inputMode="decimal" placeholder={String(prefs.budget_grocery ?? 110)} /></div>
+          <div className="field" style={{ flex: 1 }}><label>Lunch cap · day</label>
+            <input ref={lunchRef} inputMode="decimal" placeholder={String(prefs.budget_lunch ?? 15)} /></div>
+        </div>
+        <button className="ghost press" style={{ marginTop: 8, padding: 9 }} onClick={saveBudgets}>
+          Save budgets
+        </button>
+      </div>
+
+      <div className="card">
+        <div className="kick" style={{ fontSize: 11, marginBottom: 6 }}>Dinners feed the household</div>
+        <UnitSeg value={prefs.household_dinners === false ? 'off' : 'on'}
+          options={[['on', 'On'], ['off', 'Off']]}
+          onPick={(v) => savePrefs({ household_dinners: v === 'on' })} />
+        <div className="sub">Portions ×2 when you're both in — each plate logs to its own day,
+          each person's targets stay their own.</div>
+      </div>
+
+      <Chip>No new notification kinds — your food week rides the existing Sunday proposal push.
+        Coach-proposed food weeks and the shopping list land in Phase 8.</Chip>
+    </Shell>
   );
 }
 

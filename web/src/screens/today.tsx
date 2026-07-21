@@ -1,8 +1,22 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
-import { api, fmtLoad, fmtT, kgDisp, loadUnitFor, todayISO, type ProposalResp, type Today, type WeekResp } from '../api';
+import { api, fmtLoad, fmtT, kgDisp, loadUnitFor, todayISO, type FoodWeek, type ProposalResp, type Today, type WeekResp } from '../api';
 import { MuscleMap } from '../musclemap';
+import { useFoodWeek } from './food';
 import { Back, Chip, Loading, Shell, Title, toast, useApp } from '../ui';
+
+/** Tonight's (or a given date's) dinner from the food week — one quiet line on
+    Plan; Plan stays a training screen. */
+function dinnerFor(fw: FoodWeek | undefined, date: string):
+    { label: string; minutes: number | null; slug: string | null } | null {
+  const day = fw?.days.find((d) => d.date === date);
+  const s = day?.slots.find((x) => x.slot === 'dinner');
+  if (!s) return null;
+  if (s.out) return { label: 'night out', minutes: null, slug: null };
+  if (!s.recipe) return null;
+  if (s.leftover) return { label: `${s.recipe.name} · leftovers`, minutes: null, slug: s.recipe.slug };
+  return { label: s.recipe.name, minutes: s.recipe.minutes, slug: s.recipe.slug };
+}
 
 /* ---------------- Plan: the whole week, separated by day ---------------- */
 
@@ -32,6 +46,7 @@ export function PlanScreen() {
   const qc = useQueryClient();
   const q = useQuery<WeekResp>({ queryKey: ['week'], queryFn: () => api('/api/week') });
   const pq = useQuery<ProposalResp>({ queryKey: ['proposal'], queryFn: () => api('/api/proposal') });
+  const fw = useFoodWeek();
   const [noteOpen, setNoteOpen] = useState(false);
   const [dangOpen, setDangOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -131,6 +146,23 @@ export function PlanScreen() {
           {today.focus.length > 0 && (
             <div className="fpills">{today.focus.map((f) => <span key={f} className="fpill">{f}</span>)}</div>
           )}
+          {(() => {
+            const din = dinnerFor(fw.data, today.date);
+            if (!din) return null;
+            return (
+              <span className="dinline" role="link" tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (din.slug) go('recipe', { foodSlug: din.slug, foodDate: today.date });
+                  else go('food');
+                }}>
+                <span>◉ Tonight · {din.label}</span>
+                <span className="num" style={{ color: 'var(--volt)', fontWeight: 600 }}>
+                  {din.minutes ? `${din.minutes} min ›` : '›'}
+                </span>
+              </span>
+            );
+          })()}
         </button>
       )}
 
@@ -144,6 +176,14 @@ export function PlanScreen() {
               <b>{d.day_name}</b>
               <span style={{ display: 'block', fontSize: 13, color: 'var(--mut)', marginTop: 2 }}>
                 {d.name || 'Rest'}
+                {(() => {
+                  const din = dinnerFor(fw.data, d.date);
+                  return din ? <span style={{ color: 'var(--dim)' }}>
+                    {' · '}{din.slug && !din.label.includes('leftovers')
+                      ? `dinner: ${din.label.split(',')[0].split(' —')[0].toLowerCase()}`
+                      : din.label.includes('leftovers') ? 'dinner: leftovers' : din.label}
+                  </span> : null;
+                })()}
               </span>
             </span>
             <span className="rsub num" style={done ? { color: 'var(--volt)', fontWeight: 700 } : undefined}>
