@@ -260,14 +260,38 @@ def start_session(body: StartSession, user: User = Depends(current_user), db: Se
     rev = active_revision(db, user.id)
     days = ((rev.content or {}).get("days", {}) or {}) if rev else {}
     entry = days.get(body.plan_day) if body.plan_day else days.get(str(day_date.weekday()))
-    if not entry or entry.get("kind") != "strength":
-        raise HTTPException(status_code=400, detail="no strength session planned for this day")
 
     existing = (db.query(WorkoutSession)
                 .filter(WorkoutSession.user_id == user.id, WorkoutSession.day == day_date,
                         WorkoutSession.kind == "strength", WorkoutSession.status == "active").first())
     if existing:
+        # The user may have moved the time slider since this session was first
+        # started — the Day screen previews the new fit, so handing back the
+        # stale snapshot silently restores the untrimmed session. Re-fit to the
+        # requested budget, but never below what's already been logged.
+        targets = (existing.fitted or {}).get("targets", [])
+        plan_entries = ([dict(e) for e in entry.get("exercises", [])]
+                        if entry and entry.get("kind") == "strength" else [])
+        if (body.budget != existing.time_budget_min and plan_entries
+                and {e["slug"] for e in plan_entries} == {t["slug"] for t in targets}):
+            done: dict[str, int] = {}
+            for s in existing.sets:
+                key = s.substituted_for or s.exercise_slug
+                done[key] = done.get(key, 0) + 1
+            fit = fit_day(plan_entries, body.budget)
+            sets_map = {e["slug"]: max(fit["sets"][e["slug"]], done.get(e["slug"], 0))
+                        for e in plan_entries}
+            existing.fitted = {
+                **existing.fitted, "budget": body.budget, "cd": fit["cd"],
+                "est": est_minutes(plan_entries, sets_map, fit["cd"]),
+                "targets": [{**e, "sets": sets_map[e["slug"]]} for e in plan_entries],
+            }
+            existing.time_budget_min = body.budget
+            db.commit()
         return {"id": existing.id, "fitted": existing.fitted, "resumed": True}
+
+    if not entry or entry.get("kind") != "strength":
+        raise HTTPException(status_code=400, detail="no strength session planned for this day")
 
     entries = [dict(e) for e in entry.get("exercises", [])]
     fit = fit_day(entries, body.budget)
