@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
-import { api, fmtLoad, fmtT, kgDisp, loadUnitFor, todayISO, type FoodWeek, type ProposalResp, type Today, type WeekResp } from '../api';
+import { addDaysISO, api, fmtDur, fmtLoad, kgDisp, loadUnitFor, todayISO, weekStartISO, type FoodWeek, type ProposalResp, type Today, type WeekResp } from '../api';
 import { MuscleMap } from '../musclemap';
 import { useFoodWeek } from './food';
 import { Back, Chip, Loading, Shell, Title, toast, useApp } from '../ui';
@@ -44,9 +44,15 @@ const dayMinutes = (d: WeekResp['days'][number]): number =>
 export function PlanScreen() {
   const { go, openTab, resumeSession } = useApp();
   const qc = useQueryClient();
-  const q = useQuery<WeekResp>({ queryKey: ['week'], queryFn: () => api('/api/week') });
+  // weekStart: Monday of the viewed week; null = the current week
+  const [weekStart, setWeekStart] = useState<string | null>(null);
+  const q = useQuery<WeekResp>({
+    queryKey: ['week', weekStart || 'current'],
+    queryFn: () => api('/api/week' + (weekStart ? `?date=${weekStart}` : '')),
+    placeholderData: keepPreviousData,
+  });
   const pq = useQuery<ProposalResp>({ queryKey: ['proposal'], queryFn: () => api('/api/proposal') });
-  const fw = useFoodWeek();
+  const fw = useFoodWeek(weekStart);
   const [noteOpen, setNoteOpen] = useState(false);
   const [dangOpen, setDangOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -71,26 +77,53 @@ export function PlanScreen() {
 
   const right = (d: WeekResp['days'][number]): string => {
     const s = d.session;
-    if (s?.status === 'completed') {
+    if (s && (s.status === 'completed' || s.status === 'unplanned')) {
       const st = s.stats || {};
+      const tick = s.status === 'completed' ? '✓ ' : '';
       return s.kind === 'cardio'
-        ? '✓ ' + [st.distance ? st.distance.toFixed(1) + ' km' : null,
-                  st.duration_s ? fmtT(st.duration_s) : null].filter(Boolean).join(' · ')
+        ? tick + [st.distance ? st.distance.toFixed(1) + ' km' : null,
+                  st.duration_s ? fmtDur(st.duration_s) : null].filter(Boolean).join(' · ')
         : `✓ ${st.tonnage ?? 0} t`;
     }
     if (s?.status === 'active') return 'in progress';
+    if (d.date < w.today) return d.kind === 'rest' ? '' : 'missed';
     if (d.kind === 'strength') return `~${d.est} min`;
     if (d.kind === 'cardio') return `${d.minutes ?? '?'} min`;
     return '';
   };
+  // a planned day that came and went with nothing logged
+  const missed = (d: WeekResp['days'][number]): boolean =>
+    d.date < w.today && d.kind !== 'rest' && !(d.session && d.session.status !== 'active');
 
   const maxMin = Math.max(...w.days.map(dayMinutes), 30);
   const today = w.days.find((d) => d.is_today);
   const rest = w.days.filter((d) => !d.is_today);
 
+  const curMonday = weekStartISO(todayISO());
+  const isCurrent = (weekStart || curMonday) === curMonday;
+  const shiftWeek = (n: number) => {
+    const next = addDaysISO(weekStart || curMonday, n * 7);
+    setWeekStart(next === curMonday ? null : next);
+  };
+  const weekOf = new Date(w.start + 'T12:00:00Z')
+    .toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+
   return (
     <Shell>
-      <Title kick="Today + the six days ahead">Plan</Title>
+      <div className="row" style={{ alignItems: 'center' }}>
+        <Title kick={isCurrent ? 'This week' : `Week of ${weekOf}`}>Plan</Title>
+        <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {!isCurrent && (
+            <button className="press" style={{ fontSize: 12, color: 'var(--volt)', fontWeight: 700 }}
+              onClick={() => setWeekStart(null)}>this week</button>
+          )}
+          <button className="ghost press" aria-label="Previous week"
+            style={{ width: 34, padding: '6px 0' }} onClick={() => shiftWeek(-1)}>‹</button>
+          <button className="ghost press" aria-label="Next week"
+            disabled={(weekStart || curMonday) >= addDaysISO(curMonday, 7)}
+            style={{ width: 34, padding: '6px 0' }} onClick={() => shiftWeek(1)}>›</button>
+        </span>
+      </div>
 
       {dang && (
         <button className="warnbanner press" onClick={() => setDangOpen(true)}>
@@ -115,7 +148,7 @@ export function PlanScreen() {
           const min = dayMinutes(d);
           const done = d.session?.status === 'completed';
           return (
-            <button key={d.date} className={'ws press' + (done ? ' done' : '') + (d.is_today ? ' today' : '')}
+            <button key={d.date} className={'ws press' + (done ? ' done' : '') + (d.is_today ? ' today' : '') + (missed(d) ? ' miss' : '')}
               aria-label={`${d.day_name}: ${d.name || 'rest'}`}
               onClick={() => go('day', { dayDate: d.is_today ? null : d.date })}>
               <span className="col">
@@ -186,7 +219,8 @@ export function PlanScreen() {
                 })()}
               </span>
             </span>
-            <span className="rsub num" style={done ? { color: 'var(--volt)', fontWeight: 700 } : undefined}>
+            <span className="rsub num" style={done ? { color: 'var(--volt)', fontWeight: 700 }
+              : missed(d) ? { color: 'var(--warn)', fontWeight: 600 } : undefined}>
               {right(d)}
             </span>
             <span className="chev">›</span>
@@ -238,9 +272,6 @@ export function useToday(date?: string | null) {
 function planDayKey(iso: string): string {
   return String((new Date(iso + 'T12:00:00Z').getUTCDay() + 6) % 7);
 }
-function shiftISO(iso: string, days: number): string {
-  return new Date(new Date(iso + 'T12:00:00Z').getTime() + days * 86400000).toISOString().slice(0, 10);
-}
 
 function budgetDefault(t?: Today): number {
   const full = t?.full_est || 50;
@@ -258,7 +289,7 @@ export function DayScreen() {
 
   const isOther = !!viewDate;
   const shift = (d: number) => {
-    const next = shiftISO(viewDate || todayISO(), d);
+    const next = addDaysISO(viewDate || todayISO(), d);
     setViewDate(next === todayISO() ? null : next);
   };
   const head = (

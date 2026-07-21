@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import {
-  api, ApiError, dispToKg, fmtLoad, fmtT, isTimed, kgToDisp, loadUnitFor, plateStr,
+  api, ApiError, dispToKg, fmtDur, fmtLoad, fmtT, isTimed, kgToDisp, loadUnitFor, plateStr,
   type Alternative, type ExerciseDetail, type LoadUnit, type Me, type Pb,
 } from '../api';
 import { FormFig } from '../formfig';
@@ -500,7 +500,7 @@ export function SummaryScreen() {
       ))}
       <div className="tiles">
         <div className="tile"><div className="k">Duration</div>
-          <div className="v disp num">{stats.duration_s ? fmtT(stats.duration_s) : '—'}</div>
+          <div className="v disp num">{stats.duration_s ? fmtDur(stats.duration_s) : '—'}</div>
           <div className="d num">vs ~{L.est} min planned</div></div>
         <div className="tile"><div className="k">Volume</div>
           <div className="v disp num">{stats.tonnage ?? 0} <small>t</small></div>

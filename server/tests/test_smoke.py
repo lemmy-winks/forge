@@ -170,6 +170,31 @@ def test_week_overview():
     assert d2["kind"] == "cardio" and d2["minutes"] == 40
 
 
+def test_week_snaps_to_monday_and_pages():
+    login()
+    # any date inside the week returns that whole Mon–Sun week
+    w = client.get("/api/week?date=2026-07-23").json()
+    assert w["start"] == MONDAY
+    assert w["days"][0]["date"] == MONDAY and len(w["days"]) == 7
+    assert "today" in w
+    # previous week pages back a full 7 days
+    prev = client.get("/api/week?date=2026-07-19").json()
+    assert prev["start"] == "2026-07-13"
+    # food week follows the same alignment
+    fw = client.get("/api/food/week?date=2026-07-23").json()
+    assert fw["start"] == MONDAY and "today" in fw
+
+
+def test_history_pagination():
+    login()
+    full = client.get("/api/history").json()
+    assert len(full) >= 2
+    p1 = client.get("/api/history?limit=1").json()
+    p2 = client.get("/api/history?limit=1&offset=1").json()
+    assert [p1[0]["id"], p2[0]["id"]] == [full[0]["id"], full[1]["id"]]
+    assert client.get("/api/history?limit=0").status_code == 422
+
+
 def test_pull_forward_another_days_workout():
     login()
     tuesday = "2026-07-21"
@@ -751,9 +776,11 @@ def test_demo_account_lifecycle():
     me = client.get("/auth/me").json()
     assert me["role"] == "demo" and me["prefs"].get("onboarded") is True
 
-    # a year of history that the screens can actually render
+    # a year of history that the screens can actually render, paged
     hist = client.get("/api/history").json()
-    assert len(hist) == 60, "history page is full (60-row cap)"
+    assert len(hist) == 30, "history serves a full default page"
+    page2 = client.get("/api/history?offset=30").json()
+    assert page2 and page2[0]["id"] not in {h["id"] for h in hist}
     assert any(h["kind"] == "cardio" and (h["stats"].get("pct_in_zone") or 0) > 0 for h in hist)
     prog = client.get("/api/progress").json()
     assert len(prog["e1rm"]["back-squat"]["points"]) > 20, "a year of squat progression"

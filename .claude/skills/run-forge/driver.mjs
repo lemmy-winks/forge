@@ -26,7 +26,10 @@ fs.mkdirSync(OUT, { recursive: true });
 const CHROME = process.env.CHROME_BIN
   || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
-const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new' });
+const browser = await puppeteer.launch({
+  executablePath: CHROME, headless: 'new',
+  args: process.env.CHROME_NO_SANDBOX ? ['--no-sandbox'] : [],
+});
 const page = await browser.newPage();
 const problems = [];
 page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
@@ -66,7 +69,7 @@ if (want('app') || want('light')) {
   });
   await shot('01-auth');
   await clickText('button', 'Try the demo');
-  await waitText('the six days ahead');
+  await waitText('This week');
   await sleep(1200);
 }
 

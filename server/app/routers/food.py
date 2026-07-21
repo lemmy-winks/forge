@@ -69,8 +69,9 @@ def _resolve_slot(entry: dict, days: dict, recipes: dict[str, Recipe]) -> dict |
 @router.get("/week")
 def food_week(date: str | None = None, user: User = Depends(current_user),
               db: Session = Depends(get_db)):
-    """Rolling 7-day food view, same contract as /api/week: today first."""
+    """Calendar-week food view (Mon–Sun), same contract as /api/week."""
     base = parse_date(date)
+    base = base - timedelta(days=base.weekday())  # snap to Monday
     actual_today = local_today()
     rev = active_meal_revision(db, user)
     days = ((rev.content or {}).get("days", {}) or {}) if rev else {}
@@ -117,7 +118,8 @@ def food_week(date: str | None = None, user: User = Depends(current_user),
             "totals": totals,
         })
 
-    return {"start": str(base), "days": out_days, "targets": targets_for(user),
+    return {"start": str(base), "today": str(actual_today), "days": out_days,
+            "targets": targets_for(user),
             "rationale": rev.rationale if rev else "", "has_plan": rev is not None}
 
 

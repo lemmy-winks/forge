@@ -3,10 +3,10 @@
    cholesterol trio leads. Ticks queue in localStorage when offline and
    replay idempotently via client_id (uq_meal_client server-side). */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import {
-  api, ApiError, fmtT, todayISO,
+  addDaysISO, api, ApiError, fmtT, todayISO, weekStartISO,
   type FoodDay, type FoodProposalResp, type FoodPropSlot, type FoodSlot, type FoodWeek,
   type RecipeFull,
 } from '../api';
@@ -38,8 +38,14 @@ export async function flushFoodQueue(onDone?: (n: number) => void) {
 }
 
 /* ---------------- data ---------------- */
-export function useFoodWeek() {
-  return useQuery<FoodWeek>({ queryKey: ['foodweek'], queryFn: () => api('/api/food/week') });
+/** The Mon–Sun food week containing `weekStart` (a Monday ISO; null/undefined
+ *  = the current week). */
+export function useFoodWeek(weekStart?: string | null) {
+  return useQuery<FoodWeek>({
+    queryKey: ['foodweek', weekStart || 'current'],
+    queryFn: () => api('/api/food/week' + (weekStart ? `?date=${weekStart}` : '')),
+    placeholderData: keepPreviousData,
+  });
 }
 
 export function useFoodProposal() {
@@ -184,7 +190,10 @@ function Meter({ label, val, target, cap }: { label: string; val: number; target
 export function FoodDayScreen() {
   const { go, openTab, foodDate } = useApp();
   const qc = useQueryClient();
-  const wq = useFoodWeek();
+  // fetch the week containing the viewed date, so days from a paged week open too
+  const rawStart = foodDate ? weekStartISO(foodDate) : null;
+  const wkStart = rawStart === weekStartISO(todayISO()) ? null : rawStart;
+  const wq = useFoodWeek(wkStart);
   const [propOpen, setPropOpen] = useState(false);
   const w = wq.data;
   if (!w) return <Shell><Loading /></Shell>;
@@ -207,7 +216,7 @@ export function FoodDayScreen() {
     if (!s.recipe) return;
     const body: QueuedTick = { date, slot: s.slot, recipe: s.recipe.slug, client_id: crypto.randomUUID() };
     // optimistic: mark logged + bump the day's totals in the cached week
-    qc.setQueryData<FoodWeek>(['foodweek'], (old) => old && ({
+    qc.setQueryData<FoodWeek>(['foodweek', wkStart || 'current'], (old) => old && ({
       ...old,
       days: old.days.map((d) => d.date !== date ? d : {
         ...d,
@@ -333,11 +342,19 @@ export function FoodDayScreen() {
 /* ---------------- week menu ---------------- */
 export function FoodWeekScreen() {
   const { go } = useApp();
-  const wq = useFoodWeek();
+  const [weekStart, setWeekStart] = useState<string | null>(null);
+  const wq = useFoodWeek(weekStart);
   const w = wq.data;
   const [noteOpen, setNoteOpen] = useState(false);
   const [propOpen, setPropOpen] = useState(false);
   if (!w) return <Shell><Loading /></Shell>;
+
+  const curMonday = weekStartISO(todayISO());
+  const isCurrent = (weekStart || curMonday) === curMonday;
+  const shiftWeek = (n: number) => {
+    const next = addDaysISO(weekStart || curMonday, n * 7);
+    setWeekStart(next === curMonday ? null : next);
+  };
 
   const planned = w.days.map((d) => {
     const sums = { protein_g: 0, fiber_g: 0, satfat_g: 0 };
@@ -361,7 +378,20 @@ export function FoodWeekScreen() {
   return (
     <Shell>
       <Back label="Food" onClick={() => go('food')} />
-      <Title kick={`Week of ${w.start}`}>Food week</Title>
+      <div className="row" style={{ alignItems: 'center' }}>
+        <Title kick={isCurrent ? 'This week' : `Week of ${w.start}`}>Food week</Title>
+        <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {!isCurrent && (
+            <button className="press" style={{ fontSize: 12, color: 'var(--volt)', fontWeight: 700 }}
+              onClick={() => setWeekStart(null)}>this week</button>
+          )}
+          <button className="ghost press" aria-label="Previous week"
+            style={{ width: 34, padding: '6px 0' }} onClick={() => shiftWeek(-1)}>‹</button>
+          <button className="ghost press" aria-label="Next week"
+            disabled={(weekStart || curMonday) >= addDaysISO(curMonday, 7)}
+            style={{ width: 34, padding: '6px 0' }} onClick={() => shiftWeek(1)}>›</button>
+        </span>
+      </div>
 
       <FoodProposalBanner onOpen={() => setPropOpen(true)} />
       {propOpen && (
