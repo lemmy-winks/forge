@@ -125,7 +125,9 @@ export function NutritionScreen() {
   const [prefs, setPrefs] = useState<Record<string, any>>(me.prefs || {});
   const groceryRef = useRef<HTMLInputElement>(null);
   const lunchRef = useRef<HTMLInputElement>(null);
-  const t = prefs.nutrition_targets || { kcal: 2300, protein_g: 160, fiber_g: 38, satfat_g: 18 };
+  // merge under stored prefs so users whose targets predate the full macro set still see the new ones
+  const t = { kcal: 2300, protein_g: 160, carbs_g: 250, sugar_g: 65, fiber_g: 38,
+    fat_g: 80, satfat_g: 18, sodium_mg: 2300, ...(prefs.nutrition_targets || {}) };
 
   const savePrefs = (patch: Record<string, any>) => {
     const next = { ...prefs, ...patch };
@@ -152,7 +154,10 @@ export function NutritionScreen() {
       <div className="card">
         <div className="kick" style={{ fontSize: 11, marginBottom: 6 }}>Daily targets · set by your coach</div>
         <div className="disp num" style={{ fontSize: 17 }}>
-          {t.kcal} kcal · P {t.protein_g} · fiber {t.fiber_g} · sat ≤{t.satfat_g}
+          {t.kcal} kcal · P {t.protein_g} · C {t.carbs_g} · F {t.fat_g} · fiber {t.fiber_g}
+        </div>
+        <div className="disp num" style={{ fontSize: 13, color: 'var(--mut)', marginTop: 2 }}>
+          caps · sat fat ≤{t.satfat_g} g · sugar ≤{t.sugar_g} g · sodium ≤{t.sodium_mg} mg
         </div>
         <div className="sub">Proposed from your goals, training load and labs. Change them in chat —
           the coach explains the trade-offs first.</div>

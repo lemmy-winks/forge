@@ -138,10 +138,22 @@ async def lifespan(_app: FastAPI):
             time.sleep(1)
     # create_all never alters existing tables (no Alembic yet) — tiny additive migrations here.
     from sqlalchemy import inspect, text
-    cols = {c["name"] for c in inspect(engine).get_columns("exercises")}
-    if "benefit" not in cols:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE exercises ADD COLUMN benefit TEXT DEFAULT ''"))
+
+    def _add_missing_columns(table: str, columns: dict[str, str]) -> None:
+        have = {c["name"] for c in inspect(engine).get_columns(table)}
+        for col, ddl in columns.items():
+            if col not in have:
+                with engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
+
+    _add_missing_columns("exercises", {"benefit": "TEXT DEFAULT ''"})
+    # full macro set on the food tables (carbs/sugar/fat/sodium joined the trio)
+    _new_macros = {c: "FLOAT DEFAULT 0" for c in ("carbs_g", "sugar_g", "fat_g", "sodium_mg")}
+    _add_missing_columns("recipes", {"sugar_g": "FLOAT DEFAULT 0", "sodium_mg": "FLOAT DEFAULT 0"})
+    _add_missing_columns("ingredients",
+                         {c: "FLOAT DEFAULT 0" for c in ("carbs_100", "sugar_100", "fat_100", "sodium_100")})
+    _add_missing_columns("meal_log", _new_macros)
+    _add_missing_columns("lunch_favorites", _new_macros)
     # scrub artefacts of the old agent loop that could end a run with no message
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM chat_messages WHERE text = '(no reply)'"))

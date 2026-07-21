@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from ..config import local_today
 from ..db import get_db
 from ..food_seed import DEFAULT_TARGETS
-from ..models import Ingredient, MealLog, MealRevision, Recipe, User
+from ..models import MACRO_FIELDS, Ingredient, MealLog, MealRevision, Recipe, User
 from ..security import current_user
 from .training import DAY_NAMES, parse_date
 
@@ -37,7 +37,7 @@ def recipe_card(r: Recipe) -> dict:
     return {"slug": r.slug, "name": r.name, "kind": r.kind, "minutes": r.minutes,
             "difficulty": r.difficulty, "serves": r.serves, "batch": r.batch,
             "platefig": r.platefig, "why": r.why,
-            "kcal": r.kcal, "protein_g": r.protein_g, "fiber_g": r.fiber_g, "satfat_g": r.satfat_g}
+            **{k: getattr(r, k) for k in MACRO_FIELDS}}
 
 
 def targets_for(user: User) -> dict:
@@ -107,13 +107,12 @@ def food_week(date: str | None = None, user: User = Depends(current_user),
                              "log_id": match.id if match else None})
             slots_out.append(resolved)
         extras = [lg for lg in day_logs if lg.id not in matched_ids]
-        totals = {k: round(sum(getattr(lg, k) for lg in day_logs), 1)
-                  for k in ("kcal", "protein_g", "fiber_g", "satfat_g")}
+        totals = {k: round(sum(getattr(lg, k) or 0 for lg in day_logs), 1) for k in MACRO_FIELDS}
         out_days.append({
             "date": str(d), "day_name": DAY_NAMES[d.weekday()], "is_today": d == actual_today,
             "slots": slots_out,
-            "extras": [{"id": lg.id, "slot": lg.slot, "label": lg.label, "kcal": lg.kcal,
-                        "protein_g": lg.protein_g, "fiber_g": lg.fiber_g, "satfat_g": lg.satfat_g,
+            "extras": [{"id": lg.id, "slot": lg.slot, "label": lg.label,
+                        **{k: getattr(lg, k) or 0 for k in MACRO_FIELDS},
                         "estimated": bool(lg.estimated)} for lg in extras],
             "totals": totals,
         })
@@ -182,8 +181,7 @@ def recipe_detail(slug: str, user: User = Depends(current_user), db: Session = D
         ingredients.append({**i, "aisle": meta.aisle if meta else "cupboard",
                             "pantry": bool(meta.pantry) if meta else False})
     return {**recipe_card(r), "steps": r.steps or [], "ingredients": ingredients,
-            "tags": r.tags or [], "carbs_g": r.carbs_g, "fat_g": r.fat_g,
-            "source": r.source, "source_url": r.source_url}
+            "tags": r.tags or [], "source": r.source, "source_url": r.source_url}
 
 
 class LogIn(BaseModel):
@@ -195,8 +193,12 @@ class LogIn(BaseModel):
     label: str | None = None
     kcal: float | None = None
     protein_g: float | None = None
+    carbs_g: float | None = None
+    sugar_g: float | None = None
     fiber_g: float | None = None
+    fat_g: float | None = None
     satfat_g: float | None = None
+    sodium_mg: float | None = None
     estimated: bool = False
     source: str = "plan"
     client_id: str | None = None  # offline-queue idempotency
@@ -204,8 +206,7 @@ class LogIn(BaseModel):
 
 def _day_totals(db: Session, user: User, day) -> dict:
     rows = db.query(MealLog).filter(MealLog.user_id == user.id, MealLog.day == day).all()
-    return {k: round(sum(getattr(lg, k) for lg in rows), 1)
-            for k in ("kcal", "protein_g", "fiber_g", "satfat_g")}
+    return {k: round(sum(getattr(lg, k) or 0 for lg in rows), 1) for k in MACRO_FIELDS}
 
 
 @router.post("/log")
@@ -225,18 +226,15 @@ def log_meal(body: LogIn, user: User = Depends(current_user), db: Session = Depe
             raise HTTPException(status_code=400, detail="unknown recipe")
         n = body.servings
         row = MealLog(user_id=user.id, day=day, slot=body.slot, recipe_slug=r.slug,
-                      label=r.name, servings=n, kcal=round(r.kcal * n, 1),
-                      protein_g=round(r.protein_g * n, 1), fiber_g=round(r.fiber_g * n, 1),
-                      satfat_g=round(r.satfat_g * n, 1), source=body.source,
-                      client_id=body.client_id)
+                      label=r.name, servings=n, source=body.source, client_id=body.client_id,
+                      **{k: round((getattr(r, k) or 0) * n, 1) for k in MACRO_FIELDS})
     else:
         if not body.label or body.kcal is None:
             raise HTTPException(status_code=400, detail="off-plan entries need label + kcal")
         row = MealLog(user_id=user.id, day=day, slot=body.slot, label=body.label,
-                      servings=body.servings, kcal=body.kcal or 0,
-                      protein_g=body.protein_g or 0, fiber_g=body.fiber_g or 0,
-                      satfat_g=body.satfat_g or 0, source=body.source or "chat",
-                      estimated=1 if body.estimated else 0, client_id=body.client_id)
+                      servings=body.servings, source=body.source or "chat",
+                      estimated=1 if body.estimated else 0, client_id=body.client_id,
+                      **{k: getattr(body, k) or 0 for k in MACRO_FIELDS})
     db.add(row)
     try:
         db.commit()

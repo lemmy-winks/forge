@@ -6,9 +6,9 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import {
-  addDaysISO, api, ApiError, fmtT, todayISO, weekStartISO,
+  addDaysISO, api, ApiError, fmtT, MACRO_KEYS, todayISO, weekStartISO,
   type FoodDay, type FoodProposalResp, type FoodPropSlot, type FoodSlot, type FoodWeek,
-  type RecipeFull,
+  type Macros, type RecipeFull,
 } from '../api';
 import { PlateFig } from '../platefig';
 import { Back, Chip, Loading, Shell, Title, toast, useApp } from '../ui';
@@ -171,7 +171,8 @@ function slotName(s: FoodSlot): string {
 }
 
 /* ---------------- meters ---------------- */
-function Meter({ label, val, target, cap }: { label: string; val: number; target: number; cap?: boolean }) {
+function Meter({ label, val, target, cap, unit = ' g' }:
+  { label: string; val: number; target: number; cap?: boolean; unit?: string }) {
   const pct = Math.min(100, Math.round((val / Math.max(target, 1)) * 100));
   const over = cap && val > target;
   return (
@@ -179,7 +180,7 @@ function Meter({ label, val, target, cap }: { label: string; val: number; target
       <div className="row">
         <span className="sub" style={{ margin: 0 }}>{label}</span>
         <span className="mval num"><b className={over ? 'warn' : ''}>{Math.round(val * 10) / 10}</b>
-          {' / '}{cap ? '≤' : ''}{target}{label === 'Calories' ? '' : ' g'}</span>
+          {' / '}{cap ? '≤' : ''}{target}{unit}</span>
       </div>
       <div className="mtrack"><i style={{ width: pct + '%', background: over ? 'var(--warn)' : undefined }} /></div>
     </div>
@@ -221,12 +222,8 @@ export function FoodDayScreen() {
       days: old.days.map((d) => d.date !== date ? d : {
         ...d,
         slots: d.slots.map((x) => x.slot === s.slot ? { ...x, logged: true } : x),
-        totals: {
-          kcal: d.totals.kcal + (s.recipe!.kcal || 0),
-          protein_g: d.totals.protein_g + (s.recipe!.protein_g || 0),
-          fiber_g: d.totals.fiber_g + (s.recipe!.fiber_g || 0),
-          satfat_g: d.totals.satfat_g + (s.recipe!.satfat_g || 0),
-        },
+        totals: Object.fromEntries(MACRO_KEYS.map((k) =>
+          [k, (d.totals[k] || 0) + (s.recipe![k] || 0)])) as unknown as Macros,
       }),
     }));
     try {
@@ -283,7 +280,12 @@ export function FoodDayScreen() {
           <Meter label="Protein" val={day.totals.protein_g} target={t.protein_g} />
           <Meter label="Fiber" val={day.totals.fiber_g} target={t.fiber_g} />
           <Meter label="Sat fat · cap" val={day.totals.satfat_g} target={t.satfat_g} cap />
-          <Meter label="Calories" val={day.totals.kcal} target={t.kcal} />
+          <Meter label="Calories" val={day.totals.kcal} target={t.kcal} unit="" />
+          <div style={{ borderTop: '1px solid var(--hair)', margin: '8px 0' }} />
+          <Meter label="Carbs" val={day.totals.carbs_g} target={t.carbs_g} />
+          <Meter label="Sugar · cap" val={day.totals.sugar_g} target={t.sugar_g} cap />
+          <Meter label="Fat" val={day.totals.fat_g} target={t.fat_g} />
+          <Meter label="Sodium · cap" val={day.totals.sodium_mg} target={t.sodium_mg} cap unit=" mg" />
           {onPlanLine && <div className="sub up" style={{ marginTop: 8 }}>{onPlanLine}</div>}
         </div>
       )}
@@ -309,7 +311,7 @@ export function FoodDayScreen() {
               <b>{slotName(s)}</b>
               <span className="sub num" style={{ margin: 0, display: 'block' }}>
                 {SLOT_LABEL[s.slot]}
-                {s.recipe && <> · {s.recipe.kcal} kcal · P {s.recipe.protein_g} · fib {s.recipe.fiber_g} · sat {s.recipe.satfat_g}</>}
+                {s.recipe && <> · {s.recipe.kcal} kcal · P {s.recipe.protein_g} · C {s.recipe.carbs_g} · F {s.recipe.fat_g} · fib {s.recipe.fiber_g} · sat {s.recipe.satfat_g}</>}
                 {!s.recipe && s.note && <> · {s.note}</>}
               </span>
             </span>
@@ -327,7 +329,7 @@ export function FoodDayScreen() {
           <PlateFig id="plate" />
           <span className="mname"><b>{x.label}</b>
             <span className="sub num" style={{ margin: 0, display: 'block' }}>
-              {SLOT_LABEL[x.slot] || x.slot} · {x.kcal} kcal · P {x.protein_g}{x.estimated ? ' · estimated' : ''}
+              {SLOT_LABEL[x.slot] || x.slot} · {x.kcal} kcal · P {x.protein_g} · C {x.carbs_g} · F {x.fat_g}{x.estimated ? ' · estimated' : ''}
             </span></span>
         </div>
       ))}
@@ -500,8 +502,14 @@ export function RecipeScreen() {
       <div className="fchips">
         <span className="fchip num">{r.kcal} kcal</span>
         <span className="fchip num">P {r.protein_g}</span>
+        <span className="fchip num">carbs {r.carbs_g}</span>
         <span className="fchip num">fiber {r.fiber_g}</span>
-        <span className="fchip num">sat fat {r.satfat_g}</span>
+        <span className="fchip num">fat {r.fat_g}</span>
+      </div>
+      <div className="fchips">
+        <span className="fchip dim num">sugar {r.sugar_g} g</span>
+        <span className="fchip dim num">sat fat {r.satfat_g} g</span>
+        <span className="fchip dim num">sodium {r.sodium_mg} mg</span>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0' }}>
@@ -658,6 +666,12 @@ export function CookScreen() {
             <div className="statchip"><div className="k">Protein</div><div className="v disp num">{r.protein_g}</div></div>
             <div className="statchip"><div className="k">Fiber</div><div className="v disp num">{r.fiber_g}</div></div>
             <div className="statchip"><div className="k">Sat fat</div><div className="v disp num">{r.satfat_g}</div></div>
+          </div>
+          <div className="statchips">
+            <div className="statchip"><div className="k">Carbs</div><div className="v disp num">{r.carbs_g}</div></div>
+            <div className="statchip"><div className="k">Sugar</div><div className="v disp num">{r.sugar_g}</div></div>
+            <div className="statchip"><div className="k">Fat</div><div className="v disp num">{r.fat_g}</div></div>
+            <div className="statchip"><div className="k">Sodium</div><div className="v disp num">{r.sodium_mg}<span className="sub" style={{ margin: 0, fontSize: 10 }}> mg</span></div></div>
           </div>
         </div>
         <button className="cta mt press" onClick={() => go('food')}>Done</button>

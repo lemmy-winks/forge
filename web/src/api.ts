@@ -210,25 +210,31 @@ export interface ProposalResp {
     content: { days: Record<string, ProposalDay>; changes?: ProposalChange[] } } | null;
 }
 /* ---------- nutrition (beta track, Phase 7) ---------- */
-export interface NutritionTargets { kcal: number; protein_g: number; fiber_g: number; satfat_g: number; }
-export interface RecipeCard {
+/** The full per-meal macro set (matches server models.MACRO_FIELDS). Grams,
+ *  except kcal and sodium (mg). */
+export interface Macros {
+  kcal: number; protein_g: number; carbs_g: number; sugar_g: number;
+  fiber_g: number; fat_g: number; satfat_g: number; sodium_mg: number;
+}
+export const MACRO_KEYS = ['kcal', 'protein_g', 'carbs_g', 'sugar_g',
+  'fiber_g', 'fat_g', 'satfat_g', 'sodium_mg'] as const satisfies readonly (keyof Macros)[];
+export type NutritionTargets = Macros;
+export interface RecipeCard extends Macros {
   slug: string; name: string; kind: string; minutes: number; difficulty: string;
   serves: number; batch: number; platefig: string; why: string;
-  kcal: number; protein_g: number; fiber_g: number; satfat_g: number;
 }
 export interface FoodSlot {
   slot: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   logged: boolean; log_id: string | null; why?: string;
   recipe?: RecipeCard; order?: boolean; out?: boolean; leftover?: boolean; note?: string;
 }
-export interface FoodExtra {
-  id: string; slot: string; label: string;
-  kcal: number; protein_g: number; fiber_g: number; satfat_g: number; estimated: boolean;
+export interface FoodExtra extends Macros {
+  id: string; slot: string; label: string; estimated: boolean;
 }
 export interface FoodDay {
   date: string; day_name: string; is_today: boolean;
   slots: FoodSlot[]; extras: FoodExtra[];
-  totals: { kcal: number; protein_g: number; fiber_g: number; satfat_g: number };
+  totals: Macros;
 }
 export interface FoodWeek {
   start: string; today: string; days: FoodDay[]; targets: NutritionTargets;
@@ -253,7 +259,7 @@ export interface RecipeIngredient {
 }
 export interface RecipeFull extends RecipeCard {
   steps: RecipeStep[]; ingredients: RecipeIngredient[]; tags: string[];
-  carbs_g: number; fat_g: number; source: string; source_url: string;
+  source: string; source_url: string;
 }
 /** Full-history series for one body/engine metric (Progress drill-down). */
 export interface MetricHistory { type: string; unit: string; points: SeriesPoint[]; }

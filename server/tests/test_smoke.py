@@ -847,6 +847,8 @@ def test_food_week_recipe_and_one_tap_log():
     w = client.get(f"/api/food/week?date={MONDAY}").json()
     assert w["has_plan"] and len(w["days"]) == 7
     assert w["targets"]["fiber_g"] == 38
+    # extended targets always resolve, even for users whose stored prefs predate them
+    assert w["targets"]["carbs_g"] == 250 and w["targets"]["sodium_mg"] == 2300
     mon = w["days"][0]
     dinner = next(s for s in mon["slots"] if s["slot"] == "dinner")
     assert dinner["recipe"]["slug"] == "harissa-chicken-traybake"
@@ -867,6 +869,8 @@ def test_food_week_recipe_and_one_tap_log():
     assert any(i["name"] == "chickpeas" and i["aisle"] == "cupboard" for i in r["ingredients"])
     assert any(i.get("pantry") for i in r["ingredients"]), "pantry staples flagged"
     assert r["fiber_g"] == 11 and r["satfat_g"] == 4.5 and r["difficulty"] == "easy"
+    # full label set on the card (E16 macro expansion)
+    assert r["carbs_g"] == 38 and r["fat_g"] == 16 and r["sugar_g"] == 10 and r["sodium_mg"] == 620
     assert client.get("/api/food/recipes/nope").status_code == 404
 
     # one-tap tick with offline-queue idempotency
@@ -874,6 +878,7 @@ def test_food_week_recipe_and_one_tap_log():
             "client_id": "tick-1"}
     r1 = client.post("/api/food/log", json=body).json()
     assert r1["duplicate"] is False and r1["totals"]["protein_g"] == 42
+    assert r1["totals"]["carbs_g"] == 38 and r1["totals"]["sodium_mg"] == 620, "full macro snapshot"
     r2 = client.post("/api/food/log", json=body).json()
     assert r2["duplicate"] is True and r2["id"] == r1["id"]
     w = client.get(f"/api/food/week?date={MONDAY}").json()
@@ -1064,13 +1069,16 @@ def test_food_proposal_demo_wall_and_coach_tools():
         assert len(_exec_tool(db, james, "get_food_week", {})["days"]) == 7
         pool = _exec_tool(db, james, "get_recipes", {"kind": "dinner"})
         assert pool and all(p["kind"] == "dinner" for p in pool)
+        assert all(p["carbs_g"] > 0 and p["sodium_mg"] > 0 for p in pool), "pool carries the full label set"
         assert _exec_tool(db, james, "get_food_proposal", {})["proposal"]["rationale"] == "Member week."
         r = _exec_tool(db, james, "log_meal", {"slot": "lunch", "label": "burrito bowl",
-                                               "kcal": 700, "protein_g": 45, "fiber_g": 12,
-                                               "satfat_g": 8, "estimated": True})
-        assert r.get("id")
+                                               "kcal": 700, "protein_g": 45, "carbs_g": 70,
+                                               "sugar_g": 6, "fiber_g": 12, "fat_g": 24,
+                                               "satfat_g": 8, "sodium_mg": 1400, "estimated": True})
+        assert r.get("id") and r["totals"]["sodium_mg"] == 1400 and r["totals"]["carbs_g"] == 70
         row = db.query(MealLog).filter(MealLog.id == r["id"]).first()
         assert row.estimated == 1 and row.source == "chat" and row.user_id == james.id
+        assert row.sugar_g == 6 and row.fat_g == 24
         db.delete(row)
 
         # carry-overs: add, list, keep/bin

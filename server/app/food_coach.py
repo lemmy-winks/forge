@@ -16,16 +16,17 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from .config import local_today
+from .models import MACRO_FIELDS as MACROS
 from .models import Carryover, MealRevision, Recipe, User
 
 DAY_KEYS = ("0", "1", "2", "3", "4", "5", "6")
 SLOTS = ("breakfast", "lunch", "dinner", "snack")
-MACROS = ("kcal", "protein_g", "fiber_g", "satfat_g")
 
 # What an order-assist lunch is coached to hit — counted into the weekly
 # average so office days don't read as protein holes. Real numbers land when
 # the meal is logged (chat estimate, flagged `estimated`).
-ORDER_LUNCH_ASSUMED = {"kcal": 550.0, "protein_g": 40.0, "fiber_g": 8.0, "satfat_g": 6.0}
+ORDER_LUNCH_ASSUMED = {"kcal": 550.0, "protein_g": 40.0, "carbs_g": 45.0, "sugar_g": 8.0,
+                       "fiber_g": 8.0, "fat_g": 20.0, "satfat_g": 6.0, "sodium_mg": 900.0}
 
 
 def food_scope(user: User) -> str | None:
@@ -107,7 +108,7 @@ def validate_food_content(db: Session, user: User, content: dict, changes: list)
             if slot == "dinner" and not (entry.get("why") or "").strip():
                 return f"day {key}: the dinner needs a why one-liner (the UI renders it)"
             for k in MACROS:
-                totals[k] += float(getattr(r, {"kcal": "kcal"}.get(k, k)) or 0)
+                totals[k] += float(getattr(r, k) or 0)
     if zero_cook < 1:
         return "at least one dinner must be zero-cook (a leftover night or the night out) — batch a recipe"
 
