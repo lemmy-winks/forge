@@ -54,6 +54,7 @@ export function SettingsScreen() {
             border: '1px solid var(--hair)', color: 'var(--volt)', fontWeight: 700 }}>ADMIN</span>
         )}
       </div>
+      <AboutYouCard />
       <div className="card">
         <div className="lab" style={{ marginBottom: 8 }}>Appearance</div>
         <UnitSeg value={theme} onPick={pickTheme}
@@ -67,6 +68,40 @@ export function SettingsScreen() {
       <button className="lrow press" onClick={exportData}><b>Export my data</b><span className="rsub">JSON download</span></button>
       <button className="lrow press" onClick={signOut}><b style={{ color: 'var(--volt-deep)' }}>Sign out</b></button>
     </Shell>
+  );
+}
+
+/** Sex + birth year — used only to pick the right reference bands on the
+    Progress metric screens. Optional; generic adult bands apply until set. */
+function AboutYouCard() {
+  const { me } = useApp();
+  const qc = useQueryClient();
+  const yearRef = useRef<HTMLInputElement>(null);
+  const save = (patch: Record<string, any>) => {
+    qc.setQueryData<Me>(['me'], (old) => old && { ...old, prefs: { ...old.prefs, ...patch } });
+    api('/api/prefs', { method: 'PATCH', body: { prefs: patch } }).catch(() => toast('Offline — not saved'));
+  };
+  const saveYear = () => {
+    const y = parseInt(yearRef.current?.value || '', 10);
+    if (!y) return;
+    if (y < 1930 || y > 2015) { toast('That birth year doesn’t look right'); return; }
+    save({ birth_year: y });
+    toast('Saved — reference ranges now use your age', true);
+  };
+  return (
+    <div className="card">
+      <div className="lab" style={{ marginBottom: 8 }}>About you · tunes healthy ranges</div>
+      <UnitSeg value={me.prefs?.sex || ''} options={[['m', 'Male'], ['f', 'Female']]}
+        onPick={(v) => save({ sex: v })} />
+      <div className="btnrow" style={{ marginTop: 8, alignItems: 'flex-end' }}>
+        <div className="field" style={{ flex: 1 }}><label>Birth year</label>
+          <input ref={yearRef} inputMode="numeric" placeholder="1988"
+            defaultValue={me.prefs?.birth_year || ''} onBlur={saveYear}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} /></div>
+      </div>
+      <div className="sub">Only used to pick age- and sex-appropriate reference bands on the
+        Progress charts — never shared, never sent anywhere.</div>
+    </div>
   );
 }
 

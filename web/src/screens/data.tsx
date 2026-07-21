@@ -292,14 +292,55 @@ function LineChart({ points }: { points: { d: string; v: number }[] }) {
 
 /* ---------------- metric drill-down (Progress → tap a number) ---------------- */
 
+type Sex = 'm' | 'f' | null;
+interface BandFor { range: [number, number]; label: string; }
 interface MetricMeta {
   title: string; unit: (units: string) => string;
   /** convert canonical → display value */
   disp: (v: number, units: string) => number;
-  band?: [number, number]; bandLabel?: string; higherBetter?: boolean;
+  /** age/sex-aware reference band; null = no meaningful universal range */
+  band?: (sex: Sex, age: number | null) => BandFor;
+  higherBetter?: boolean;
   blurb: string;
 }
-/** Reference bands are broad healthy-adult ranges — context, never diagnosis. */
+
+const GENERIC_NOTE = 'general adult range — set sex & birth year in Settings to tune this to you';
+const sexWord = (s: Sex) => (s === 'f' ? 'women' : 'men');
+/** Decade bucket label like "40–49" (clamped to the tables we carry). */
+const decade = (age: number) => {
+  const d = Math.min(60, Math.max(20, Math.floor(age / 10) * 10));
+  return d === 60 ? '60+' : `${d}–${d + 9}`;
+};
+
+/** Healthy body-fat % by sex/age (ACE/Gallagher-style, rounded). */
+function fatBand(sex: Sex, age: number | null): BandFor {
+  if (!sex || age == null) return { range: [10, 25], label: GENERIC_NOTE };
+  const table: Record<string, [number, number][]> = {
+    m: [[8, 20], [11, 22], [13, 25]], f: [[21, 33], [23, 34], [24, 36]],
+  };
+  const i = age < 40 ? 0 : age < 60 ? 1 : 2;
+  return { range: table[sex][i], label: `healthy range · ${sexWord(sex)} ${decade(age)}` };
+}
+
+function waterBand(sex: Sex): BandFor {
+  if (!sex) return { range: [45, 65], label: GENERIC_NOTE };
+  return sex === 'f' ? { range: [45, 60], label: 'typical range · women' }
+                     : { range: [50, 65], label: 'typical range · men' };
+}
+
+/** VO2max "good" decade bands (Cooper-style norms, rounded). */
+function vo2Band(sex: Sex, age: number | null): BandFor {
+  if (!sex || age == null) return { range: [35, 48], label: `${GENERIC_NOTE} · higher is better` };
+  const table: Record<string, [number, number][]> = {
+    m: [[44, 51], [41, 48], [39, 46], [36, 43], [33, 40]],
+    f: [[36, 44], [34, 41], [32, 38], [29, 36], [27, 33]],
+  };
+  const i = Math.min(4, Math.max(0, Math.floor((age - 20) / 10)));
+  return { range: table[sex][i],
+           label: `"good" band · ${sexWord(sex)} ${decade(age)} · higher is better` };
+}
+
+/** Reference bands are broad healthy ranges — context, never diagnosis. */
 const METRIC_META: Record<string, MetricMeta> = {
   weight: {
     title: 'Bodyweight', unit: (u) => (u === 'lb' ? 'lb' : 'kg'),
@@ -307,13 +348,12 @@ const METRIC_META: Record<string, MetricMeta> = {
     blurb: 'Scale weight, whenever a reading syncs. Day-to-day swings of ±1–2 kg are water and food, not fat or muscle — read the month, not the morning.',
   },
   body_fat_pct: {
-    title: 'Body fat', unit: () => '%', disp: (v) => v,
-    band: [10, 20], bandLabel: 'broad healthy range · adult men',
+    title: 'Body fat', unit: () => '%', disp: (v) => v, band: fatBand,
     blurb: 'Share of total weight that is fat tissue, estimated by your scale\'s bio-impedance. Single readings are noisy (hydration skews them) — the trend is the signal.',
   },
   water_pct: {
     title: 'Body water', unit: () => '%', disp: (v) => v,
-    band: [50, 65], bandLabel: 'typical range · adult men',
+    band: (sex) => waterBand(sex),
     blurb: 'Total body water as a share of weight, derived from the scale\'s water-mass reading. Tracks hydration and inversely mirrors body-fat %.',
   },
   muscle_mass: {
@@ -328,17 +368,19 @@ const METRIC_META: Record<string, MetricMeta> = {
   },
   vo2max: {
     title: 'VO₂max', unit: () => 'ml/kg/min', disp: (v) => v, higherBetter: true,
-    band: [42, 50], bandLabel: '"good" band · men 35–50 · higher is better',
+    band: vo2Band,
     blurb: 'Your engine size: the most oxygen you can use per minute per kg. The Watch estimates it after outdoor runs. It moves slowly — the coach reads it quarterly.',
   },
   resting_hr: {
     title: 'Resting HR', unit: () => 'bpm', disp: (v) => v,
-    band: [50, 70], bandLabel: 'typical adult range · lower usually fitter',
+    band: () => ({ range: [50, 70], label: 'typical adult range · lower usually fitter' }),
     blurb: 'Heart rate at full rest. Aerobic training pushes it down over months; a sudden +5–10 bpm above your normal often means fatigue or oncoming illness.',
   },
   sleep_h: {
     title: 'Sleep', unit: () => 'h', disp: (v) => v,
-    band: [7, 9], bandLabel: 'recommended for adults',
+    band: (_s, age) => (age != null && age >= 65
+      ? { range: [7, 8], label: 'recommended · 65+' }
+      : { range: [7, 9], label: 'recommended for adults' }),
     blurb: 'Nightly sleep from Apple Health. Recovery is training — lifting progress and resting HR both track this closely.',
   },
 };
@@ -390,7 +432,7 @@ function BandChart({ points, band, disp, units }: {
 }
 
 export function MetricScreen() {
-  const { openTab, lift: mtype, me } = useApp();
+  const { openTab, go, lift: mtype, me } = useApp();
   const meta = METRIC_META[mtype];
   const q = useQuery<MetricHistory>({
     queryKey: ['metric-history', mtype],
@@ -403,12 +445,18 @@ export function MetricScreen() {
   const pts = h?.points || [];
   const lastV = pts.length ? meta.disp(pts[pts.length - 1].v, me.units) : null;
   const firstD = pts.length ? pts[0].d : null;
-  const inBand = lastV != null && meta.band
-    ? lastV >= meta.disp(meta.band[0], me.units) && lastV <= meta.disp(meta.band[1], me.units)
+  // profile-tuned band: sex + birth year come from Settings → About you
+  const sex: Sex = me.prefs?.sex === 'm' || me.prefs?.sex === 'f' ? me.prefs.sex : null;
+  const age = me.prefs?.birth_year ? new Date().getFullYear() - me.prefs.birth_year : null;
+  const bandFor = meta.band ? meta.band(sex, age) : null;
+  const band = bandFor?.range;
+  const untuned = !!meta.band && (!sex || (age == null && mtype !== 'water_pct' && mtype !== 'resting_hr'));
+  const inBand = lastV != null && band
+    ? lastV >= meta.disp(band[0], me.units) && lastV <= meta.disp(band[1], me.units)
     : null;
   const bandWord = inBand == null ? null
     : inBand ? 'inside the reference range'
-    : (lastV! > meta.disp(meta.band![1], me.units)) === !!meta.higherBetter
+    : (lastV! > meta.disp(band![1], me.units)) === !!meta.higherBetter
       ? 'above the reference range' : 'below the reference range';
   return (
     <Shell>
@@ -423,20 +471,27 @@ export function MetricScreen() {
           </span>
         </div>
         {!h && <Loading />}
-        {h && <BandChart points={pts} band={meta.band} disp={meta.disp} units={me.units} />}
-        {meta.band && (
+        {h && <BandChart points={pts} band={band ?? undefined} disp={meta.disp} units={me.units} />}
+        {band && bandFor && (
           <div className="sub">
-            Shaded: {meta.disp(meta.band[0], me.units)}–{meta.disp(meta.band[1], me.units)} {unit} · {meta.bandLabel}
+            Shaded: {meta.disp(band[0], me.units)}–{meta.disp(band[1], me.units)} {unit} · {bandFor.label}
             {bandWord && <> — you're <b style={{ color: inBand ? 'var(--volt)' : 'var(--warn)' }}>{bandWord}</b></>}
           </div>
         )}
       </div>
+      {untuned && (
+        <button className="lrow press" onClick={() => go('settings')}>
+          <b>Tune this range to you</b>
+          <span className="rsub">set sex & birth year · Settings → About you</span>
+          <span className="chev">›</span>
+        </button>
+      )}
       <div className="card">
         <div className="kick" style={{ fontSize: 11, marginBottom: 5 }}>What this is</div>
         <p style={{ fontSize: 14, lineHeight: 1.55 }}>{meta.blurb}</p>
       </div>
-      {meta.band && (
-        <Chip>Reference ranges are broad healthy-adult guidance, not targets or diagnosis — bring
+      {band && (
+        <Chip>Reference ranges are broad healthy guidance, not targets or diagnosis — bring
           questions about your numbers to your GP.</Chip>
       )}
     </Shell>
