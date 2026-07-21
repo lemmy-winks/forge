@@ -9,10 +9,35 @@ import { queuedPost } from '../queue';
 import { Back, Chip, Loading, Shell, Title, curTarget, toast, useApp } from '../ui';
 import { useToday } from './today';
 
-/** RPE → reps in reserve, the question a lifter can actually answer mid-session. */
-const RPE_LEFT: Record<number, string> = { 6: '4+ left', 7: '3 left', 8: '2 left', 9: '1 left', 10: '0 left' };
-/** Same scale for holds: how much longer could you have held? */
-const RPE_HELD: Record<number, string> = { 6: '15+ s more', 7: '~10 s', 8: '~5 s', 9: '~2 s', 10: 'failure' };
+/** Effort slider copy: qualitative first, reps-in-reserve as the anchor.
+    Indexed 1–10; the text under the slider follows the thumb. */
+const RPE_TEXT: Record<number, string> = {
+  1: 'Too easy — barely an effort',
+  2: 'Too easy — could do this all day',
+  3: 'Easy — plenty left in the tank',
+  4: 'Fairly easy — 5+ reps left in you',
+  5: 'OK — comfortable, around 4 reps left',
+  6: 'OK — comfortable with reps · ~3 left',
+  7: 'Working — 2–3 solid reps left',
+  8: 'Hard — 2 left at the very most',
+  9: 'Very hard — maybe 1 more rep',
+  10: "Couldn't do any more",
+};
+const RPE_TEXT_TIMED: Record<number, string> = {
+  1: 'Too easy — barely an effort',
+  2: 'Too easy — could hold this all day',
+  3: 'Easy — well under control',
+  4: 'Fairly easy — 20+ s more in you',
+  5: 'OK — comfortable, ~15 s more in you',
+  6: 'OK — steady, ~10 s more in you',
+  7: 'Working — shaking a little, ~10 s left',
+  8: 'Hard — 5 s left at most',
+  9: 'Very hard — a breath from dropping',
+  10: "Couldn't hold a second longer",
+};
+
+/** Seconds to get into position before a hold's countdown actually starts. */
+const HOLD_PREP_S = 5;
 
 function warmupsFor(t: { kind: string; priority: number; weight: number }, bar?: number):
     [number, number][] | null {
@@ -35,9 +60,11 @@ export function LogScreen() {
   const [showForm, setShowForm] = useState(false);
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const [saving, setSaving] = useState(false);
-  // hold timer for timed exercises (plank & friends): local, like the rest ring
-  const [hold, setHold] = useState<{ end: number; total: number } | null>(null);
+  // hold timer for timed exercises (plank & friends): local, like the rest
+  // ring. prepEnd = a short get-into-position countdown before the hold runs.
+  const [hold, setHold] = useState<{ end: number; total: number; prepEnd: number } | null>(null);
   const holdDone = useRef(false);
+  const prepDone = useRef(false);
 
   useEffect(() => {
     const iv = setInterval(() => { setNow(Date.now()); logDispatch({ type: 'tick' }); }, 1000);
@@ -71,11 +98,22 @@ export function LogScreen() {
   const wu = !log.wu[t.slug] && doneSets.length === 0 ? warmupsFor(orig, profile?.bar_kg) : null;
   const wKg = dispToKg(log.w, t.unit); // canonical — everything stored is kg
   const plate = plateStr(t.kind, wKg, profile, t.unit, t.slug);
+  const prepRemain = hold ? Math.max(0, Math.ceil((hold.prepEnd - Date.now()) / 1000)) : null;
+  const inPrep = prepRemain !== null && prepRemain > 0;
   const holdRemain = hold ? Math.max(0, Math.ceil((hold.end - Date.now()) / 1000)) : null;
+
+  // get-set countdown ends → buzz once so eyes can stay off the screen
+  useEffect(() => {
+    if (hold && !inPrep && !prepDone.current) {
+      prepDone.current = true;
+      if (navigator.vibrate) navigator.vibrate(120);
+    }
+    if (!hold) prepDone.current = false;
+  }, [hold, inPrep]);
 
   // hold finished → chime, and hand straight into the capture sheet
   useEffect(() => {
-    if (hold && holdRemain === 0 && !holdDone.current) {
+    if (hold && !inPrep && holdRemain === 0 && !holdDone.current) {
       holdDone.current = true;
       if (navigator.vibrate) navigator.vibrate([160, 90, 160]);
       toast(`${hold.total} s — hold done`, true);
@@ -83,7 +121,7 @@ export function LogScreen() {
       setHold(null);
     }
     if (!hold) holdDone.current = false;
-  }, [hold, holdRemain, log.w]);
+  }, [hold, inPrep, holdRemain, log.w]);
 
   const setUnit = (u: LoadUnit) => {
     if (u === t.unit) return;
@@ -225,27 +263,40 @@ export function LogScreen() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
               <circle cx="24" cy="24" r="20" fill="none" stroke="var(--hair)" strokeWidth="4" />
-              {hold && holdRemain !== null && (
-                <circle cx="24" cy="24" r="20" fill="none" stroke="var(--volt)" strokeWidth="4"
-                  strokeLinecap="round" strokeDasharray={`${(HOLD_RING_C * (holdRemain / hold.total)).toFixed(1)} ${HOLD_RING_C.toFixed(1)}`}
+              {hold && (inPrep ? (
+                <circle cx="24" cy="24" r="20" fill="none" stroke="var(--warn)" strokeWidth="4"
+                  strokeLinecap="round" strokeDasharray={`${(HOLD_RING_C * ((prepRemain || 0) / HOLD_PREP_S)).toFixed(1)} ${HOLD_RING_C.toFixed(1)}`}
                   transform="rotate(-90 24 24)" />
-              )}
+              ) : (
+                <circle cx="24" cy="24" r="20" fill="none" stroke="var(--volt)" strokeWidth="4"
+                  strokeLinecap="round" strokeDasharray={`${(HOLD_RING_C * ((holdRemain || 0) / hold.total)).toFixed(1)} ${HOLD_RING_C.toFixed(1)}`}
+                  transform="rotate(-90 24 24)" />
+              ))}
             </svg>
             <div>
-              <div className="t disp num">{hold ? fmtT(holdRemain || 0) : fmtT(t.reps)}</div>
-              <div className="cap">{hold ? 'holding — breathe' : `${t.reps} s hold · timer chimes here`}</div>
+              <div className="t disp num" style={inPrep ? { color: 'var(--warn)' } : undefined}>
+                {hold ? (inPrep ? prepRemain : fmtT(holdRemain || 0)) : fmtT(t.reps)}
+              </div>
+              <div className="cap">
+                {hold ? (inPrep ? 'get into position…' : 'holding — breathe')
+                  : `${t.reps} s hold · ${HOLD_PREP_S} s to get set first`}
+              </div>
             </div>
           </div>
           {hold ? (
             <button className="ghost press" style={{ width: 'auto', padding: '8px 14px' }}
               onClick={() => {
-                const held = hold.total - (holdRemain || 0);
+                const held = inPrep ? 0 : hold.total - (holdRemain || 0);
                 setHold(null);
-                setSheet({ reps: Math.max(1, held), rpe: null, w: log.w });
-              }}>Stop</button>
+                if (held > 0) setSheet({ reps: held, rpe: null, w: log.w });
+              }}>{inPrep ? 'Cancel' : 'Stop'}</button>
           ) : (
             <button className="ghost press" style={{ width: 'auto', padding: '8px 14px' }}
-              onClick={() => setHold({ end: Date.now() + t.reps * 1000, total: t.reps })}>
+              onClick={() => {
+                const now = Date.now();
+                setHold({ prepEnd: now + HOLD_PREP_S * 1000,
+                          end: now + (HOLD_PREP_S + t.reps) * 1000, total: t.reps });
+              }}>
               Start hold
             </button>
           )}
@@ -320,15 +371,24 @@ export function LogScreen() {
                 <button onClick={() => setSheet({ ...sheet, reps: sheet.reps + (timed ? 5 : 1) })}>+</button>
               </div>
             </div>
-            <div style={{ marginTop: 10 }}>
-              <span className="lab">{timed ? 'How hard? · how much longer was in you' : 'How hard? · reps you had left'}</span>
-              <div className="rpe" style={{ marginTop: 6 }}>
-                {[6, 7, 8, 9, 10].map((n) => (
-                  <button key={n} className={(sheet.rpe === n ? 'sel ' : '') + 'num'}
-                    onClick={() => setSheet({ ...sheet, rpe: n })}>
-                    <b>{n}</b><small>{(timed ? RPE_HELD : RPE_LEFT)[n]}</small>
-                  </button>
-                ))}
+            <div style={{ marginTop: 12 }}>
+              <div className="row">
+                <span className="lab">How hard was that?</span>
+                {sheet.rpe !== null && <b className="num" style={{ fontSize: 13 }}>{sheet.rpe}/10</b>}
+              </div>
+              <input type="range" min={1} max={10} step={1}
+                value={sheet.rpe ?? 6} aria-label="Effort, 1 easy to 10 maximal"
+                style={{ ['--pct' as string]: `${(((sheet.rpe ?? 6) - 1) / 9) * 100}%`,
+                         marginTop: 8, opacity: sheet.rpe === null ? 0.55 : 1 }}
+                onChange={(e) => setSheet({ ...sheet, rpe: +e.target.value })} />
+              <div className="row" style={{ marginTop: 2 }}>
+                <span className="sub" style={{ margin: 0, fontSize: 11 }}>too easy</span>
+                <span className="sub" style={{ margin: 0, fontSize: 11 }}>couldn't do more</span>
+              </div>
+              <div className="sub" style={{ marginTop: 6, minHeight: 20,
+                color: sheet.rpe === null ? 'var(--dim)' : 'var(--ink)', fontWeight: sheet.rpe === null ? 400 : 550 }}>
+                {sheet.rpe === null ? 'Slide to rate the effort (optional)'
+                  : (timed ? RPE_TEXT_TIMED : RPE_TEXT)[sheet.rpe]}
               </div>
             </div>
             <button className="cta press" style={{ marginTop: 12 }} disabled={saving}
