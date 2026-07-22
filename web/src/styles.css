@@ -38,40 +38,40 @@
    the light CTA pill keeps the bright accent with dark ink (it stays legible
    where the bright accent as text would not). Default volt = no attribute. */
 :root[data-palette="glacier"]{
-  --volt:#58b0ff; --volt-deep:#3a86d6; --on-volt:#06131c;
-  --volt-dim:rgba(88,176,255,.13);
+  --volt:#7aa7d4; --volt-deep:#5a86ad; --on-volt:#0d1725;
+  --volt-dim:rgba(122,167,212,.13);
 }
 :root[data-theme="light"][data-palette="glacier"]{
-  --volt:#1257a8; --volt-deep:#0e4382; --on-volt:#ffffff;
-  --volt-dim:rgba(18,87,168,.11);
-  --cta-bg:#58b0ff; --cta-ink:#06131c;
+  --volt:#33608f; --volt-deep:#264b70; --on-volt:#ffffff;
+  --volt-dim:rgba(51,96,143,.11);
+  --cta-bg:#7aa7d4; --cta-ink:#0d1725;
 }
 :root[data-palette="aurora"]{
-  --volt:#3ae6c1; --volt-deep:#23ad91; --on-volt:#04150f;
-  --volt-dim:rgba(58,230,193,.13);
+  --volt:#82bfa4; --volt-deep:#5c9781; --on-volt:#0a1712;
+  --volt-dim:rgba(130,191,164,.13);
 }
 :root[data-theme="light"][data-palette="aurora"]{
-  --volt:#0c7a60; --volt-deep:#095c49; --on-volt:#ffffff;
-  --volt-dim:rgba(12,122,96,.12);
-  --cta-bg:#3ae6c1; --cta-ink:#04150f;
+  --volt:#2f6f57; --volt-deep:#245544; --on-volt:#ffffff;
+  --volt-dim:rgba(47,111,87,.11);
+  --cta-bg:#82bfa4; --cta-ink:#0a1712;
 }
 :root[data-palette="flare"]{
-  --volt:#ff5c7c; --volt-deep:#d63e5f; --on-volt:#1c040a;
-  --volt-dim:rgba(255,92,124,.14);
+  --volt:#d494a2; --volt-deep:#b06a7c; --on-volt:#1d0d11;
+  --volt-dim:rgba(212,148,162,.14);
 }
 :root[data-theme="light"][data-palette="flare"]{
-  --volt:#b3234a; --volt-deep:#8d1a3a; --on-volt:#ffffff;
-  --volt-dim:rgba(179,35,74,.10);
-  --cta-bg:#ff5c7c; --cta-ink:#1c040a;
+  --volt:#94425a; --volt-deep:#703243; --on-volt:#ffffff;
+  --volt-dim:rgba(148,66,90,.10);
+  --cta-bg:#d494a2; --cta-ink:#1d0d11;
 }
 :root[data-palette="ultraviolet"]{
-  --volt:#b78aff; --volt-deep:#9161e0; --on-volt:#120626;
-  --volt-dim:rgba(183,138,255,.14);
+  --volt:#a89ccc; --volt-deep:#7f72a8; --on-volt:#131022;
+  --volt-dim:rgba(168,156,204,.14);
 }
 :root[data-theme="light"][data-palette="ultraviolet"]{
-  --volt:#6a3ec2; --volt-deep:#532f9a; --on-volt:#ffffff;
-  --volt-dim:rgba(106,62,194,.10);
-  --cta-bg:#b78aff; --cta-ink:#120626;
+  --volt:#5b4a86; --volt-deep:#463a68; --on-volt:#ffffff;
+  --volt-dim:rgba(91,74,134,.10);
+  --cta-bg:#a89ccc; --cta-ink:#131022;
 }
 
 /* palette picker (Settings → Appearance): split dot previews both modes */

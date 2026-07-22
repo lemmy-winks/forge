@@ -248,10 +248,10 @@ export function storedTheme(): ThemePref {
    real tokens live in styles.css under [data-palette=…]). */
 export const PALETTES: [string, string, [string, string]][] = [
   ['volt', 'Volt', ['#c9f73a', '#5c7d0a']],
-  ['glacier', 'Glacier', ['#58b0ff', '#1257a8']],
-  ['aurora', 'Aurora', ['#3ae6c1', '#0c7a60']],
-  ['flare', 'Flare', ['#ff5c7c', '#b3234a']],
-  ['ultraviolet', 'Violet', ['#b78aff', '#6a3ec2']],
+  ['glacier', 'Glacier', ['#7aa7d4', '#33608f']],
+  ['aurora', 'Aurora', ['#82bfa4', '#2f6f57']],
+  ['flare', 'Flare', ['#d494a2', '#94425a']],
+  ['ultraviolet', 'Violet', ['#a89ccc', '#5b4a86']],
 ];
 const PALETTE_KEY = 'forge-palette';
 
