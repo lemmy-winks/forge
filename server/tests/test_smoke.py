@@ -203,6 +203,9 @@ def test_pull_forward_another_days_workout():
     assert any(t["slug"] == "bench-press" for t in fitted["targets"])
     detail = client.get(f"/api/sessions/{r.json()['id']}").json()
     assert detail["day"] == tuesday, "session recorded on the requested date, not Friday"
+    # complete it — once the real date passes 2026-07-21 an abandoned session here
+    # becomes /api/week's `dangling` and shadows the one test_dangling_* creates
+    client.post(f"/api/sessions/{r.json()['id']}/complete", json={})
     # cardio days can't be pulled into a strength session
     bad = client.post("/api/sessions", json={"date": "2026-07-23", "plan_day": "2"})
     assert bad.status_code == 400
