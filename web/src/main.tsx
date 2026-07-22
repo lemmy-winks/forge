@@ -16,10 +16,17 @@ const isDashboard = location.pathname.startsWith('/dashboard');
    Not on /dashboard — that page scrolls the body normally. */
 if (!isDashboard && window.visualViewport) {
   const vv = window.visualViewport;
+  // The keyboard can only be up while an editable element has focus — a short
+  // viewport alone is NOT enough: iOS reports transiently short visual
+  // viewports during the standalone launch animation, and if that reading
+  // sticks as --vvh the app renders with dead space under the tab bar.
+  const editing = () => {
+    const el = document.activeElement;
+    return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'
+      || (el as HTMLElement).isContentEditable);
+  };
   const sync = () => {
-    // Engage only when the keyboard is actually up — iOS reports transiently
-    // short viewports during launch, which must not stick as the app height.
-    const keyboardUp = document.documentElement.clientHeight - vv.height > 80;
+    const keyboardUp = editing() && document.documentElement.clientHeight - vv.height > 80;
     if (keyboardUp) {
       document.documentElement.style.setProperty('--vvh', vv.height + 'px');
       window.scrollTo(0, 0);
@@ -29,6 +36,13 @@ if (!isDashboard && window.visualViewport) {
   };
   vv.addEventListener('resize', sync);
   vv.addEventListener('scroll', sync);
+  // keyboard dismissal doesn't always fire a viewport event; focus changes do
+  window.addEventListener('focusin', () => setTimeout(sync, 60));
+  window.addEventListener('focusout', () => setTimeout(sync, 60));
+  document.addEventListener('visibilitychange', sync);
+  // clear anything the launch transients left behind once the UI settles
+  setTimeout(sync, 400);
+  setTimeout(sync, 1500);
 }
 
 createRoot(document.getElementById('root')!).render(
