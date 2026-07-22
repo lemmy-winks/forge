@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   api, fmtDur, fmtLoad, kgDisp, kgToDisp, loadUnitFor,
   type HistoryItem, type LoadUnit, type MetricHistory, type Progress, type RecordRow,
@@ -126,7 +126,7 @@ export function DetailScreen() {
         );
       })}
       {d.kind === 'cardio' && <CardioStats d={d} />}
-      {d.series?.route && d.series.route.length > 1 && <RouteTrace pts={d.series.route} />}
+      {d.series?.route && d.series.route.length > 1 && <RouteMap pts={d.series.route} />}
       {d.series?.hr && d.series.hr.length > 1 && <HrTrace d={d} />}
       {d.zones && <ZoneBars z={d.zones} />}
       {d.notes && <div className="card"><div className="sub" style={{ marginTop: 0 }}><b style={{ color: 'var(--ink)' }}>Note:</b> {d.notes}</div></div>}
@@ -178,8 +178,69 @@ function CardioStats({ d }: { d: SessionDetail }) {
   );
 }
 
+/** Real-streets run map: Leaflet + CARTO basemaps, following the app theme
+    (dark_all / light_all tiles swap live with data-theme). Leaflet loads
+    lazily so only the run screen pays for it; when it can't load (offline),
+    the tile-free RouteTrace below takes over. Tile fetches leaving the box
+    were OK'd 21 Jul 2026 — the GPS trace itself still never leaves. */
+function RouteMap({ pts }: { pts: [number, number][] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let map: any = null;
+    let obs: MutationObserver | null = null;
+    let dead = false;
+    (async () => {
+      try {
+        const [{ default: L }] = await Promise.all([
+          import('leaflet'), import('leaflet/dist/leaflet.css'),
+        ]);
+        if (dead || !ref.current) return;
+        const theme = () =>
+          document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+        const stroke = (m: string) => (m === 'light' ? '#6a8a10' : '#c9f73a');
+        const tileFor = (m: string) => L.tileLayer(
+          `https://{s}.basemaps.cartocdn.com/${m === 'light' ? 'light_all' : 'dark_all'}/{z}/{x}/{y}{r}.png`,
+          { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 });
+        map = L.map(ref.current, { zoomControl: false });
+        map.attributionControl.setPrefix('');
+        let mode = theme();
+        let tiles = tileFor(mode).addTo(map);
+        const line = L.polyline(pts, { color: stroke(mode), weight: 3, opacity: 0.92 }).addTo(map);
+        const start = L.circleMarker(pts[0], { radius: 5, weight: 2, color: stroke(mode),
+                                               fillColor: stroke(mode), fillOpacity: 1 }).addTo(map);
+        const finish = L.circleMarker(pts[pts.length - 1], { radius: 5, weight: 2,
+                                                            color: stroke(mode), fillOpacity: 0 }).addTo(map);
+        map.fitBounds(line.getBounds(), { padding: [24, 24] });
+        obs = new MutationObserver(() => {
+          const m = theme();
+          if (m === mode || !map) return;
+          mode = m;
+          map.removeLayer(tiles);
+          tiles = tileFor(m).addTo(map);
+          line.setStyle({ color: stroke(m) });
+          start.setStyle({ color: stroke(m), fillColor: stroke(m) });
+          finish.setStyle({ color: stroke(m) });
+        });
+        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+      } catch {
+        if (!dead) setFailed(true);
+      }
+    })();
+    return () => { dead = true; obs?.disconnect(); map?.remove(); map = null; };
+  }, [pts]);
+  if (failed) return <RouteTrace pts={pts} />;
+  return (
+    <div className="card">
+      <div className="row"><span className="xname">Route</span></div>
+      <div ref={ref} className="runmap" role="img" aria-label="Run route on map" />
+      <div className="sub">● start · ○ finish</div>
+    </div>
+  );
+}
+
 /** Tile-free route sketch: equirectangular projection of the GPS trace, volt on
-    the raised surface. Deliberately no map tiles — self-contained and private. */
+    the raised surface. The offline/no-tiles fallback for RouteMap. */
 function RouteTrace({ pts }: { pts: [number, number][] }) {
   const W = 320, PAD = 14;
   const midLat = pts.reduce((a, p) => a + p[0], 0) / pts.length;
