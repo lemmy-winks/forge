@@ -222,6 +222,7 @@ export type NutritionTargets = Macros;
 export interface RecipeCard extends Macros {
   slug: string; name: string; kind: string; minutes: number; difficulty: string;
   serves: number; batch: number; platefig: string; why: string;
+  image?: string | null; rating?: number;  // imported recipes only (MCP)
 }
 export interface FoodSlot {
   slot: 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -230,6 +231,8 @@ export interface FoodSlot {
 }
 export interface FoodExtra extends Macros {
   id: string; slot: string; label: string; estimated: boolean;
+  // eaten-out context (logged via MCP or order logs)
+  venue: string; cost: number; currency: string; note: string; photos: string[];
 }
 export interface FoodDay {
   date: string; day_name: string; is_today: boolean;
@@ -253,13 +256,14 @@ export interface FoodProposalResp {
     recipes: Record<string, RecipeCard>;
   } | null;
 }
-export interface RecipeStep { title: string; minutes?: number; detail: string; timer?: boolean; }
+export interface RecipeStep { title: string; minutes?: number; detail: string; timer?: boolean; image?: string; }
 export interface RecipeIngredient {
   name: string; qty: number; unit: string; disp: string; note?: string; aisle: string; pantry: boolean;
 }
 export interface RecipeFull extends RecipeCard {
   steps: RecipeStep[]; ingredients: RecipeIngredient[]; tags: string[];
   source: string; source_url: string;
+  images: string[]; rating: number; rating_count: number;
 }
 /** Full-history series for one body/engine metric (Progress drill-down). */
 export interface MetricHistory { type: string; unit: string; points: SeriesPoint[]; }

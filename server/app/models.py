@@ -1,7 +1,8 @@
 from datetime import date, datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (JSON, Date, DateTime, Float, ForeignKey, Integer, LargeBinary, String,
+                        Text, UniqueConstraint)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -290,8 +291,11 @@ class Recipe(Base):
     ingredients: Mapped[list] = mapped_column(JSON, default=list)  # [{name, qty, unit, disp, note}]
     tags: Mapped[list] = mapped_column(JSON, default=list)
     platefig: Mapped[str] = mapped_column(String(32), default="plate")  # plate-art composition id
-    source: Mapped[str] = mapped_column(String(24), default="seed")  # seed | bbc-good-food | card-box
+    source: Mapped[str] = mapped_column(String(24), default="seed")  # seed | bbc-good-food | card-box | import
     source_url: Mapped[str] = mapped_column(Text, default="")
+    images: Mapped[list] = mapped_column(JSON, default=list)  # hero/gallery: /api/food/media/{id} paths or remote URLs
+    rating: Mapped[float] = mapped_column(Float, default=0)  # source-site rating, 0–5 (0 = unrated)
+    rating_count: Mapped[int] = mapped_column(Integer, default=0)
     complete: Mapped[int] = mapped_column(Integer, default=1)  # only complete entries are proposable
 
 
@@ -350,10 +354,30 @@ class MealLog(Base):
     fat_g: Mapped[float] = mapped_column(Float, default=0)
     satfat_g: Mapped[float] = mapped_column(Float, default=0)
     sodium_mg: Mapped[float] = mapped_column(Float, default=0)
-    source: Mapped[str] = mapped_column(String(12), default="plan")  # plan | chat | order
+    source: Mapped[str] = mapped_column(String(12), default="plan")  # plan | chat | order | mcp
     estimated: Mapped[int] = mapped_column(Integer, default=0)
     client_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    venue: Mapped[str] = mapped_column(String(80), default="")  # store/restaurant for eaten-out logs
+    cost: Mapped[float] = mapped_column(Float, default=0)
+    currency: Mapped[str] = mapped_column(String(8), default="")  # free-text code; blank = unknown
+    note: Mapped[str] = mapped_column(Text, default="")
+    photos: Mapped[list] = mapped_column(JSON, default=list)  # /api/food/media/{id} paths or remote URLs
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MediaBlob(Base):
+    """Food images stored on-box (no external hotlinks in the offline PWA).
+    user_id NULL = household-visible (recipe imagery, shared like the recipe
+    library); a user id = that user's meal photos, never served to anyone else.
+    Small and capped at ingest (3 MB, image/* only) — fine in Postgres for two
+    seats, and it needs no new Docker volume."""
+    __tablename__ = "media_blobs"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    mime: Mapped[str] = mapped_column(String(40), default="image/jpeg")
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    src_url: Mapped[str] = mapped_column(Text, default="")  # where it was fetched from, if a URL
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class Carryover(Base):

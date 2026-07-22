@@ -326,8 +326,18 @@ export function FoodDayScreen() {
       {day.extras.map((x) => (
         <div key={x.id} className="mealrow" style={{ cursor: 'default' }}>
           <span className="mtick done">✓</span>
-          <PlateFig id="plate" />
+          {x.photos?.length ? (
+            <img src={x.photos[0]} alt="" style={{ width: 38, height: 38, borderRadius: 10, objectFit: 'cover', flex: 'none' }} />
+          ) : (
+            <PlateFig id="plate" />
+          )}
           <span className="mname"><b>{x.label}</b>
+            {(x.venue || x.cost > 0) && (
+              <span className="sub" style={{ margin: 0, display: 'block' }}>
+                {x.venue}{x.venue && x.cost > 0 ? ' · ' : ''}
+                {x.cost > 0 && <span className="num">{x.cost.toFixed(2)}{x.currency ? ` ${x.currency}` : ''}</span>}
+              </span>
+            )}
             <span className="sub num" style={{ margin: 0, display: 'block' }}>
               {SLOT_LABEL[x.slot] || x.slot} · {x.kcal} kcal · P {x.protein_g} · C {x.carbs_g} · F {x.fat_g}{x.estimated ? ' · estimated' : ''}
             </span></span>
@@ -512,9 +522,21 @@ export function RecipeScreen() {
         <span className="fchip dim num">sodium {r.sodium_mg} mg</span>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0' }}>
-        <PlateFig id={r.platefig} size={132} />
-      </div>
+      {r.images?.length ? (
+        <img src={r.images[0]} alt={r.name}
+          style={{ width: '100%', borderRadius: 14, aspectRatio: '16 / 10', objectFit: 'cover' }} />
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0' }}>
+          <PlateFig id={r.platefig} size={132} />
+        </div>
+      )}
+      {r.rating > 0 && (
+        <div className="sub num" style={{ margin: 0 }}>
+          <span style={{ color: 'var(--volt)' }}>★</span> {r.rating.toFixed(1)}
+          {r.rating_count > 0 && ` · ${r.rating_count} ratings`}
+          {r.source && ` · ${r.source}`}
+        </div>
+      )}
 
       {r.why && (
         <div className="card">
@@ -551,11 +573,22 @@ export function RecipeScreen() {
                     {s.minutes ? `· ${s.minutes} min` : ''}{s.timer ? ' · timer' : ''}
                   </span>
                   <span className="sub" style={{ margin: '2px 0 0', display: 'block' }}>{s.detail}</span>
+                  {s.image && (
+                    <img src={s.image} alt=""
+                      style={{ width: '100%', maxWidth: 220, borderRadius: 10, marginTop: 6, display: 'block' }} />
+                  )}
                 </span>
               </div>
             ))}
           </div>
         </>
+      )}
+
+      {r.source_url && (
+        <a href={r.source_url} target="_blank" rel="noreferrer" className="sub"
+          style={{ display: 'block', textAlign: 'center', margin: 0 }}>
+          Original recipe · {r.source || 'source'} ↗
+        </a>
       )}
 
       {r.steps.length > 1 ? (
@@ -697,6 +730,10 @@ export function CookScreen() {
 
       <h2 className="title" style={{ fontSize: 24 }}>{step.title}</h2>
       <div className="bigsub">{step.detail}</div>
+      {step.image && (
+        <img src={step.image} alt=""
+          style={{ width: '100%', maxWidth: 280, borderRadius: 12, margin: '4px auto', display: 'block' }} />
+      )}
 
       {step.timer && (
         <div className="ringcook">

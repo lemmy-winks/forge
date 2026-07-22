@@ -206,6 +206,9 @@ def test_pull_forward_another_days_workout():
     assert any(t["slug"] == "bench-press" for t in fitted["targets"])
     detail = client.get(f"/api/sessions/{r.json()['id']}").json()
     assert detail["day"] == tuesday, "session recorded on the requested date, not Friday"
+    # close it out — an active session left behind becomes `dangling` for later
+    # tests as soon as the London calendar moves past this test's fixed date
+    client.post(f"/api/sessions/{r.json()['id']}/complete", json={"cooldown_status": "skipped"})
     # cardio days can't be pulled into a strength session
     bad = client.post("/api/sessions", json={"date": "2026-07-23", "plan_day": "2"})
     assert bad.status_code == 400
@@ -1155,3 +1158,132 @@ def test_metric_history_and_vo2_aliases():
     assert 21.4 in [p["v"] for p in client.get("/api/metrics/body_fat_pct/history").json()["points"]]
     assert client.get("/api/metrics/nope/history").status_code == 404
     assert client.get("/api/metrics/water_pct/history").status_code == 200
+
+
+# ---------------------------------------------------------------- MCP food surface
+
+PNG_1PX = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+           "AAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+
+
+def _mcp(tok, method, params=None, rid=1):
+    r = client.post("/mcp", headers={"Authorization": f"Bearer {tok}"},
+                    json={"jsonrpc": "2.0", "id": rid, "method": method, "params": params or {}})
+    return r
+
+
+def _mcp_tool(tok, name, args):
+    r = _mcp(tok, "tools/call", {"name": name, "arguments": args})
+    assert r.status_code == 200, r.text
+    return r.json()["result"]
+
+
+def test_mcp_handshake_and_auth():
+    login()
+    assert client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "ping"}).status_code == 401
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+
+    init = _mcp(tok, "initialize", {"protocolVersion": "2025-06-18",
+                                    "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}})
+    body = init.json()["result"]
+    assert body["protocolVersion"] == "2025-06-18"
+    assert body["serverInfo"]["name"] == "forge-food"
+    assert _mcp(tok, "notifications/initialized").status_code == 202
+    assert client.get("/mcp").status_code == 405
+
+    tools = {t["name"] for t in _mcp(tok, "tools/list").json()["result"]["tools"]}
+    assert tools == {"log_food", "get_food_log", "delete_food_log",
+                     "import_recipe", "search_recipes", "get_recipe"}
+
+
+def test_mcp_log_food_with_photo_and_venue():
+    login()
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+    res = _mcp_tool(tok, "log_food", {
+        "description": "Chicken burrito bowl", "date": "2026-07-20", "slot": "lunch",
+        "venue": "Chipotle", "cost": 12.4, "currency": "USD",
+        "kcal": 640, "protein_g": 45, "fiber_g": 9, "satfat_g": 6,
+        "photos": [PNG_1PX], "client_id": "mcp-test-1"})["structuredContent"]
+    assert res["duplicate"] is False
+    entry = next(e for e in res["logged"] if e["id"] == res["id"])
+    assert entry["venue"] == "Chipotle" and entry["cost"] == 12.4
+    assert entry["photos"][0].startswith("/api/food/media/")
+
+    # the stored photo serves to the signed-in owner, and is private to them
+    assert client.get(entry["photos"][0]).headers["content-type"] == "image/png"
+    login("shelby@test.dev")
+    assert client.get(entry["photos"][0]).status_code == 404
+    login()
+
+    # idempotent retry via client_id
+    again = _mcp_tool(tok, "log_food", {"description": "Chicken burrito bowl", "kcal": 640,
+                                        "date": "2026-07-20", "slot": "lunch",
+                                        "client_id": "mcp-test-1"})["structuredContent"]
+    assert again["duplicate"] is True
+
+    # counted in the app's week view (slot-matched to the planned lunch, or an extra)
+    week = client.get("/api/food/week?date=2026-07-20").json()
+    day = next(d for d in week["days"] if d["date"] == "2026-07-20")
+    assert day["totals"]["kcal"] >= 640
+
+    # get + delete round-trip
+    got = _mcp_tool(tok, "get_food_log", {"date": "2026-07-20"})["structuredContent"]
+    assert any(e["id"] == res["id"] for e in got["days"][0]["logged"])
+    gone = _mcp_tool(tok, "delete_food_log", {"log_id": res["id"]})["structuredContent"]
+    assert gone["ok"] is True
+
+
+def test_mcp_recipe_import_and_search():
+    login()
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+
+    # borrow a known ingredient name from a seed recipe so one import can be complete
+    found = _mcp_tool(tok, "search_recipes", {"kind": "dinner"})["structuredContent"]
+    assert found["count"] > 0
+    seed = next(r for r in found["recipes"] if r["source"] == "seed")
+    seed_full = _mcp_tool(tok, "get_recipe", {"slug": seed["slug"]})["structuredContent"]
+    known_ing = seed_full["ingredients"][0]["name"]
+
+    # seeds are protected from overwrite
+    clash = _mcp_tool(tok, "import_recipe", {
+        "name": seed["name"], "slug": seed["slug"], "source_url": "https://example.com/x",
+        "kcal": 500, "protein_g": 30,
+        "ingredients": [{"name": known_ing}], "steps": [{"title": "Cook", "detail": "Until done"}]})
+    assert clash["isError"] is True
+
+    res = _mcp_tool(tok, "import_recipe", {
+        "name": "Harissa Chicken Traybake", "slug": "test-import-traybake", "kind": "dinner", "minutes": 35,
+        "difficulty": "easy", "serves": 2, "kcal": 520, "protein_g": 42, "fiber_g": 8,
+        "satfat_g": 4, "why": "High protein, one tray",
+        "source": "bbc-good-food", "source_url": "https://www.bbcgoodfood.com/recipes/harissa-chicken",
+        "rating": 4.6, "rating_count": 212, "tags": ["traybake"],
+        "ingredients": [{"name": known_ing, "qty": 300, "unit": "g"}],
+        "steps": [{"title": "Roast", "detail": "Until the edges char and juices run clear, ~25 min",
+                   "minutes": 25, "timer": True}]})["structuredContent"]
+    assert res["complete"] is True and res["updated"] is False
+
+    # re-import of the same source_url updates in place
+    res2 = _mcp_tool(tok, "import_recipe", {
+        "name": "Harissa Chicken Traybake", "source_url": "https://www.bbcgoodfood.com/recipes/harissa-chicken",
+        "kcal": 530, "protein_g": 43, "rating": 4.7,
+        "ingredients": [{"name": known_ing, "qty": 300, "unit": "g"}],
+        "steps": [{"title": "Roast", "detail": "Until juices run clear, ~25 min"}]})["structuredContent"]
+    assert res2["updated"] is True and res2["slug"] == res["slug"]
+
+    # unknown ingredients park the recipe as incomplete, with a warning
+    park = _mcp_tool(tok, "import_recipe", {
+        "name": "Mystery Stew", "source_url": "https://example.com/stew",
+        "kcal": 400, "protein_g": 20,
+        "ingredients": [{"name": "unicorn dust"}],
+        "steps": [{"title": "Simmer", "detail": "Until thick enough to coat a spoon"}]})["structuredContent"]
+    assert park["complete"] is False and any("unicorn dust" in w for w in park["warnings"])
+
+    # visible in the app API with attribution + rating; incomplete never proposable
+    detail = client.get(f"/api/food/recipes/{res['slug']}").json()
+    assert detail["source_url"].endswith("/harissa-chicken")
+    assert detail["rating"] == 4.7 and detail["kcal"] == 530
+    complete_only = _mcp_tool(tok, "search_recipes", {"query": "mystery"})["structuredContent"]
+    assert complete_only["count"] == 0
+    with_parked = _mcp_tool(tok, "search_recipes",
+                            {"query": "mystery", "include_incomplete": True})["structuredContent"]
+    assert with_parked["count"] == 1

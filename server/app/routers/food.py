@@ -5,6 +5,7 @@ only ever sees rows under its own user_id. Meal logs are strictly per-user."""
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 from ..config import local_today
 from ..db import get_db
 from ..food_seed import DEFAULT_TARGETS
-from ..models import MACRO_FIELDS, Ingredient, MealLog, MealRevision, Recipe, User
+from ..models import MACRO_FIELDS, Ingredient, MealLog, MealRevision, MediaBlob, Recipe, User
 from ..security import current_user
 from .training import DAY_NAMES, parse_date
 
@@ -37,6 +38,7 @@ def recipe_card(r: Recipe) -> dict:
     return {"slug": r.slug, "name": r.name, "kind": r.kind, "minutes": r.minutes,
             "difficulty": r.difficulty, "serves": r.serves, "batch": r.batch,
             "platefig": r.platefig, "why": r.why,
+            "image": (r.images or [None])[0], "rating": r.rating or 0,
             **{k: getattr(r, k) for k in MACRO_FIELDS}}
 
 
@@ -113,7 +115,9 @@ def food_week(date: str | None = None, user: User = Depends(current_user),
             "slots": slots_out,
             "extras": [{"id": lg.id, "slot": lg.slot, "label": lg.label,
                         **{k: getattr(lg, k) or 0 for k in MACRO_FIELDS},
-                        "estimated": bool(lg.estimated)} for lg in extras],
+                        "estimated": bool(lg.estimated), "venue": lg.venue or "",
+                        "cost": lg.cost or 0, "currency": lg.currency or "",
+                        "note": lg.note or "", "photos": lg.photos or []} for lg in extras],
             "totals": totals,
         })
 
@@ -181,7 +185,19 @@ def recipe_detail(slug: str, user: User = Depends(current_user), db: Session = D
         ingredients.append({**i, "aisle": meta.aisle if meta else "cupboard",
                             "pantry": bool(meta.pantry) if meta else False})
     return {**recipe_card(r), "steps": r.steps or [], "ingredients": ingredients,
-            "tags": r.tags or [], "source": r.source, "source_url": r.source_url}
+            "tags": r.tags or [], "source": r.source, "source_url": r.source_url,
+            "images": r.images or [], "rating": r.rating or 0, "rating_count": r.rating_count or 0}
+
+
+@router.get("/media/{blob_id}")
+def food_media(blob_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Serve a stored food image. NULL owner = household-visible (recipe imagery,
+    shared like the recipe library itself); owned blobs (meal photos) are private."""
+    blob = db.get(MediaBlob, blob_id)
+    if not blob or (blob.user_id and blob.user_id != user.id):
+        raise HTTPException(status_code=404, detail="not found")
+    return Response(content=blob.data, media_type=blob.mime,
+                    headers={"Cache-Control": "private, max-age=31536000, immutable"})
 
 
 class LogIn(BaseModel):
@@ -202,6 +218,12 @@ class LogIn(BaseModel):
     estimated: bool = False
     source: str = "plan"
     client_id: str | None = None  # offline-queue idempotency
+    # eaten-out context (MCP log_food / order logs); photos are stored refs, not raw uploads
+    venue: str = ""
+    cost: float = 0
+    currency: str = ""
+    note: str = ""
+    photos: list[str] = []
 
 
 def _day_totals(db: Session, user: User, day) -> dict:
@@ -235,6 +257,8 @@ def log_meal(body: LogIn, user: User = Depends(current_user), db: Session = Depe
                       servings=body.servings, source=body.source or "chat",
                       estimated=1 if body.estimated else 0, client_id=body.client_id,
                       **{k: getattr(body, k) or 0 for k in MACRO_FIELDS})
+    row.venue, row.cost, row.currency = body.venue[:80], body.cost, body.currency[:8]
+    row.note, row.photos = body.note, body.photos
     db.add(row)
     try:
         db.commit()
