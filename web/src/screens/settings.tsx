@@ -46,7 +46,7 @@ export function SettingsScreen() {
     ['Exercise library', 'browse all', () => go('library')],
     ['Notifications', 'three kinds, no more', () => go('set-notif')],
     ...(me.role === 'admin'
-      ? [['Server', 'coach key · withings · push · users', () => go('set-server')] as [string, string, () => void]]
+      ? [['Server', 'coach key · withings · push · maps · users', () => go('set-server')] as [string, string, () => void]]
       : []),
   ];
   return (
@@ -746,6 +746,17 @@ export function ServerScreen() {
         <button className={vapidSet ? 'ghost' : 'cta'} style={{ width: '100%' }} onClick={genVapid}>
           {vapidSet ? 'Re-generate keys' : 'Generate keys'}
         </button>
+      </div>
+
+      <div className="card">
+        <b style={{ fontSize: 15 }}>Maps</b>
+        <div style={{ marginTop: 8 }}>
+          <ServerField k="maptiler_key" label="MapTiler API key" data={q.data} onSave={save} />
+        </div>
+        <div className="rsub" style={{ marginTop: 8 }}>
+          Free key from cloud.maptiler.com — restrict it to this app's domains there. Turns the
+          run-detail route sketch into a real street map; leave empty to keep the tile-free trace.
+        </div>
       </div>
 
       <DemoCard />

@@ -6,6 +6,7 @@ import {
   type SeriesPoint, type SessionDetail,
 } from '../api';
 import { smoothPath } from '../chart';
+import { RouteCard } from '../routemap';
 import { Back, Chip, Loading, Shell, Title, toast, useApp } from '../ui';
 
 /** What was actually done, at a glance: strength barbell, or the cardio
@@ -126,7 +127,7 @@ export function DetailScreen() {
         );
       })}
       {d.kind === 'cardio' && <CardioStats d={d} />}
-      {d.series?.route && d.series.route.length > 1 && <RouteTrace pts={d.series.route} />}
+      {d.series?.route && d.series.route.length > 1 && <RouteCard pts={d.series.route} />}
       {d.series?.hr && d.series.hr.length > 1 && <HrTrace d={d} />}
       {d.zones && <ZoneBars z={d.zones} />}
       {d.notes && <div className="card"><div className="sub" style={{ marginTop: 0 }}><b style={{ color: 'var(--ink)' }}>Note:</b> {d.notes}</div></div>}
@@ -175,39 +176,6 @@ function CardioStats({ d }: { d: SessionDetail }) {
         ))}
       </div>
     </>
-  );
-}
-
-/** Tile-free route sketch: equirectangular projection of the GPS trace, volt on
-    the raised surface. Deliberately no map tiles — self-contained and private. */
-function RouteTrace({ pts }: { pts: [number, number][] }) {
-  const W = 320, PAD = 14;
-  const midLat = pts.reduce((a, p) => a + p[0], 0) / pts.length;
-  const kx = Math.cos((midLat * Math.PI) / 180);
-  const xs = pts.map((p) => p[1] * kx), ys = pts.map((p) => -p[0]);
-  const spanX = Math.max(Math.max(...xs) - Math.min(...xs), 1e-6);
-  const spanY = Math.max(Math.max(...ys) - Math.min(...ys), 1e-6);
-  const H = Math.min(300, Math.max(120, ((W - 2 * PAD) * spanY) / spanX + 2 * PAD));
-  const sc = Math.min((W - 2 * PAD) / spanX, (H - 2 * PAD) / spanY);
-  const x0 = Math.min(...xs), y0 = Math.min(...ys);
-  const px = (i: number): [number, number] => [
-    PAD + (xs[i] - x0) * sc + (W - 2 * PAD - spanX * sc) / 2,
-    PAD + (ys[i] - y0) * sc + (H - 2 * PAD - spanY * sc) / 2,
-  ];
-  const path = pts.map((_, i) => px(i));
-  const [sx, sy] = path[0], [ex, ey] = path[path.length - 1];
-  return (
-    <div className="card">
-      <div className="row"><span className="xname">Route</span></div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block', marginTop: 6 }}
-        role="img" aria-label="Route map trace">
-        <path d={path.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join('')}
-          fill="none" stroke="var(--volt)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-        <circle cx={sx} cy={sy} r="4" fill="var(--volt)" />
-        <circle cx={ex} cy={ey} r="4" fill="none" stroke="var(--volt)" strokeWidth="2" />
-      </svg>
-      <div className="sub">● start · ○ finish</div>
-    </div>
   );
 }
 

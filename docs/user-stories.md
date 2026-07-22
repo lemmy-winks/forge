@@ -128,7 +128,7 @@ As the System, I want incoming Watch workouts matched to prescriptions so that c
 **E5.4 — Rich run detail** *(added Jul 2026, shipped)*
 As James, I want a run's detail screen to show what actually happened — zones, the route, the HR curve — so that a synced run is worth opening.
 - AC1: HR and GPS series from HAE are stored per cardio session (downsampled), not discarded after aggregation; sessions ingested before series capture gain traces when HAE re-sends the day.
-- AC2: Detail shows a route trace (self-contained SVG, no external map tiles — offline-safe, GPS never leaves the server), the HR curve with the prescribed band shaded, and time-in-zone bars for five HR-max zones.
+- AC2: Detail shows the route on a street basemap (MapLibre GL + hosted MapTiler vector tiles, styled from the app's design tokens in both themes and all accent palettes; key admin-managed, lazy-loaded) with the self-contained SVG trace as the instant first paint and the fallback whenever tiles can't render (no key, offline, tile errors); plus the HR curve with the prescribed band shaded and time-in-zone bars for five HR-max zones. *(Amended Jul 2026: originally "no external map tiles"; revisited once the app went public-ingress — hosted tiles keep map data current with nothing to maintain on-box.)*
 - AC3: Zone boundaries come from `prefs.hr_max` when set; otherwise estimated and labeled as such, with a nudge to tell the coach a tested max.
 
 ## E6 · Progress & records

@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     quiet_start: int = 8   # no pushes before
     quiet_end: int = 21    # or from this hour on
 
+    # Run-detail basemap (E5.4 follow-up). A MapTiler publishable key — restrict
+    # it to the app's domains in the MapTiler dashboard. Empty = the SVG trace.
+    maptiler_key: str = ""
+
     # Phase 3 — the coach
     anthropic_api_key: str = ""
     coach_model: str = "claude-sonnet-5"
@@ -108,6 +112,7 @@ OVERRIDABLE = (
     "withings_client_secret",
     "vapid_public_key",
     "vapid_private_key",
+    "maptiler_key",
 )
 
 _env_defaults: dict[str, str] = {}

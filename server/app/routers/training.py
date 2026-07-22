@@ -1,7 +1,7 @@
 from datetime import date as ddate
 from datetime import datetime, timedelta, timezone
 
-from ..config import local_today
+from ..config import get_settings, local_today
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -480,6 +480,15 @@ def session_detail(sid: str, user: User = Depends(current_user), db: Session = D
             if srow.data.get("hr"):
                 out["zones"] = _zone_breakdown(user, srow.data["hr"])
     return out
+
+
+@router.get("/map/config")
+def map_config(user: User = Depends(current_user)):
+    """Basemap config for the run-detail route map. The MapTiler key is a
+    publishable, domain-restricted key — handing it to any signed-in client is
+    its normal use. Empty key = clients keep the self-contained SVG trace."""
+    key = get_settings().maptiler_key
+    return {"enabled": bool(key), "key": key}
 
 
 class NotesIn(BaseModel):
