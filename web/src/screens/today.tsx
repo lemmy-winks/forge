@@ -38,11 +38,18 @@ export function PlanScreen() {
   const qc = useQueryClient();
   // weekStart: Monday of the viewed week; null = the current week
   const [weekStart, setWeekStart] = useState<string | null>(null);
-  const q = useQuery<WeekResp>({
-    queryKey: ['week', weekStart || 'current'],
-    queryFn: () => api('/api/week' + (weekStart ? `?date=${weekStart}` : '')),
+  const curMonday = weekStartISO(todayISO());
+  const start = weekStart || curMonday;
+  const useWeekQ = (s: string) => useQuery<WeekResp>({
+    queryKey: ['week', s],
+    queryFn: () => api('/api/week?date=' + s),
     placeholderData: keepPreviousData,
   });
+  // Three panes — the viewed week plus both neighbours — so a swipe drags real
+  // content in rather than a loading flash.
+  const q = useWeekQ(start);
+  const qPrev = useWeekQ(addDaysISO(start, -7));
+  const qNext = useWeekQ(addDaysISO(start, 7));
   const pq = useQuery<ProposalResp>({ queryKey: ['proposal'], queryFn: () => api('/api/proposal') });
   const [noteOpen, setNoteOpen] = useState(false);
   const [dangOpen, setDangOpen] = useState(false);
@@ -50,7 +57,9 @@ export function PlanScreen() {
   const [saving, setSaving] = useState(false);
   // date whose planning sheet (future workouts & meals) is open
   const [planDate, setPlanDate] = useState<string | null>(null);
-  const touch = useRef<{ x: number; y: number } | null>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; y: number; dx: number; mode: 'h' | 'v' | null } | null>(null);
+  const anim = useRef(false);
   const w = q.data;
   const prop = pq.data?.proposal;
   if (!w) return <Shell><Loading /></Shell>;
@@ -85,7 +94,7 @@ export function PlanScreen() {
     setSaving(false);
   };
 
-  const right = (d: WeekResp['days'][number]): string => {
+  const right = (d: WeekResp['days'][number], today: string): string => {
     const s = d.session;
     if (s && (s.status === 'completed' || s.status === 'unplanned')) {
       const st = s.stats || {};
@@ -96,45 +105,196 @@ export function PlanScreen() {
         : `✓ ${st.tonnage ?? 0} t`;
     }
     if (s?.status === 'active') return 'in progress';
-    if (d.date < w.today) return d.kind === 'rest' ? '' : 'missed';
+    if (d.date < today) return d.kind === 'rest' ? '' : 'missed';
     if (d.kind === 'strength') return `~${d.est} min`;
     if (d.kind === 'cardio') return `${d.minutes ?? '?'} min`;
     return '';
   };
   // a planned day that came and went with nothing logged
-  const missed = (d: WeekResp['days'][number]): boolean =>
-    d.date < w.today && d.kind !== 'rest' && !(d.session && d.session.status !== 'active');
+  const missed = (d: WeekResp['days'][number], today: string): boolean =>
+    d.date < today && d.kind !== 'rest' && !(d.session && d.session.status !== 'active');
 
-  const maxMin = Math.max(...w.days.map(dayMinutes), 30);
-
-  const curMonday = weekStartISO(todayISO());
-  const isCurrent = (weekStart || curMonday) === curMonday;
+  const isCurrent = start === curMonday;
   const maxStart = addDaysISO(curMonday, 7 * WEEKS_AHEAD);
+  const canNext = start < maxStart;
   const shiftWeek = (n: number) => {
-    const next = addDaysISO(weekStart || curMonday, n * 7);
+    const next = addDaysISO(start, n * 7);
     if (next > maxStart) return;
     setWeekStart(next === curMonday ? null : next);
   };
-  // Horizontal swipe anywhere on the screen pages weeks (‹ prev / next ›).
+
+  /* ----- swipeable week track: prev/cur/next panes, finger-tracked -----
+     The track sits at translateX(-100%) (middle pane visible). A horizontal
+     drag moves it 1:1 with the finger; release either settles back or slides
+     one pane over, THEN commits the week change and snaps the reset track back
+     to the middle in the same frame — so the animation is seamless. */
+  const setTrack = (px: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    el.style.transition = 'none';
+    el.style.transform = `translateX(calc(-100% + ${px}px))`;
+  };
+  const settle = (dir: -1 | 0 | 1) => {
+    const el = trackRef.current;
+    if (!el || (dir !== 0 && anim.current)) return;
+    if (dir !== 0 && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      el.style.transition = 'none';
+      el.style.transform = 'translateX(-100%)';
+      shiftWeek(dir);
+      return;
+    }
+    anim.current = dir !== 0;
+    el.style.transition = 'transform .28s cubic-bezier(.22,.9,.3,1)';
+    el.style.transform = `translateX(${dir === 1 ? -200 : dir === -1 ? 0 : -100}%)`;
+    if (dir === 0) return;
+    window.setTimeout(() => {
+      el.style.transition = 'none';
+      el.style.transform = 'translateX(-100%)';
+      shiftWeek(dir);
+      anim.current = false;
+    }, 290);
+  };
   const onTouchStart = (e: React.TouchEvent) => {
-    touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    if (anim.current) return;
+    drag.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, dx: 0, mode: null };
   };
-  const onTouchEnd = (e: React.TouchEvent) => {
-    const t0 = touch.current;
-    touch.current = null;
-    if (!t0) return;
-    const dx = e.changedTouches[0].clientX - t0.x;
-    const dy = e.changedTouches[0].clientY - t0.y;
-    if (Math.abs(dx) > 56 && Math.abs(dx) > 1.8 * Math.abs(dy)) shiftWeek(dx < 0 ? 1 : -1);
+  const onTouchMove = (e: React.TouchEvent) => {
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.touches[0].clientX - d.x;
+    const dy = e.touches[0].clientY - d.y;
+    if (!d.mode) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;  // undecided — too small
+      d.mode = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'h' : 'v';
+    }
+    if (d.mode !== 'h') return;
+    // rubber-band instead of dragging past the forward cap
+    d.dx = dx < 0 && !canNext ? dx / 3 : dx;
+    setTrack(d.dx);
   };
+  const onTouchEnd = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || d.mode !== 'h') return;
+    const width = trackRef.current?.parentElement?.clientWidth || 390;
+    if (Math.abs(d.dx) < Math.min(110, width * 0.28)) return settle(0);
+    const dir = d.dx < 0 ? 1 : -1;
+    settle(dir === 1 && !canNext ? 0 : dir);
+  };
+  const onTouchCancel = () => {
+    if (drag.current?.mode === 'h') settle(0);
+    drag.current = null;
+  };
+
   const weekOf = new Date(w.start + 'T12:00:00Z')
     .toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-  const isFuture = (w.start || curMonday) > curMonday;
   const sheetDay = planDate ? w.days.find((d) => d.date === planDate) : undefined;
+
+  /** One week of content — the strip, coach note, day cards and chip. Rendered
+      three times (prev/cur/next) into the sliding track. */
+  const pane = (wk: WeekResp | undefined, pos: 'prev' | 'cur' | 'next') => {
+    if (!wk) return <div className="wpane" key={pos}><Loading /></div>;
+    const maxMin = Math.max(...wk.days.map(dayMinutes), 30);
+    const isFuture = wk.start > curMonday;
+    return (
+      <div className="wpane" key={pos}>
+        {/* the week's shape at a glance — bar height = time, solid = done */}
+        <div className="weekstrip">
+          {wk.days.map((d) => {
+            const min = dayMinutes(d);
+            const done = d.session?.status === 'completed';
+            return (
+              <button key={d.date} className={'ws press' + (done ? ' done' : '') + (d.is_today ? ' today' : '') + (missed(d, wk.today) ? ' miss' : '')}
+                aria-label={`${d.day_name}: ${d.name || 'rest'}`}
+                onClick={() => go('day', { dayDate: d.is_today ? null : d.date })}>
+                <span className="col">
+                  {min > 0 && <span className="fill" style={{ height: `${Math.round(22 + 78 * min / maxMin)}%` }} />}
+                </span>
+                <span className="d num">{d.day_name.slice(0, 2)}</span>
+                <span className="dt num">{dayNum(d.date)}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {wk.rationale && (
+          <button className="coachnote press" onClick={() => setNoteOpen(!noteOpen)}>
+            <span className="kick" style={{ fontSize: 11 }}>Coach's note</span>
+            <div className={noteOpen ? '' : 'clamp'} style={{ marginTop: 3 }}>{wk.rationale}</div>
+            <div className="more">{noteOpen ? 'less' : 'more'}</div>
+          </button>
+        )}
+
+        {wk.days.map((d) => {
+          const future = d.date > wk.today;
+          // planned workouts/meals under the day card; future days get an add pill
+          const dayplan = (d.planned.length > 0 || future) && (
+            <div className="dayplan">
+              {d.planned.map((p) => (
+                <button key={p.id} className="dpill press" onClick={() => setPlanDate(d.date)}>
+                  <span className={'pk' + (p.kind === 'meal' ? ' meal' : '')} />{p.title}
+                </button>
+              ))}
+              {future && (
+                <button className="dpill add press" aria-label={`Plan ${d.day_name} ${dayNum(d.date)}`}
+                  onClick={() => setPlanDate(d.date)}>＋ plan</button>
+              )}
+            </div>
+          );
+          if (d.is_today) {
+            return (
+              <div key={d.date}>
+                <button className="herocard today press" style={{ width: '100%' }}
+                  onClick={() => go('day', { dayDate: null })}>
+                  <div className="toprow">
+                    <span className="kick" style={{ fontSize: 11, color: 'var(--volt)', display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <span className="pulse" />{d.day_name} {dayNum(d.date)} · today
+                    </span>
+                    <span className="est num">{d.session?.status === 'completed' ? right(d, wk.today)
+                      : dayMinutes(d) ? `~${dayMinutes(d)} min` : ''}</span>
+                  </div>
+                  <div className="hname">{d.name || 'Rest day'}</div>
+                  {d.focus.length > 0 && (
+                    <div className="fpills">{d.focus.map((f) => <span key={f} className="fpill">{f}</span>)}</div>
+                  )}
+                </button>
+                {dayplan}
+              </div>
+            );
+          }
+          const done = d.session?.status === 'completed';
+          return (
+            <div key={d.date}>
+              <button className={'lrow press' + (d.kind === 'rest' && !d.session ? ' dimrow' : '')}
+                style={{ width: '100%' }} onClick={() => go('day', { dayDate: d.date })}>
+                <span className="glyphslot"><KindGlyph kind={d.session?.kind || d.kind} done={done} /></span>
+                <span>
+                  <b>{d.day_name} <span className="daynum num">{dayNum(d.date)}</span></b>
+                  <span style={{ display: 'block', fontSize: 13, color: 'var(--mut)', marginTop: 2 }}>
+                    {d.name || 'Rest'}
+                  </span>
+                </span>
+                <span className="rsub num" style={done ? { color: 'var(--volt)', fontWeight: 700 }
+                  : missed(d, wk.today) ? { color: 'var(--warn)', fontWeight: 600 } : undefined}>
+                  {right(d, wk.today)}
+                </span>
+                <span className="chev">›</span>
+              </button>
+              {dayplan}
+            </div>
+          );
+        })}
+        <Chip>{isFuture
+          ? 'Swipe to page weeks — pencil workouts and meals onto any future day'
+          : "Tap a day to see it in full — you can run any strength day on today's date"}</Chip>
+      </div>
+    );
+  };
 
   return (
     <Shell>
-      <div className="swipeweeks" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <div className="swipeweeks" onTouchStart={onTouchStart} onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd} onTouchCancel={onTouchCancel}>
       <div className="row" style={{ alignItems: 'center' }}>
         <Title kick={isCurrent ? `This week · ${weekOf}` : `Week of ${weekOf}`}>Plan</Title>
         <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -143,10 +303,10 @@ export function PlanScreen() {
               onClick={() => setWeekStart(null)}>this week</button>
           )}
           <button className="ghost press" aria-label="Previous week"
-            style={{ width: 34, padding: '6px 0' }} onClick={() => shiftWeek(-1)}>‹</button>
+            style={{ width: 34, padding: '6px 0' }} onClick={() => settle(-1)}>‹</button>
           <button className="ghost press" aria-label="Next week"
-            disabled={(weekStart || curMonday) >= maxStart}
-            style={{ width: 34, padding: '6px 0' }} onClick={() => shiftWeek(1)}>›</button>
+            disabled={!canNext}
+            style={{ width: 34, padding: '6px 0' }} onClick={() => settle(1)}>›</button>
         </span>
       </div>
 
@@ -167,95 +327,14 @@ export function PlanScreen() {
         </button>
       )}
 
-      {/* the week's shape at a glance — bar height = time, solid = done */}
-      <div className="weekstrip">
-        {w.days.map((d) => {
-          const min = dayMinutes(d);
-          const done = d.session?.status === 'completed';
-          return (
-            <button key={d.date} className={'ws press' + (done ? ' done' : '') + (d.is_today ? ' today' : '') + (missed(d) ? ' miss' : '')}
-              aria-label={`${d.day_name}: ${d.name || 'rest'}`}
-              onClick={() => go('day', { dayDate: d.is_today ? null : d.date })}>
-              <span className="col">
-                {min > 0 && <span className="fill" style={{ height: `${Math.round(22 + 78 * min / maxMin)}%` }} />}
-              </span>
-              <span className="d num">{d.day_name.slice(0, 2)}</span>
-              <span className="dt num">{dayNum(d.date)}</span>
-            </button>
-          );
-        })}
+      {/* prev/cur/next week panes in a sliding track; the wrapper clips it */}
+      <div className="wclip">
+        <div className="wtrack" ref={trackRef} style={{ transform: 'translateX(-100%)' }}>
+          {pane(qPrev.data, 'prev')}
+          {pane(q.data, 'cur')}
+          {pane(qNext.data, 'next')}
+        </div>
       </div>
-
-      {w.rationale && (
-        <button className="coachnote press" onClick={() => setNoteOpen(!noteOpen)}>
-          <span className="kick" style={{ fontSize: 11 }}>Coach's note</span>
-          <div className={noteOpen ? '' : 'clamp'} style={{ marginTop: 3 }}>{w.rationale}</div>
-          <div className="more">{noteOpen ? 'less' : 'more'}</div>
-        </button>
-      )}
-
-      {w.days.map((d) => {
-        const future = d.date > w.today;
-        // planned workouts/meals under the day card; future days get an add pill
-        const dayplan = (d.planned.length > 0 || future) && (
-          <div className="dayplan">
-            {d.planned.map((p) => (
-              <button key={p.id} className="dpill press" onClick={() => setPlanDate(d.date)}>
-                <span className={'pk' + (p.kind === 'meal' ? ' meal' : '')} />{p.title}
-              </button>
-            ))}
-            {future && (
-              <button className="dpill add press" aria-label={`Plan ${d.day_name} ${dayNum(d.date)}`}
-                onClick={() => setPlanDate(d.date)}>＋ plan</button>
-            )}
-          </div>
-        );
-        if (d.is_today) {
-          return (
-            <div key={d.date}>
-              <button className="herocard today press" style={{ width: '100%' }}
-                onClick={() => go('day', { dayDate: null })}>
-                <div className="toprow">
-                  <span className="kick" style={{ fontSize: 11, color: 'var(--volt)', display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span className="pulse" />{d.day_name} {dayNum(d.date)} · today
-                  </span>
-                  <span className="est num">{d.session?.status === 'completed' ? right(d)
-                    : dayMinutes(d) ? `~${dayMinutes(d)} min` : ''}</span>
-                </div>
-                <div className="hname">{d.name || 'Rest day'}</div>
-                {d.focus.length > 0 && (
-                  <div className="fpills">{d.focus.map((f) => <span key={f} className="fpill">{f}</span>)}</div>
-                )}
-              </button>
-              {dayplan}
-            </div>
-          );
-        }
-        const done = d.session?.status === 'completed';
-        return (
-          <div key={d.date}>
-            <button className={'lrow press' + (d.kind === 'rest' && !d.session ? ' dimrow' : '')}
-              style={{ width: '100%' }} onClick={() => go('day', { dayDate: d.date })}>
-              <span className="glyphslot"><KindGlyph kind={d.session?.kind || d.kind} done={done} /></span>
-              <span>
-                <b>{d.day_name} <span className="daynum num">{dayNum(d.date)}</span></b>
-                <span style={{ display: 'block', fontSize: 13, color: 'var(--mut)', marginTop: 2 }}>
-                  {d.name || 'Rest'}
-                </span>
-              </span>
-              <span className="rsub num" style={done ? { color: 'var(--volt)', fontWeight: 700 }
-                : missed(d) ? { color: 'var(--warn)', fontWeight: 600 } : undefined}>
-                {right(d)}
-              </span>
-              <span className="chev">›</span>
-            </button>
-            {dayplan}
-          </div>
-        );
-      })}
-      <Chip>{isFuture
-        ? 'Swipe to page weeks — pencil workouts and meals onto any future day'
-        : "Tap a day to see it in full — you can run any strength day on today's date"}</Chip>
 
       </div>
 

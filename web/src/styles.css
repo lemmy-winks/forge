@@ -349,6 +349,17 @@ input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%;
 .ws.today .d, .ws.today .dt{ color:var(--volt); font-weight:700; }
 .ws.miss .d{ color:var(--warn); }
 .daynum{ color:var(--dim); font-weight:400; font-size:12px; }
+/* swipeable week track: prev/cur/next panes slide with the finger.
+   touch-action pan-y keeps vertical scrolling native while horizontal moves
+   reach JS; the clip stops the off-screen panes creating sideways overflow. */
+.swipeweeks{ display:flex; flex-direction:column; gap:10px; touch-action:pan-y; }
+.wclip{ overflow-x:clip; margin:0 -8px; }
+.wtrack{ display:flex; align-items:flex-start; width:100%;
+         transform:translateX(-100%); will-change:transform; }
+/* pane padding + the clip's negative margin cancel out for the resting pane,
+   so weeks get a 16px gutter between pages without skewing the ±100% offsets */
+.wpane{ flex:0 0 100%; min-width:0; display:flex; flex-direction:column; gap:10px;
+        padding:0 8px; box-sizing:border-box; }
 /* pencilled-in future workouts & meals under a day row */
 .dayplan{ display:flex; flex-wrap:wrap; gap:6px; margin:6px 2px 0 26px; }
 .dpill{ border:none; font:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:6px;
