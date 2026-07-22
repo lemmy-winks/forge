@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useRef, useState } from 'react';
 import { addDaysISO, api, fmtDur, fmtLoad, kgDisp, loadUnitFor, todayISO, weekStartISO, type ProposalResp, type Today, type WeekResp } from '../api';
 import { MuscleMap } from '../musclemap';
-import { Back, Chip, Loading, Shell, Title, toast, useApp } from '../ui';
+import { Back, Chip, ConfirmSheet, Loading, Shell, Title, toast, useApp } from '../ui';
 
 /* ---------------- Plan: the whole week, separated by day ---------------- */
 
@@ -40,6 +40,7 @@ export function PlanScreen() {
   const pq = useQuery<ProposalResp>({ queryKey: ['proposal'], queryFn: () => api('/api/proposal') });
   const [noteOpen, setNoteOpen] = useState(false);
   const [dangOpen, setDangOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const w = q.data;
   const prop = pq.data?.proposal;
@@ -56,6 +57,21 @@ export function PlanScreen() {
       setDangOpen(false);
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['history'] });
+    } catch (e) { toast(String((e as Error).message)); }
+    setSaving(false);
+  };
+
+  const discardDangling = async () => {
+    if (!dang || saving) return;
+    setSaving(true);
+    try {
+      await api(`/api/sessions/${dang.id}`, { method: 'DELETE' });
+      toast('Workout discarded');
+      setDiscardOpen(false);
+      setDangOpen(false);
+      qc.invalidateQueries({ queryKey: ['week'] });
+      qc.invalidateQueries({ queryKey: ['history'] });
+      qc.invalidateQueries({ queryKey: ['progress'] });
     } catch (e) { toast(String((e as Error).message)); }
     setSaving(false);
   };
@@ -207,8 +223,22 @@ export function PlanScreen() {
               onClick={() => { setDangOpen(false); resumeSession(dang.id, dang.date); }}>
               Resume this workout now
             </button>
+            <button className="press" disabled={saving} onClick={() => setDiscardOpen(true)}
+              style={{ fontSize: 13, color: 'var(--warn)', fontWeight: 600, padding: '4px 0' }}>
+              Discard this workout
+            </button>
           </div>
         </div>
+      )}
+
+      {discardOpen && dang && (
+        <ConfirmSheet
+          title="Discard this workout?"
+          body={<>This permanently deletes <b style={{ color: 'var(--ink)' }}>{dang.name}</b> and the{' '}
+            <span className="num">{dang.sets_done}</span> {dang.sets_done === 1 ? 'set' : 'sets'} you logged.
+            This can't be undone.</>}
+          confirmLabel="Discard workout" cancelLabel="Keep it" danger busy={saving}
+          onConfirm={discardDangling} onCancel={() => setDiscardOpen(false)} />
       )}
     </Shell>
   );

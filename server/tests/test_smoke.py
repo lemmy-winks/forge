@@ -947,3 +947,70 @@ def test_restart_with_new_budget_refits():
     again = client.post("/api/sessions", json={"date": monday}).json()
     assert {t["slug"]: t["sets"] for t in again["fitted"]["targets"]} == full_sets
     client.post(f"/api/sessions/{full['id']}/complete", json={"cooldown_status": "skipped"})
+
+
+def test_favorite_star_and_filter():
+    """Star a session, confirm it in the detail + history payloads, and that the
+    favorites filter narrows History to starred sessions."""
+    login()
+    r = client.post("/api/sessions", json={"date": MONDAY, "budget": 40}).json()
+    sid = r["id"]
+    client.post(f"/api/sessions/{sid}/sets",
+                json={"slug": "back-squat", "set_no": 1, "weight": 60, "reps": 5})
+    client.post(f"/api/sessions/{sid}/complete", json={"cooldown_status": "skipped"})
+
+    assert client.get(f"/api/sessions/{sid}").json()["favorite"] is False
+    row = next(h for h in client.get("/api/history").json() if h["id"] == sid)
+    assert row["favorite"] is False
+
+    r = client.patch(f"/api/sessions/{sid}/favorite", json={"favorite": True})
+    assert r.status_code == 200 and r.json()["favorite"] is True
+    assert client.get(f"/api/sessions/{sid}").json()["favorite"] is True
+
+    fav = client.get("/api/history?favorites=true").json()
+    assert any(h["id"] == sid for h in fav) and all(h["favorite"] for h in fav)
+
+    client.patch(f"/api/sessions/{sid}/favorite", json={"favorite": False})
+    assert all(h["id"] != sid for h in client.get("/api/history?favorites=true").json())
+
+
+def test_delete_session():
+    """Discard/delete drops the session and its sets; it vanishes from History."""
+    login()
+    r = client.post("/api/sessions", json={"date": MONDAY, "budget": 40}).json()
+    sid = r["id"]
+    client.post(f"/api/sessions/{sid}/sets",
+                json={"slug": "back-squat", "set_no": 1, "weight": 60, "reps": 5})
+    client.post(f"/api/sessions/{sid}/complete", json={"cooldown_status": "skipped"})
+    assert any(h["id"] == sid for h in client.get("/api/history").json())
+
+    assert client.delete(f"/api/sessions/{sid}").status_code == 200
+    assert all(h["id"] != sid for h in client.get("/api/history").json())
+    assert client.get(f"/api/sessions/{sid}").status_code == 404
+
+
+def test_discard_dangling_session():
+    """The unfinished-workout sheet discards an abandoned session via DELETE,
+    clearing the /api/week reminder."""
+    login()
+    past_monday = "2026-07-06"  # strength day, before today
+    r = client.post("/api/sessions", json={"date": past_monday})
+    sid = r.json()["id"]
+    client.post(f"/api/sessions/{sid}/sets",
+                json={"slug": "back-squat", "set_no": 1, "weight": 60, "reps": 5})
+    assert client.get("/api/week").json()["dangling"]["id"] == sid
+
+    assert client.delete(f"/api/sessions/{sid}").status_code == 200
+    assert client.get("/api/week").json()["dangling"] is None
+
+
+def test_favorite_and_delete_scoped_to_owner():
+    """Neither favoriting nor deleting reaches another user's session (404)."""
+    login("james@test.dev")
+    sid = client.post("/api/sessions", json={"date": MONDAY, "budget": 40}).json()["id"]
+    login("shelby@test.dev")
+    assert client.patch(f"/api/sessions/{sid}/favorite", json={"favorite": True}).status_code == 404
+    assert client.delete(f"/api/sessions/{sid}").status_code == 404
+    # clean up James's leftover active session
+    login("james@test.dev")
+    client.delete(f"/api/sessions/{sid}")
