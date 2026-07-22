@@ -1309,3 +1309,38 @@ def test_mcp_recipe_import_and_search():
     with_parked = _mcp_tool(tok, "search_recipes",
                             {"query": "mystery", "include_incomplete": True})["structuredContent"]
     assert with_parked["count"] == 1
+
+def test_restart_with_new_budget_refits():
+    """Shortening the workout after it was already started must stick: a second
+    POST /api/sessions with a different budget re-fits the active session's
+    snapshot instead of returning the stale (full-length) one, and never trims
+    below sets already logged."""
+    login("shelby@test.dev")  # seeded plan intact — James's was replaced by a proposal
+    monday = "2026-07-27"  # untouched by other tests
+
+    full = client.post("/api/sessions", json={"date": monday}).json()
+    assert full["resumed"] is False
+    full_sets = {t["slug"]: t["sets"] for t in full["fitted"]["targets"]}
+
+    # user backs out, shortens to 40 min, starts again → trimmed fit, same session
+    short = client.post("/api/sessions", json={"date": monday, "budget": 40}).json()
+    assert short["resumed"] is True and short["id"] == full["id"]
+    assert short["fitted"]["budget"] == 40
+    short_sets = {t["slug"]: t["sets"] for t in short["fitted"]["targets"]}
+    assert sum(short_sets.values()) < sum(full_sets.values()), "40 min must trim"
+    assert short_sets["back-squat"] == full_sets["back-squat"], "main lift untouched"
+
+    # log 2 sets of an accessory, then squeeze to 25 min: that accessory
+    # can't be trimmed below what's already in the book
+    acc = next(s for s in full_sets if s != "back-squat")
+    for i in (1, 2):
+        client.post(f"/api/sessions/{full['id']}/sets",
+                    json={"slug": acc, "set_no": i, "weight": 20, "reps": 10})
+    tight = client.post("/api/sessions", json={"date": monday, "budget": 25}).json()
+    tight_sets = {t["slug"]: t["sets"] for t in tight["fitted"]["targets"]}
+    assert tight_sets[acc] >= 2, "logged sets are never dropped by a re-fit"
+
+    # sliding back up restores the full session
+    again = client.post("/api/sessions", json={"date": monday}).json()
+    assert {t["slug"]: t["sets"] for t in again["fitted"]["targets"]} == full_sets
+    client.post(f"/api/sessions/{full['id']}/complete", json={"cooldown_status": "skipped"})

@@ -86,20 +86,6 @@ function ProposalCard({ onChanges, onDecided }: { onChanges: () => void; onDecid
   );
 }
 
-/** Contextual one-tap prompts: the fastest way to start the useful conversations. */
-function suggestionsFor(hasProposal: boolean, msgCount: number): string[] {
-  if (hasProposal) {
-    return ['Walk me through the changes', 'Make next week a bit easier',
-            'I can only train 3 days next week'];
-  }
-  if (msgCount < 3) {
-    return ["How's my week looking?", 'Why this weight on my main lift?',
-            'My knee grumbled today'];
-  }
-  return ['How am I progressing?', "I've only got 30 minutes today",
-          'Plan feels heavy this week', 'I missed yesterday — what now?'];
-}
-
 export function CoachScreen() {
   const qc = useQueryClient();
   const { chatContext, setChatContext } = useApp();
@@ -115,8 +101,6 @@ export function CoachScreen() {
   const [propOpen, setPropOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState('');
-  const [focused, setFocused] = useState(false);
-  const [sentThisVisit, setSentThisVisit] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const thinking = q.data?.pending ?? false;
@@ -150,15 +134,12 @@ export function CoachScreen() {
     wasThinking.current = thinking;
   }, [thinking, qc]);
 
-  const send = async (raw?: string) => {
-    const text = (raw ?? draft).trim();
+  const send = async () => {
+    const text = draft.trim();
     if (!text || thinking) return;
-    if (raw === undefined) {
-      setDraft('');
-      const el = inputRef.current;
-      if (el) el.style.height = 'auto';
-    }
-    setSentThisVisit(true);
+    setDraft('');
+    const el = inputRef.current;
+    if (el) el.style.height = 'auto';
     const ctx = chatContext;
     setChatContext(null);
     setPending((p) => [...p, { who: 'me', text }]);
@@ -169,7 +150,7 @@ export function CoachScreen() {
     } catch (e) {
       toast((e as Error).message === 'network' ? 'Offline — message not sent' : String((e as Error).message));
       setPending((p) => p.slice(0, -1));
-      if (raw === undefined) setDraft(text); // give the typed message back
+      setDraft(text); // give the typed message back
       if (ctx) setChatContext(ctx);
     }
   };
@@ -210,7 +191,7 @@ export function CoachScreen() {
   return (
     <>
       <Header />
-      <div className="scroll" ref={scrollRef}>
+      <div className="scroll chat" ref={scrollRef}>
         <div className="row" style={{ alignItems: 'center' }}>
           <Title kick="Weekly review · Sun 20:00 · chat anytime">Coach</Title>
           <button className="ghost press" style={{ width: 'auto', padding: '7px 12px', fontSize: 12.5 }}
@@ -234,15 +215,6 @@ export function CoachScreen() {
           <span style={{ color: 'var(--volt)', fontWeight: 700, fontSize: 13 }}>Review ›</span>
         </button>
       )}
-      {/* conversation starters, not furniture: gone the moment you're actually
-          chatting (typing, focused, or already sent something this visit) */}
-      {!thinking && !focused && !draft && !sentThisVisit && (
-        <div className="sugg">
-          {suggestionsFor(hasProposal, msgs.length).map((s) => (
-            <button key={s} className="fchip press" onClick={() => send(s)}>{s}</button>
-          ))}
-        </div>
-      )}
       {chatContext && (
         <div className="ctxchip num">
           <span className="dot" style={{ background: 'var(--volt)', width: 6, height: 6,
@@ -256,7 +228,6 @@ export function CoachScreen() {
         <textarea ref={inputRef} rows={1} value={draft}
           placeholder={thinking ? 'Coach is thinking…' : 'Message your coach…'}
           autoComplete="off" disabled={thinking}
-          onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
           onChange={(e) => {
             setDraft(e.target.value);
             // auto-grow up to ~4 lines, then scroll inside
@@ -266,8 +237,13 @@ export function CoachScreen() {
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
           }} />
-        <button className="press" onClick={() => send()} disabled={thinking}
-          style={thinking ? { opacity: 0.5 } : undefined}>Send</button>
+        <button className="press" aria-label="Send" onClick={() => send()}
+          disabled={thinking || !draft.trim()}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
       </div>
       <Tabs />
       {propOpen && (
