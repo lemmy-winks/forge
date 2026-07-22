@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { api, type ChatMsg, type ChatResp, type ProposalResp } from '../api';
+import { CoachMascot } from '../mascot';
 import { ChatBubble, Header, Tabs, Title, toast, useApp } from '../ui';
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -204,6 +205,9 @@ export function CoachScreen() {
         })}
         {thinking && <div className="bub">checking your data<span className="dots"><i /><i /><i /></span></div>}
       </div>
+      {/* one footer band: Rep perches on top of whatever is uppermost here */}
+      <div className="chatfoot">
+      <CoachMascot />
       {hasProposal && (
         <button className="propbar press" onClick={() => setPropOpen(true)}>
           <span className="pulse" />
@@ -240,6 +244,7 @@ export function CoachScreen() {
               strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
+      </div>
       </div>
       <Tabs />
       {propOpen && (

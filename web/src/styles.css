@@ -383,6 +383,105 @@ input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%;
              width:100%; text-align:left; }
 .warnbanner b{ flex:1; font-weight:600; }
 
+/* ---- Rep, the chat-bar mascot (mascot.tsx) ----
+   A chunky strongman who perches on the composer. All motion lives here:
+   the component just flips data-move and the --spd/--reps vars per set.
+   The torso (.m-all) carries the rep-counting animation for every move —
+   its animationend is what tells React the set is finished. */
+.chatfoot{ position:relative; display:flex; flex-direction:column; flex:none; }
+.mascot{ position:absolute; bottom:calc(100% - 3px); width:58px; height:62px; padding:0;
+         border:none; background:none; cursor:pointer; z-index:1;
+         -webkit-tap-highlight-color:transparent;
+         animation:m-pop .65s cubic-bezier(.34,1.56,.64,1) both; }
+.mascot.leave{ animation:m-drop .55s ease-in both; }
+@keyframes m-pop{ from{ transform:translateY(64px) scale(.5); opacity:0 }
+                  60%{ transform:translateY(-9px) scale(1.06); opacity:1 }
+                  to{ transform:translateY(0) scale(1); opacity:1 } }
+@keyframes m-drop{ to{ transform:translateY(70px) scale(.55); opacity:0 } }
+.m-fig{ display:block; width:100%; height:100%; transition:transform .3s;
+        filter:drop-shadow(0 3px 8px rgba(0,0,0,.3)); }
+.mascot svg{ width:100%; height:100%; display:block; overflow:visible; }
+.mascot .m-all, .mascot .m-arm, .mascot .m-db, .mascot .m-bar, .mascot .m-leg,
+.mascot .m-eye, .mascot .m-sweat{ transform-box:fill-box; }
+.mascot .m-all{ transform-origin:50% 100%; animation:m-idle 1.5s ease-in-out infinite; }
+@keyframes m-idle{ 0%,100%{ transform:translateY(0) }
+                   40%{ transform:translateY(-6px) scaleY(1.03) }
+                   58%{ transform:translateY(0) scaleY(.92) scaleX(1.06) }
+                   75%{ transform:translateY(0) } }
+.mascot .m-arm{ transform-origin:50% 15%; }
+.mascot .m-leg{ transform-origin:50% 8%; }
+.mascot .m-eye{ transform-origin:center; animation:m-blink 3.7s infinite; }
+@keyframes m-blink{ 0%,91%,100%{ transform:scaleY(1) } 94%{ transform:scaleY(.1) } }
+.mascot .m-db, .mascot .m-bar, .mascot .m-grit, .mascot .m-sweat{ opacity:0; }
+
+/* working: gritted face + sweat, torso counts reps (names all start m-rep-) */
+.mascot[data-move] .m-all{ animation-duration:var(--spd); animation-iteration-count:var(--reps);
+                           animation-timing-function:ease-in-out; animation-fill-mode:both; }
+.mascot[data-move]:not([data-move=flex]) .m-smile{ opacity:0; }
+.mascot[data-move]:not([data-move=flex]) .m-grit{ opacity:1; }
+.mascot[data-move]:not([data-move=flex]) .m-sweat{ animation:m-sweat .9s ease-in infinite; }
+.mascot[data-move]:not([data-move=flex]) .m-sweat.s2{ animation-delay:.45s; }
+@keyframes m-sweat{ 0%{ opacity:0; transform:translateY(0) } 25%{ opacity:.9 }
+                    100%{ opacity:0; transform:translateY(9px) } }
+
+.mascot[data-move=squat] .m-all{ animation-name:m-rep-squat; }
+.mascot[data-move=squat] .m-bar{ opacity:1; transform:translateY(-10px); } /* front rack */
+@keyframes m-rep-squat{ 0%,100%{ transform:translateY(0) scaleY(1) }
+                        55%{ transform:translateY(7px) scaleY(.76) scaleX(1.14) } }
+
+.mascot[data-move=press] .m-all{ animation-name:m-rep-press; }
+.mascot[data-move=press] .m-bar{ opacity:1;
+  animation:m-bar-press var(--spd) ease-in-out var(--reps) both; }
+.mascot[data-move=press] .m-armL{ animation:m-armL-up var(--spd) ease-in-out var(--reps) both; }
+.mascot[data-move=press] .m-armR{ animation:m-armR-up var(--spd) ease-in-out var(--reps) both; }
+@keyframes m-rep-press{ 0%,100%{ transform:scaleY(1) } 25%{ transform:translateY(2px) scaleY(.95) }
+                        60%{ transform:translateY(-1.5px) scaleY(1.02) } }
+@keyframes m-bar-press{ 0%,100%{ transform:translateY(0) } 55%{ transform:translateY(-21px) } }
+@keyframes m-armL-up{ 0%,100%{ transform:rotate(0) } 55%{ transform:rotate(165deg) } }
+@keyframes m-armR-up{ 0%,100%{ transform:rotate(0) } 55%{ transform:rotate(-165deg) } }
+
+.mascot[data-move=curl] .m-all{ animation-name:m-rep-curl; }
+.mascot[data-move=curl] .m-db{ opacity:1; }
+.mascot[data-move=curl] .m-armL{ animation:m-curlL var(--spd) ease-in-out var(--reps) both; }
+.mascot[data-move=curl] .m-armR{ animation:m-curlR var(--spd) ease-in-out var(--reps) both; }
+@keyframes m-rep-curl{ 0%,100%{ transform:scaleY(1) } 50%{ transform:scaleY(.985) } }
+@keyframes m-curlL{ 0%,100%{ transform:rotate(0) } 50%{ transform:rotate(118deg) } }
+@keyframes m-curlR{ 0%,100%{ transform:rotate(0) } 50%{ transform:rotate(-118deg) } }
+
+.mascot[data-move=jacks] .m-all{ animation-name:m-rep-jacks; }
+.mascot[data-move=jacks] .m-armL{ animation:m-jack-armL var(--spd) ease-in-out var(--reps) both; }
+.mascot[data-move=jacks] .m-armR{ animation:m-jack-armR var(--spd) ease-in-out var(--reps) both; }
+.mascot[data-move=jacks] .m-legL{ animation:m-jack-legL var(--spd) ease-in-out var(--reps) both; }
+.mascot[data-move=jacks] .m-legR{ animation:m-jack-legR var(--spd) ease-in-out var(--reps) both; }
+@keyframes m-rep-jacks{ 0%,100%{ transform:translateY(0) } 30%{ transform:translateY(-8px) }
+                        50%{ transform:translateY(-8px) } 85%{ transform:translateY(0) scaleY(.94) scaleX(1.05) } }
+@keyframes m-jack-armL{ 0%,100%{ transform:rotate(0) } 45%{ transform:rotate(160deg) } }
+@keyframes m-jack-armR{ 0%,100%{ transform:rotate(0) } 45%{ transform:rotate(-160deg) } }
+@keyframes m-jack-legL{ 0%,100%{ transform:translateX(0) } 45%{ transform:translateX(-3.5px) rotate(-9deg) } }
+@keyframes m-jack-legR{ 0%,100%{ transform:translateX(0) } 45%{ transform:translateX(3.5px) rotate(9deg) } }
+
+/* rotate to the floor; translateX in the rotated frame = screen-down, so he
+   actually lies on the bar; the ground shadow would rotate with him — hide it */
+.mascot[data-move=pushup] .m-fig{ transform:rotate(90deg) translateX(13px); }
+.mascot[data-move=pushup] .m-all{ animation-name:m-rep-push; }
+.mascot[data-move=pushup] .m-shadow{ opacity:0; }
+@keyframes m-rep-push{ 0%,100%{ transform:translateX(0) } 55%{ transform:translateX(6px) } }
+
+/* set done: double-bicep + quip (after the generic [data-move] rule on purpose) */
+.mascot[data-move=flex] .m-all{ animation:m-cheer .38s ease-in-out 4 both; }
+.mascot[data-move=flex] .m-armL{ transform:rotate(140deg); }
+.mascot[data-move=flex] .m-armR{ transform:rotate(-140deg); }
+@keyframes m-cheer{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-5px) scaleY(1.04) } }
+.m-quip{ position:absolute; bottom:calc(100% + 2px); left:50%; white-space:nowrap;
+         background:var(--raised); color:var(--volt); font-size:11.5px; font-weight:700;
+         padding:5px 10px; border-radius:999px; border:1px solid var(--hair);
+         pointer-events:none; animation:m-quip-in .25s ease-out both; }
+@keyframes m-quip-in{ from{ opacity:0; transform:translate(-50%,4px) }
+                      to{ opacity:1; transform:translate(-50%,0) } }
+
+/* he's pure decoration — sit this one out rather than jitter */
+@media (prefers-reduced-motion: reduce){ .mascot{ display:none; } }
+
 /* ============== responsive: small phones → tablets → desktop ==============
    Same DOM at every size — this is all CSS.
    ≤380px  compact type + padding so nothing crowds or wraps
