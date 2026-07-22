@@ -482,6 +482,9 @@ function BandChart({ points, band, disp, units }: {
           <text x={X(m.i) + 3} y={h - 5} fontSize="9" fill="var(--dim)">{m.label}</text>
         </g>
       ))}
+      {pts.length <= 80 && pts.map((p, i) => (
+        <circle key={i} cx={X(i)} cy={Y(p.v)} r="1.8" fill="var(--volt)" opacity="0.55" />
+      ))}
       <path d={path} fill="none" stroke="var(--volt)" strokeWidth="2" strokeLinecap="round" />
       <circle cx={X(pts.length - 1)} cy={Y(pts[pts.length - 1].v)} r="4"
         fill="var(--volt)" stroke="var(--raised)" strokeWidth="2" />
@@ -489,15 +492,20 @@ function BandChart({ points, band, disp, units }: {
   );
 }
 
-export function MetricScreen() {
-  const { openTab, go, lift: mtype, me } = useApp();
+/** One metric's full story — latest value, history chart with the reference
+ * band shaded, the band/zone description, and the plain-words blurb. Rendered
+ * inline under the Progress KPI grid (no navigation) and by the legacy
+ * /metric deep-link screen. `chartOverride` swaps in a custom chart (VO₂max
+ * keeps its raw-dots + quarterly-trend view) while the band text stays. */
+export function MetricPanel({ mtype, chartOverride }: { mtype: string; chartOverride?: ReactNode }) {
+  const { go, me } = useApp();
   const meta = METRIC_META[mtype];
   const q = useQuery<MetricHistory>({
     queryKey: ['metric-history', mtype],
     queryFn: () => api(`/api/metrics/${mtype}/history`),
     enabled: !!meta,
   });
-  if (!meta) return <Shell><Back label="Progress" onClick={() => openTab('progress')} /><Chip>Unknown metric.</Chip></Shell>;
+  if (!meta) return <Chip>Unknown metric.</Chip>;
   const h = q.data;
   const unit = meta.unit(me.units);
   const pts = h?.points || [];
@@ -517,25 +525,28 @@ export function MetricScreen() {
     : (lastV! > meta.disp(band![1], me.units)) === !!meta.higherBetter
       ? 'above the reference range' : 'below the reference range';
   return (
-    <Shell>
-      <Back label="Progress" onClick={() => openTab('progress')} />
-      <Title kick={`All readings${firstD ? ` · since ${firstD}` : ''}`}>{meta.title}</Title>
+    <>
       <div className="card num">
         <div className="row">
-          <span style={{ fontSize: 13.5, fontWeight: 600 }}>Latest</span>
+          <span style={{ fontSize: 13.5, fontWeight: 600 }}>
+            {meta.title}
+            {firstD && <small style={{ color: 'var(--mut)', fontWeight: 400 }}> · since {firstD}</small>}
+          </span>
           <span className="disp num" style={{ fontSize: 22, color: 'var(--volt)' }}>
             {lastV != null ? lastV : '—'}
             <small style={{ fontSize: 11.5, color: 'var(--mut)', fontWeight: 400 }}> {unit}</small>
           </span>
         </div>
         {!h && <Loading />}
-        {h && <BandChart points={pts} band={band ?? undefined} disp={meta.disp} units={me.units} />}
+        {h && (chartOverride
+          ?? <BandChart points={pts} band={band ?? undefined} disp={meta.disp} units={me.units} />)}
         {band && bandFor && (
           <div className="sub">
-            Shaded: {meta.disp(band[0], me.units)}–{meta.disp(band[1], me.units)} {unit} · {bandFor.label}
+            {chartOverride ? 'Reference' : 'Shaded'}: {meta.disp(band[0], me.units)}–{meta.disp(band[1], me.units)} {unit} · {bandFor.label}
             {bandWord && <> — you're <b style={{ color: inBand ? 'var(--volt)' : 'var(--warn)' }}>{bandWord}</b></>}
           </div>
         )}
+        <p className="sub" style={{ lineHeight: 1.5 }}>{meta.blurb}</p>
       </div>
       {untuned && (
         <button className="lrow press" onClick={() => go('settings')}>
@@ -544,14 +555,22 @@ export function MetricScreen() {
           <span className="chev">›</span>
         </button>
       )}
-      <div className="card">
-        <div className="kick" style={{ fontSize: 11, marginBottom: 5 }}>What this is</div>
-        <p style={{ fontSize: 14, lineHeight: 1.55 }}>{meta.blurb}</p>
-      </div>
       {band && (
         <Chip>Reference ranges are broad healthy guidance, not targets or diagnosis — bring
           questions about your numbers to your GP.</Chip>
       )}
+    </>
+  );
+}
+
+export function MetricScreen() {
+  const { openTab, lift: mtype } = useApp();
+  const meta = METRIC_META[mtype];
+  return (
+    <Shell>
+      <Back label="Progress" onClick={() => openTab('progress')} />
+      <Title kick="All readings">{meta ? meta.title : 'Metric'}</Title>
+      <MetricPanel mtype={mtype} />
     </Shell>
   );
 }
@@ -559,6 +578,8 @@ export function MetricScreen() {
 export function ProgressScreen() {
   const { go, lift, me } = useApp();
   const q = useQuery<Progress>({ queryKey: ['progress'], queryFn: () => api('/api/progress') });
+  const [selMetric, setSelMetric] = useState(
+    () => localStorage.getItem('forge-progress-metric') || 'weight');
   const p = q.data;
   if (!p) return <Shell><Loading /></Shell>;
   const slugs = Object.keys(p.e1rm);
@@ -625,65 +646,48 @@ export function ProgressScreen() {
         <b>Records</b><span className="rsub">all-time bests per lift</span><span className="chev">›</span>
       </button>
 
-      <div className="sect">Engine</div>
-      <div className="card">
-        <div className="row">
-          <span style={{ fontSize: 13.5, fontWeight: 600 }}>VO₂max · raw + trend</span>
-          <span style={{ fontSize: 11.5, color: 'var(--mut)' }}>{vLast != null ? 'ml/kg/min' : ''}</span>
-        </div>
-        <DotTrendChart raw={p.vo2max} smooth={p.vo2max_smooth} />
-        {p.vo2max.length >= 2 &&
-          <div className="sub">Trend over single readings — the coach reads this quarterly.</div>}
-        <button className="press" style={{ fontSize: 12.5, color: 'var(--volt)', fontWeight: 600 }}
-          onClick={() => go('metric', { lift: 'vo2max' })}>Full history + healthy range ›</button>
-        <div className="statchips num">
-          <div className="statchip"><div className="k">Zone 2</div>
-            <div className="v" style={p.zone2.target && p.zone2.done >= p.zone2.target ? { color: 'var(--volt)' } : undefined}>
-              {Math.round(p.zone2.done)}<small style={{ color: 'var(--mut)', fontWeight: 400 }}>/{p.zone2.target || '—'} m</small></div></div>
-          <button className="statchip press" onClick={() => go('metric', { lift: 'resting_hr' })}>
-            <div className="k">Resting HR ›</div>
-            <div className="v">{p.resting_hr.length ? Math.round(p.resting_hr[p.resting_hr.length - 1].v) : '—'} <small style={{ color: 'var(--mut)', fontWeight: 400 }}>bpm</small></div></button>
-          <button className="statchip press" onClick={() => go('metric', { lift: 'sleep_h' })}>
-            <div className="k">Sleep ›</div>
-            <div className="v">{p.sleep_h.length ? p.sleep_h[p.sleep_h.length - 1].v.toFixed(1) : '—'} <small style={{ color: 'var(--mut)', fontWeight: 400 }}>h</small></div></button>
-        </div>
-      </div>
-
-      <div className="sect">Body</div>
-      <button className="card press" style={{ width: '100%', textAlign: 'inherit' }}
-        onClick={() => go('metric', { lift: 'weight' })}>
-        <div className="row">
-          <span style={{ fontSize: 13.5, fontWeight: 600 }}>Bodyweight ›</span>
-          <span className="disp num" style={{ fontSize: 20 }}>
-            {wLast != null ? kgDisp(wLast, me.units) : '—'}</span>
-        </div>
-        <LineChart points={p.weight} />
-      </button>
-      {(bc.fat_pct.length > 0 || bc.muscle.length > 0) && (
-        <div className="card num">
-          <div className="row">
-            <span style={{ fontSize: 13.5, fontWeight: 600 }}>Body composition</span>
-            <span style={{ fontSize: 11.5, color: 'var(--mut)' }}>latest scale readings</span>
-          </div>
-          <div className="row" style={{ marginTop: 6 }}>
-            {([['Fat %', last(bc.fat_pct), '%', 'body_fat_pct'],
-               ['Water %', last(bc.water_pct), '%', 'water_pct'],
-               ['Muscle', last(bc.muscle), null, 'muscle_mass'],
-               ['Bone', last(bc.bone), null, 'bone_mass']] as const).map(([k, v, pct, type]) => (
-              <button key={k} className="press" style={{ textAlign: 'center' }}
-                onClick={() => go('metric', { lift: type })}>
-                <span className="lab" style={{ display: 'block' }}>{k} ›</span>
-                <span className="disp num" style={{ fontSize: 17 }}>
-                  {v == null ? '—' : pct ? v.toFixed(1) + pct : kgDisp(v, me.units)}
-                </span>
-              </button>
-            ))}
-          </div>
-          {bc.fat_pct.length >= 2 && <LineChart points={bc.fat_pct} />}
-          {bc.fat_pct.length >= 2 && <div className="sub">Chart: body-fat % over the last year</div>}
-          <div className="sub">Tap any number for its full history and healthy range.</div>
-        </div>
-      )}
+      {/* Every health KPI in one grid; tapping a chip swaps the chart +
+          band/zone description below it in place — no screen hopping. */}
+      <div className="sect">Health</div>
+      {(() => {
+        const kpis: { type: string; k: string; v: string }[] = [
+          { type: 'weight', k: 'Weight', v: wLast != null ? kgDisp(wLast, me.units) : '—' },
+          { type: 'vo2max', k: 'VO₂max', v: vLast != null ? String(vLast) : '—' },
+          { type: 'resting_hr', k: 'Resting HR',
+            v: p.resting_hr.length ? `${Math.round(p.resting_hr[p.resting_hr.length - 1].v)} bpm` : '—' },
+          { type: 'sleep_h', k: 'Sleep',
+            v: p.sleep_h.length ? `${p.sleep_h[p.sleep_h.length - 1].v.toFixed(1)} h` : '—' },
+        ];
+        if (bc.fat_pct.length) kpis.push({ type: 'body_fat_pct', k: 'Fat %', v: `${last(bc.fat_pct)!.toFixed(1)}%` });
+        if (bc.water_pct.length) kpis.push({ type: 'water_pct', k: 'Water %', v: `${last(bc.water_pct)!.toFixed(1)}%` });
+        if (bc.muscle.length) kpis.push({ type: 'muscle_mass', k: 'Muscle', v: kgDisp(last(bc.muscle)!, me.units) });
+        if (bc.bone.length) kpis.push({ type: 'bone_mass', k: 'Bone', v: kgDisp(last(bc.bone)!, me.units) });
+        const selType = kpis.some((x) => x.type === selMetric) ? selMetric : 'weight';
+        return (
+          <>
+            <div className="statchips num">
+              {kpis.map((kpi) => {
+                const on = selType === kpi.type;
+                return (
+                  <button key={kpi.type} className="statchip press"
+                    style={on ? { background: 'var(--sel)' } : undefined}
+                    onClick={() => {
+                      setSelMetric(kpi.type);
+                      localStorage.setItem('forge-progress-metric', kpi.type);
+                    }}>
+                    <div className="k" style={on ? { color: 'var(--volt)' } : undefined}>{kpi.k}</div>
+                    <div className="v">{kpi.v}</div>
+                  </button>
+                );
+              })}
+            </div>
+            <MetricPanel mtype={selType}
+              chartOverride={selType === 'vo2max' && p.vo2max.length
+                ? <DotTrendChart raw={p.vo2max} smooth={p.vo2max_smooth} />
+                : undefined} />
+          </>
+        );
+      })()}
     </Shell>
   );
 }

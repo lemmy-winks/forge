@@ -261,17 +261,31 @@ def test_proposal_validation_and_approve_flow():
             {"slug": "back-squat", "sets": 3, "reps": 5, "priority": 1}], "cooldown": []}}}, "r")
         assert "cooldown" in bad3["error"]
 
-        good = create_proposal(db, james, {"days": {
+        good_content = {"days": {
             "0": {"name": "Lower A", "kind": "strength", "focus": ["Quads"],
                   "why": "Main squat day — keep climbing",
                   "exercises": [{"slug": "back-squat", "sets": 3, "reps": 5, "weight": 62.5,
                                  "rest": 120, "priority": 1, "min_sets": 3}],
                   "cooldown": [{"slug": "quad-hip-flexor-stretch", "hold": "45 s"}]},
             "2": {"name": "Zone 2", "kind": "cardio", "focus": ["Base"],
+                  "why": "45 easy minutes banks half the Zone-2 target early",
                   "cardio": {"type": "run", "minutes": 45, "hr_low": 125, "hr_high": 140}},
         }, "changes": [{"sign": "+", "what": "Back Squat 60 → 62.5 kg",
-                        "why": "all reps clean at RPE 7"}]},
-            "Squat earned +2.5; test proposal.")
+                        "why": "all reps clean at RPE 7"}]}
+
+        # day-note quality gates: notes are per-session, not week copy
+        import copy
+        c = copy.deepcopy(good_content)
+        del c["days"]["2"]["why"]
+        assert "no why" in create_proposal(db, james, c, "r")["error"]
+        c = copy.deepcopy(good_content)
+        c["days"]["2"]["why"] = c["days"]["0"]["why"]
+        assert "share the same" in create_proposal(db, james, c, "r")["error"]
+        c = copy.deepcopy(good_content)
+        bad_rat = "Deload week. " + c["days"]["0"]["why"]
+        assert "restates the weekly rationale" in create_proposal(db, james, c, bad_rat)["error"]
+
+        good = create_proposal(db, james, good_content, "Squat earned +2.5; test proposal.")
         assert good.get("ok"), good
         assert good["status"] == "proposed"
     finally:
@@ -1007,6 +1021,14 @@ def test_food_proposal_validation_and_approve_flow():
 
         assert "changes[]" in create_food_proposal(db, james, good, [], "r")["error"]
         assert "rationale" in create_food_proposal(db, james, good, FOOD_CHANGES, " ")["error"]
+
+        # dinner-note quality gates: plate notes, not week copy
+        c = copy.deepcopy(good)
+        c["days"]["1"]["slots"]["dinner"]["why"] = c["days"]["0"]["slots"]["dinner"]["why"]
+        assert "share the same dinner why" in create_food_proposal(db, james, c, FOOD_CHANGES, "r")["error"]
+        c = copy.deepcopy(good)
+        rat = "Steady week. " + c["days"]["0"]["slots"]["dinner"]["why"]
+        assert "restates the weekly rationale" in create_food_proposal(db, james, c, FOOD_CHANGES, rat)["error"]
 
         # the real thing
         out = create_food_proposal(db, james, good, FOOD_CHANGES, "Test food week — same as the baseline.")

@@ -11,6 +11,8 @@ weekly, never per meal) with declared assumptions for order-out lunches.
 
 from __future__ import annotations
 
+import json
+import re
 from datetime import date
 
 from sqlalchemy.orm import Session
@@ -135,11 +137,54 @@ def validate_food_content(db: Session, user: User, content: dict, changes: list)
     return None
 
 
+def _norm_note(s: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9 ]", " ", (s or "").lower()).split())
+
+
+def _dinner_sig(entry: dict) -> str:
+    return json.dumps({k: v for k, v in (entry or {}).items() if k != "why"},
+                      sort_keys=True, default=str)
+
+
+def _validate_dinner_notes(db: Session, user: User, content: dict, rationale: str) -> str | None:
+    """Dinner whys are plate notes, not week copy: about THAT dinner that night
+    (its macro job, batch/leftover role, a carry-over it uses). No two alike,
+    none a restatement of the rationale, and a changed dinner never keeps the
+    line the current week already shows."""
+    scope = food_scope(user)
+    q = db.query(MealRevision).filter(MealRevision.status == "active")
+    q = q.filter(MealRevision.user_id == scope) if scope else q.filter(MealRevision.user_id.is_(None))
+    prev = q.order_by(MealRevision.num.desc()).first()
+    prev_days = ((prev.content or {}).get("days", {}) or {}) if prev else {}
+    rat = _norm_note(rationale)
+    seen: dict[str, str] = {}
+    for key in DAY_KEYS:
+        entry = ((content.get("days", {}).get(key) or {}).get("slots") or {}).get("dinner") or {}
+        prev_entry = ((prev_days.get(key) or {}).get("slots") or {}).get("dinner") or {}
+        n = _norm_note(entry.get("why") or "")
+        if not n:
+            continue  # presence is enforced structurally in validate_food_content
+        if n in seen.values():
+            dup = next(k for k, v in seen.items() if v == n)
+            return (f"days {dup} and {key} share the same dinner why — each note is about that "
+                    "plate that night (its macro job, batch role, or the carry-over it uses)")
+        if rat and (n in rat or rat in n):
+            return (f"day {key}: the dinner why restates the weekly rationale — say what this "
+                    "dinner does tonight instead")
+        if _dinner_sig(entry) != _dinner_sig(prev_entry) and prev_entry \
+                and n == _norm_note(prev_entry.get("why") or ""):
+            return (f"day {key}: the dinner changed but its why is the current week's line — "
+                    "write it fresh for the new plate")
+        seen[key] = n
+    return None
+
+
 def create_food_proposal(db: Session, user: User, content: dict, changes: list,
                          rationale: str) -> dict:
     if not (rationale or "").strip():
         return {"error": "rationale is required — 2-3 sentences on what this week achieves"}
-    err = validate_food_content(db, user, content, changes or [])
+    err = (validate_food_content(db, user, content, changes or [])
+           or _validate_dinner_notes(db, user, content, rationale))
     if err:
         return {"error": err}
     scope = food_scope(user)

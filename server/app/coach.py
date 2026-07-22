@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -64,7 +65,7 @@ TOOLS: list[dict] = [
                       "required": ["type", "value"]}},
     {"name": "propose_revision",
      "description": ("Propose next week's plan. content = {\"days\": {\"0\"..\"6\": day}, \"changes\": [...]}. "
-                     "Strength day: {name, kind:'strength', focus:[...], why:'one short line on this day's intent', "
+                     "Strength day: {name, kind:'strength', focus:[...], why:'this session's note — see below', "
                      "exercises:[{slug, sets, reps, weight, rest, priority, min_sets}], "
                      "cooldown:[{slug, hold}]}. Exactly one exercise per strength day has priority 1 (the protected main lift); "
                      "min_sets 0 marks droppable accessories. Cardio day: {name, kind:'cardio', focus:[...], why:'...', "
@@ -76,7 +77,13 @@ TOOLS: list[dict] = [
                      "WEEK ACHIEVES, written forward: the load/volume milestones it reaches, the weekly cardio "
                      "minutes it banks, what it sets up next ('Bench moves to 60 kg for the first time; 90 min "
                      "of Zone 2 keeps the aerobic block on track'). Real numbers, future tense. Do NOT restate "
-                     "the diff — changes[] already carries per-change whys."),
+                     "the diff — changes[] already carries per-change whys. "
+                     "Each day's why is a SESSION note the user reads on that day's row: one line grounded in "
+                     "that session's content this week — the main lift's progression state ('third week at 5×5 "
+                     "60 kg; fast bar speed earns 62.5 next'), the specific stimulus ('extra pull set to balance "
+                     "Monday's pressing'), or a watch point ('first squats since the knee niggle — stop short of "
+                     "pain'). Never week-level copy, never the rationale rephrased, never last week's line, no "
+                     "two days alike — the validator rejects all four."),
      "input_schema": {"type": "object", "properties": {"content": {"type": "object"}, "rationale": {"type": "string"}},
                       "required": ["content", "rationale"]}},
     {"name": "log_niggle", "description": "Record a new niggle after the user confirms. Args: body_part, severity (mild/moderate), note, avoid_patterns (e.g. ['deep_lunge','overhead_press']), mobility_slug (optional cool-down stretch to inject).",
@@ -97,7 +104,11 @@ TOOLS: list[dict] = [
                      "{recipe: slug, why?: '...'} · {order: true, note: 'target macros + budget'} (lunches only) · "
                      "{out: true, note: '...'} (dinner only — the planned night out) · {leftover_of: '0'} (inherits that "
                      "day's dinner; at least one dinner per week must be zero-cook via leftover or out). Every cooked "
-                     "dinner needs a why one-liner. Validators enforce: complete recipes only, weekly-average protein/fiber "
+                     "dinner needs a why one-liner about THAT plate that night — its macro job in the day, its "
+                     "batch/leftover role, or the carry-over it uses ('lentils do the fiber lifting on a low-veg day', "
+                     "'boxes two lunches for the office run') — never the week's goals rephrased, never the line the "
+                     "current week already shows for a changed dinner, no two days alike. "
+                     "Validators enforce: complete recipes only, weekly-average protein/fiber "
                      "at target, sat-fat cap honored with headroom banked for a night out, difficulty ≤ medium. "
                      "changes = diff vs the current food week, each {sign:'+'|'-'|'~', what, why}. rationale = 2-3 "
                      "sentences on what the week achieves (averages hit, carry-overs used, what the night out costs)."),
@@ -168,8 +179,57 @@ def _validate_content(db: Session, content: dict) -> str | None:
     return None
 
 
+def _norm_note(s: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9 ]", " ", (s or "").lower()).split())
+
+
+def _day_sig(day: dict) -> str:
+    """A day's content identity, ignoring its note — used to tell 'this day
+    changed' from 'this day is carried over'."""
+    return json.dumps({k: v for k, v in (day or {}).items() if k != "why"},
+                      sort_keys=True, default=str)
+
+
+def _validate_day_notes(db: Session, user: User, content: dict, rationale: str) -> str | None:
+    """Day whys are per-session coaching notes, not week copy. Enforced: a day
+    whose content changed carries a note, and that note is fresh (not last
+    week's line for the day), specific (no two days share one), and not a
+    restatement of the weekly rationale — the user reads note and rationale
+    side by side on the proposal card."""
+    prev = (db.query(PlanRevision).join(Plan)
+            .filter(Plan.user_id == user.id, Plan.domain == "training",
+                    PlanRevision.status == "active")
+            .order_by(PlanRevision.num.desc()).first())
+    prev_days = ((prev.content or {}).get("days", {}) or {}) if prev else {}
+    rat = _norm_note(rationale)
+    seen: dict[str, str] = {}
+    for key in sorted(content.get("days") or {}):
+        day = (content["days"].get(key)) or {}
+        prev_day = prev_days.get(key) or {}
+        changed = _day_sig(day) != _day_sig(prev_day)
+        n = _norm_note(day.get("why") or "")
+        if changed and not n:
+            return (f"day {key}: changed but has no why — write this session's note: one specific "
+                    "line grounded in its content (the main lift's progression state, the stimulus "
+                    "it adds, what to watch), not a week-level statement")
+        if not n:
+            continue
+        if n in seen.values():
+            dup = next(k for k, v in seen.items() if v == n)
+            return (f"days {dup} and {key} share the same why — each day's note must speak to "
+                    "that session specifically")
+        if rat and (n in rat or rat in n):
+            return (f"day {key}: the why restates the weekly rationale — the rationale tells the "
+                    f"week's story once; this note tells day {key}'s story")
+        if changed and prev_day and n == _norm_note(prev_day.get("why") or ""):
+            return (f"day {key}: the session changed but its why is last week's line — rewrite "
+                    "the note from what actually changed this week")
+        seen[key] = n
+    return None
+
+
 def create_proposal(db: Session, user: User, content: dict, rationale: str) -> dict:
-    err = _validate_content(db, content)
+    err = _validate_content(db, content) or _validate_day_notes(db, user, content, rationale)
     if err:
         return {"error": err}
     plan = (db.query(Plan).filter(Plan.user_id == user.id, Plan.domain == "training")
@@ -590,7 +650,9 @@ REVIEW_INSTRUCTION = """Run my weekly review. Steps:
 3. Call propose_revision with the full week, per-day why lines, the changes diff vs the
    current week (every load change, swap, and volume move gets a row), and a rationale that
    says what next week achieves — the loads it reaches, the minutes it banks, what it sets
-   up — in real numbers, not a recap of the edits.
+   up — in real numbers, not a recap of the edits. Day whys are session notes, not week
+   copy: each one speaks to that day's actual content this week and must differ from last
+   week's note on that day — write them fresh from this review's data.
 4. Food: read get_food_week (what got logged vs planned, day totals vs my targets) and
    get_carryovers. If a food proposal is already pending (get_food_proposal), review it and
    only re-propose if it needs changes. Otherwise call propose_food_week for next week:
