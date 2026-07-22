@@ -4,7 +4,10 @@ import {
   api, enablePush, heightDisp, lipidDisp, lipidToMmol, todayISO,
   type Connections, type EquipmentData, type LabPanelRow, type Me, type NiggleRow, type Progress,
 } from '../api';
-import { applyTheme, Back, Chip, Loading, Shell, storedTheme, Title, toast, useApp, type ThemePref } from '../ui';
+import {
+  applyPalette, applyTheme, Back, Chip, Loading, PALETTES, Shell, storedPalette, storedTheme,
+  Title, toast, useApp, type ThemePref,
+} from '../ui';
 
 /* ---------------- settings home ---------------- */
 export function SettingsScreen() {
@@ -16,6 +19,12 @@ export function SettingsScreen() {
     applyTheme(v as ThemePref);
     qc.setQueryData<Me>(['me'], (old) => old && { ...old, prefs: { ...old.prefs, theme: v } });
     api('/api/prefs', { method: 'PATCH', body: { prefs: { theme: v } } }).catch(() => toast('Offline — not saved'));
+  };
+  const palette = me.prefs?.palette || storedPalette();
+  const pickPalette = (v: string) => {
+    applyPalette(v);
+    qc.setQueryData<Me>(['me'], (old) => old && { ...old, prefs: { ...old.prefs, palette: v } });
+    api('/api/prefs', { method: 'PATCH', body: { prefs: { palette: v } } }).catch(() => toast('Offline — not saved'));
   };
   const nigQ = useQuery<NiggleRow[]>({ queryKey: ['niggles'], queryFn: () => api('/api/niggles') });
   const activeN = (nigQ.data || []).filter((n) => n.status === 'active').length;
@@ -58,6 +67,15 @@ export function SettingsScreen() {
         <div className="lab" style={{ marginBottom: 8 }}>Appearance</div>
         <UnitSeg value={theme} onPick={pickTheme}
           options={[['dark', 'Dark'], ['light', 'Light'], ['system', 'Auto']]} />
+        <div className="palrow">
+          {PALETTES.map(([id, name, [dk, lt]]) => (
+            <button key={id} className={palette === id ? 'sel' : ''} onClick={() => pickPalette(id)}>
+              <span className="pdot"
+                style={{ background: `linear-gradient(135deg, ${dk} 50%, ${lt} 50%)` }} />
+              {name}
+            </button>
+          ))}
+        </div>
       </div>
       {rows.map(([label, sub, onClick]) => (
         <button key={label} className="lrow press" onClick={onClick}>

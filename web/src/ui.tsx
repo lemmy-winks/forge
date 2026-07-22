@@ -237,3 +237,26 @@ export function storedTheme(): ThemePref {
   const v = localStorage.getItem(THEME_KEY);
   return v === 'light' || v === 'system' ? v : 'dark';
 }
+
+/* Accent palettes — each entry pairs the id with its display name and the
+   [dark, light] accent hexes used only for the picker's preview dots (the
+   real tokens live in styles.css under [data-palette=…]). */
+export const PALETTES: [string, string, [string, string]][] = [
+  ['volt', 'Volt', ['#c9f73a', '#5c7d0a']],
+  ['glacier', 'Glacier', ['#58b0ff', '#1257a8']],
+  ['aurora', 'Aurora', ['#3ae6c1', '#0c7a60']],
+  ['flare', 'Flare', ['#ff5c7c', '#b3234a']],
+  ['ultraviolet', 'Violet', ['#b78aff', '#6a3ec2']],
+];
+const PALETTE_KEY = 'forge-palette';
+
+export function applyPalette(id: string) {
+  const v = PALETTES.some(([p]) => p === id) ? id : 'volt';
+  localStorage.setItem(PALETTE_KEY, v);
+  if (v === 'volt') delete document.documentElement.dataset.palette;
+  else document.documentElement.dataset.palette = v;
+}
+
+export function storedPalette(): string {
+  return localStorage.getItem(PALETTE_KEY) || 'volt';
+}
