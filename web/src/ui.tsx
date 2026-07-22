@@ -17,7 +17,7 @@ export type Screen =
   | 'today' | 'day' | 'learn' | 'log' | 'swap' | 'cooldown' | 'summary'
   | 'history' | 'detail' | 'progress' | 'records' | 'metric' | 'coach'
   | 'settings' | 'set-conn' | 'set-equip' | 'set-niggles' | 'set-labs' | 'library' | 'set-notif'
-  | 'set-coach' | 'set-units' | 'set-server';
+  | 'set-coach' | 'set-units' | 'set-server' | 'set-accent';
 
 export interface LoggedSetLocal { weight: number; reps: number; rpe: number | null; } // weight in kg
 /** unit = display unit for this lift; target weights stay kg, LogState.w is display-unit. */

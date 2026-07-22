@@ -21,11 +21,7 @@ export function SettingsScreen() {
     api('/api/prefs', { method: 'PATCH', body: { prefs: { theme: v } } }).catch(() => toast('Offline — not saved'));
   };
   const palette = me.prefs?.palette || storedPalette();
-  const pickPalette = (v: string) => {
-    applyPalette(v);
-    qc.setQueryData<Me>(['me'], (old) => old && { ...old, prefs: { ...old.prefs, palette: v } });
-    api('/api/prefs', { method: 'PATCH', body: { prefs: { palette: v } } }).catch(() => toast('Offline — not saved'));
-  };
+  const palName = (PALETTES.find(([id]) => id === palette) || PALETTES[0])[1];
   const nigQ = useQuery<NiggleRow[]>({ queryKey: ['niggles'], queryFn: () => api('/api/niggles') });
   const activeN = (nigQ.data || []).filter((n) => n.status === 'active').length;
   const exportData = async () => {
@@ -67,15 +63,13 @@ export function SettingsScreen() {
         <div className="lab" style={{ marginBottom: 8 }}>Appearance</div>
         <UnitSeg value={theme} onPick={pickTheme}
           options={[['dark', 'Dark'], ['light', 'Light'], ['system', 'Auto']]} />
-        <div className="palrow">
-          {PALETTES.map(([id, name, [dk, lt]]) => (
-            <button key={id} className={palette === id ? 'sel' : ''} onClick={() => pickPalette(id)}>
-              <span className="pdot"
-                style={{ background: `linear-gradient(135deg, ${dk} 50%, ${lt} 50%)` }} />
-              {name}
-            </button>
-          ))}
-        </div>
+        <button className="press" onClick={() => go('set-accent')}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                   marginTop: 10, fontSize: 13, color: 'var(--mut)' }}>
+          Accent color
+          <span style={{ marginLeft: 'auto', color: 'var(--volt)', fontWeight: 650 }}>{palName}</span>
+          <span className="chev">›</span>
+        </button>
       </div>
       {rows.map(([label, sub, onClick]) => (
         <button key={label} className="lrow press" onClick={onClick}>
@@ -84,6 +78,39 @@ export function SettingsScreen() {
       ))}
       <button className="lrow press" onClick={exportData}><b>Export my data</b><span className="rsub">JSON download</span></button>
       <button className="lrow press" onClick={signOut}><b style={{ color: 'var(--volt-deep)' }}>Sign out</b></button>
+    </Shell>
+  );
+}
+
+/* ---------------- accent color ---------------- */
+export function AccentScreen() {
+  const { me, go } = useApp();
+  const qc = useQueryClient();
+  const palette = me.prefs?.palette || storedPalette();
+  const pick = (v: string) => {
+    applyPalette(v);
+    qc.setQueryData<Me>(['me'], (old) => old && { ...old, prefs: { ...old.prefs, palette: v } });
+    api('/api/prefs', { method: 'PATCH', body: { prefs: { palette: v } } }).catch(() => toast('Offline — not saved'));
+  };
+  return (
+    <Shell>
+      <Back label="Settings" onClick={() => go('settings')} />
+      <Title kick="appearance">Accent color</Title>
+      <div className="card">
+        <div className="palrow">
+          {PALETTES.map(([id, name, [dk, lt]]) => (
+            <button key={id} className={palette === id ? 'sel' : ''} onClick={() => pick(id)}>
+              <span className="pdot"
+                style={{ background: `linear-gradient(135deg, ${dk} 50%, ${lt} 50%)` }} />
+              {name}
+            </button>
+          ))}
+        </div>
+        <div className="sub" style={{ marginTop: 10 }}>
+          One accent everywhere — actions, trends, charts. Each option is tuned
+          separately for dark and light so it stays readable in both.
+        </div>
+      </div>
     </Shell>
   );
 }
