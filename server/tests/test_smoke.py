@@ -1426,3 +1426,13 @@ def test_security_txt():
     assert exp.split(" ", 1)[1] > "2026"
     alias = client.get("/security.txt")
     assert alias.status_code == 200 and "Contact: mailto:james@test.dev" in alias.text
+
+
+def test_html_base_url_substitution():
+    """HTML entry points must never leak the __BASE_URL__ token — the real
+    host is substituted from settings at serve time (it lives only in the
+    compose override, never in tracked files)."""
+    for path in ("/", "/welcome", "/welcome.html", "/dashboard"):
+        r = client.get(path)
+        assert r.status_code == 200, path
+        assert "__BASE_URL__" not in r.text, path

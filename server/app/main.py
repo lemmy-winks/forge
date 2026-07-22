@@ -211,11 +211,28 @@ _candidates = [
 _static = next((p for p in _candidates if (p / "index.html").exists()), _candidates[-1])
 
 
+def _html_page(name: str):
+    """Serve an HTML entry point with __BASE_URL__ substituted from settings.
+    The public domain deliberately lives only in the compose override — tracked
+    files carry the token so the repo never names the host."""
+    from fastapi import HTTPException
+    from fastapi.responses import HTMLResponse
+    try:
+        html = (_static / name).read_text()
+    except OSError:
+        raise HTTPException(status_code=404, detail="not built")
+    return HTMLResponse(html.replace("__BASE_URL__", get_settings().base_url.rstrip("/")))
+
+
+@app.get("/")
+def index_page():
+    return _html_page("index.html")
+
+
 @app.get("/dashboard")
 def dashboard_page():
     # SPA route: the desktop dashboard lives at /dashboard but is the same bundle.
-    from fastapi.responses import FileResponse
-    return FileResponse(str(_static / "index.html"))
+    return _html_page("index.html")
 
 
 @app.get("/.well-known/security.txt")
@@ -249,8 +266,13 @@ def welcome_page():
     # Pretty URL for the shareable landing page. StaticFiles only matches the
     # exact filename, and the SW denylists /welcome from the SPA fallback — so
     # without this route a shared "/welcome" link 404s on any fresh browser.
-    from fastapi.responses import FileResponse
-    return FileResponse(str(_static / "welcome.html"))
+    return _html_page("welcome.html")
+
+
+@app.get("/welcome.html")
+def welcome_page_html():
+    # the in-app "New here?" link uses the file name — same substituted page
+    return _html_page("welcome.html")
 
 
 app.mount("/", StaticFiles(directory=str(_static), html=True), name="static")
