@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
-import { addDaysISO, api, fmtDur, fmtLoad, kgDisp, loadUnitFor, todayISO, weekStartISO, type ProposalResp, type Today, type WeekResp } from '../api';
+import { addDaysISO, api, fmtDur, fmtLoad, kgDisp, loadUnitFor, todayISO, weekStartISO, type ProposalResp, type Today, type WeekDay, type WeekResp } from '../api';
 import { MuscleMap } from '../musclemap';
 import { Back, Chip, Loading, Shell, Title, toast, useApp } from '../ui';
 
@@ -27,6 +27,12 @@ function KindGlyph({ kind, done }: { kind: string; done?: boolean }) {
 const dayMinutes = (d: WeekResp['days'][number]): number =>
   d.kind === 'strength' ? (d.est ?? 45) : d.kind === 'cardio' ? (d.minutes ?? 30) : 0;
 
+/** How far ahead the Plan screen pages — enough to sketch the next month. */
+const WEEKS_AHEAD = 4;
+
+/** Day-of-month without a leading zero, for the strip and day rows. */
+const dayNum = (iso: string): number => +iso.slice(8);
+
 export function PlanScreen() {
   const { go, openTab, resumeSession } = useApp();
   const qc = useQueryClient();
@@ -41,6 +47,9 @@ export function PlanScreen() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [dangOpen, setDangOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  // date whose planning sheet (future workouts & meals) is open
+  const [planDate, setPlanDate] = useState<string | null>(null);
+  const touch = useRef<{ x: number; y: number } | null>(null);
   const w = q.data;
   const prop = pq.data?.proposal;
   if (!w) return <Shell><Loading /></Shell>;
@@ -84,17 +93,34 @@ export function PlanScreen() {
 
   const curMonday = weekStartISO(todayISO());
   const isCurrent = (weekStart || curMonday) === curMonday;
+  const maxStart = addDaysISO(curMonday, 7 * WEEKS_AHEAD);
   const shiftWeek = (n: number) => {
     const next = addDaysISO(weekStart || curMonday, n * 7);
+    if (next > maxStart) return;
     setWeekStart(next === curMonday ? null : next);
+  };
+  // Horizontal swipe anywhere on the screen pages weeks (‹ prev / next ›).
+  const onTouchStart = (e: React.TouchEvent) => {
+    touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const t0 = touch.current;
+    touch.current = null;
+    if (!t0) return;
+    const dx = e.changedTouches[0].clientX - t0.x;
+    const dy = e.changedTouches[0].clientY - t0.y;
+    if (Math.abs(dx) > 56 && Math.abs(dx) > 1.8 * Math.abs(dy)) shiftWeek(dx < 0 ? 1 : -1);
   };
   const weekOf = new Date(w.start + 'T12:00:00Z')
     .toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  const isFuture = (w.start || curMonday) > curMonday;
+  const sheetDay = planDate ? w.days.find((d) => d.date === planDate) : undefined;
 
   return (
     <Shell>
+      <div className="swipeweeks" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <div className="row" style={{ alignItems: 'center' }}>
-        <Title kick={isCurrent ? 'This week' : `Week of ${weekOf}`}>Plan</Title>
+        <Title kick={isCurrent ? `This week · ${weekOf}` : `Week of ${weekOf}`}>Plan</Title>
         <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {!isCurrent && (
             <button className="press" style={{ fontSize: 12, color: 'var(--volt)', fontWeight: 700 }}
@@ -103,7 +129,7 @@ export function PlanScreen() {
           <button className="ghost press" aria-label="Previous week"
             style={{ width: 34, padding: '6px 0' }} onClick={() => shiftWeek(-1)}>‹</button>
           <button className="ghost press" aria-label="Next week"
-            disabled={(weekStart || curMonday) >= addDaysISO(curMonday, 7)}
+            disabled={(weekStart || curMonday) >= maxStart}
             style={{ width: 34, padding: '6px 0' }} onClick={() => shiftWeek(1)}>›</button>
         </span>
       </div>
@@ -138,6 +164,7 @@ export function PlanScreen() {
                 {min > 0 && <span className="fill" style={{ height: `${Math.round(22 + 78 * min / maxMin)}%` }} />}
               </span>
               <span className="d num">{d.day_name.slice(0, 2)}</span>
+              <span className="dt num">{dayNum(d.date)}</span>
             </button>
           );
         })}
@@ -152,43 +179,73 @@ export function PlanScreen() {
       )}
 
       {w.days.map((d) => {
+        const future = d.date > w.today;
+        // planned workouts/meals under the day card; future days get an add pill
+        const dayplan = (d.planned.length > 0 || future) && (
+          <div className="dayplan">
+            {d.planned.map((p) => (
+              <button key={p.id} className="dpill press" onClick={() => setPlanDate(d.date)}>
+                <span className={'pk' + (p.kind === 'meal' ? ' meal' : '')} />{p.title}
+              </button>
+            ))}
+            {future && (
+              <button className="dpill add press" aria-label={`Plan ${d.day_name} ${dayNum(d.date)}`}
+                onClick={() => setPlanDate(d.date)}>＋ plan</button>
+            )}
+          </div>
+        );
         if (d.is_today) {
           return (
-            <button key={d.date} className="herocard today press" onClick={() => go('day', { dayDate: null })}>
-              <div className="toprow">
-                <span className="kick" style={{ fontSize: 11, color: 'var(--volt)', display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <span className="pulse" />{d.day_name} · today
-                </span>
-                <span className="est num">{d.session?.status === 'completed' ? right(d)
-                  : dayMinutes(d) ? `~${dayMinutes(d)} min` : ''}</span>
-              </div>
-              <div className="hname">{d.name || 'Rest day'}</div>
-              {d.focus.length > 0 && (
-                <div className="fpills">{d.focus.map((f) => <span key={f} className="fpill">{f}</span>)}</div>
-              )}
-            </button>
+            <div key={d.date}>
+              <button className="herocard today press" style={{ width: '100%' }}
+                onClick={() => go('day', { dayDate: null })}>
+                <div className="toprow">
+                  <span className="kick" style={{ fontSize: 11, color: 'var(--volt)', display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span className="pulse" />{d.day_name} {dayNum(d.date)} · today
+                  </span>
+                  <span className="est num">{d.session?.status === 'completed' ? right(d)
+                    : dayMinutes(d) ? `~${dayMinutes(d)} min` : ''}</span>
+                </div>
+                <div className="hname">{d.name || 'Rest day'}</div>
+                {d.focus.length > 0 && (
+                  <div className="fpills">{d.focus.map((f) => <span key={f} className="fpill">{f}</span>)}</div>
+                )}
+              </button>
+              {dayplan}
+            </div>
           );
         }
         const done = d.session?.status === 'completed';
         return (
-          <button key={d.date} className={'lrow press' + (d.kind === 'rest' && !d.session ? ' dimrow' : '')}
-            onClick={() => go('day', { dayDate: d.date })}>
-            <span className="glyphslot"><KindGlyph kind={d.session?.kind || d.kind} done={done} /></span>
-            <span>
-              <b>{d.day_name}</b>
-              <span style={{ display: 'block', fontSize: 13, color: 'var(--mut)', marginTop: 2 }}>
-                {d.name || 'Rest'}
+          <div key={d.date}>
+            <button className={'lrow press' + (d.kind === 'rest' && !d.session ? ' dimrow' : '')}
+              style={{ width: '100%' }} onClick={() => go('day', { dayDate: d.date })}>
+              <span className="glyphslot"><KindGlyph kind={d.session?.kind || d.kind} done={done} /></span>
+              <span>
+                <b>{d.day_name} <span className="daynum num">{dayNum(d.date)}</span></b>
+                <span style={{ display: 'block', fontSize: 13, color: 'var(--mut)', marginTop: 2 }}>
+                  {d.name || 'Rest'}
+                </span>
               </span>
-            </span>
-            <span className="rsub num" style={done ? { color: 'var(--volt)', fontWeight: 700 }
-              : missed(d) ? { color: 'var(--warn)', fontWeight: 600 } : undefined}>
-              {right(d)}
-            </span>
-            <span className="chev">›</span>
-          </button>
+              <span className="rsub num" style={done ? { color: 'var(--volt)', fontWeight: 700 }
+                : missed(d) ? { color: 'var(--warn)', fontWeight: 600 } : undefined}>
+                {right(d)}
+              </span>
+              <span className="chev">›</span>
+            </button>
+            {dayplan}
+          </div>
         );
       })}
-      <Chip>Tap a day to see it in full — you can run any strength day on today's date</Chip>
+      <Chip>{isFuture
+        ? 'Swipe to page weeks — pencil workouts and meals onto any future day'
+        : "Tap a day to see it in full — you can run any strength day on today's date"}</Chip>
+
+      </div>
+
+      {sheetDay && (
+        <PlanSheet day={sheetDay} days={w.days} onClose={() => setPlanDate(null)} />
+      )}
 
       {dangOpen && dang && (
         <div className="overlay" onClick={() => setDangOpen(false)}>
@@ -211,6 +268,96 @@ export function PlanScreen() {
         </div>
       )}
     </Shell>
+  );
+}
+
+/* ---------------- Future-day planning sheet (workouts & meals) ---------------- */
+
+function PlanSheet({ day, days, onClose }: { day: WeekDay; days: WeekDay[]; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [kind, setKind] = useState<'workout' | 'meal'>('workout');
+  const [title, setTitle] = useState('');
+  const [notes, setNotes] = useState('');
+  const [planDay, setPlanDay] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const nice = new Date(day.date + 'T12:00:00Z')
+    .toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' });
+  // the active plan's training days, as one-tap templates for future workouts
+  const templates = days.filter((d) => d.kind !== 'rest' && d.name)
+    .map((d) => ({ key: planDayKey(d.date), name: d.name as string }));
+
+  const refresh = () => qc.invalidateQueries({ queryKey: ['week'] });
+  const add = async () => {
+    if (busy) return;
+    if (!title.trim() && !(kind === 'workout' && planDay)) { toast('Give it a name'); return; }
+    setBusy(true);
+    try {
+      await api('/api/plan-items', { method: 'POST',
+        body: { date: day.date, kind, title: title.trim(), notes: notes.trim(),
+                plan_day: kind === 'workout' ? planDay : null } });
+      toast('Pencilled in', true);
+      setTitle(''); setNotes(''); setPlanDay(null);
+      refresh();
+    } catch (e) { toast(String((e as Error).message)); }
+    setBusy(false);
+  };
+  const remove = async (id: string) => {
+    try { await api(`/api/plan-items/${id}`, { method: 'DELETE' }); refresh(); }
+    catch (e) { toast(String((e as Error).message)); }
+  };
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <h3>Plan {nice}</h3>
+        {day.planned.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {day.planned.map((p) => (
+              <div key={p.id} className="dprow">
+                <span className={'pk' + (p.kind === 'meal' ? ' meal' : '')} />
+                <span style={{ flex: 1 }}>
+                  <b>{p.title}</b>
+                  {p.notes && <span style={{ display: 'block', fontSize: 12.5, color: 'var(--mut)' }}>{p.notes}</span>}
+                </span>
+                <button className="press" style={{ color: 'var(--mut)', fontSize: 13 }}
+                  onClick={() => remove(p.id)}>remove</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="seg">
+          <button className={'press' + (kind === 'workout' ? ' sel' : '')}
+            onClick={() => setKind('workout')}>Workout</button>
+          <button className={'press' + (kind === 'meal' ? ' sel' : '')}
+            onClick={() => { setKind('meal'); setPlanDay(null); }}>Meal</button>
+        </div>
+        {kind === 'workout' && templates.length > 0 && (
+          <div className="fpills" style={{ marginTop: 0 }}>
+            {templates.map((t) => (
+              <button key={t.key} className={'fpill press' + (planDay === t.key ? ' on' : '')}
+                onClick={() => {
+                  const on = planDay === t.key;
+                  setPlanDay(on ? null : t.key);
+                  setTitle(on ? '' : t.name);
+                }}>{t.name}</button>
+            ))}
+          </div>
+        )}
+        <div className="field">
+          <label>{kind === 'meal' ? 'Meal' : 'Workout'}</label>
+          <input value={title} placeholder={kind === 'meal' ? 'Sunday roast · high protein' : 'Long Zone-2 ride'}
+            onChange={(e) => { setTitle(e.target.value); setPlanDay(null); }} />
+        </div>
+        <div className="field">
+          <label>Notes</label>
+          <input value={notes} placeholder="optional" onChange={(e) => setNotes(e.target.value)} />
+        </div>
+        <button className="cta press" disabled={busy} onClick={add}>
+          {busy ? 'Saving…' : `Add to ${day.day_name}`}
+        </button>
+        <button className="ghost press" onClick={onClose}>Done</button>
+      </div>
+    </div>
   );
 }
 

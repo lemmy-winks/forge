@@ -182,6 +182,45 @@ def test_week_snaps_to_monday_and_pages():
     assert prev["start"] == "2026-07-13"
 
 
+def test_planned_items_future_week():
+    login()
+    next_mon = "2026-07-27"
+    meal = client.post("/api/plan-items", json={
+        "date": "2026-07-28", "kind": "meal", "title": "Chili prep", "notes": "double batch"}).json()
+    wo = client.post("/api/plan-items", json={
+        "date": next_mon, "kind": "workout", "plan_day": "0"}).json()
+    assert wo["title"] == "Lower A", "workout title comes from the plan day"
+
+    w = client.get(f"/api/week?date={next_mon}").json()
+    assert [i["id"] for i in w["days"][0]["planned"]] == [wo["id"]]
+    assert w["days"][1]["planned"][0]["notes"] == "double batch"
+    assert all(d["planned"] == [] for d in w["days"][2:])
+
+    # validation: unknown kind, plan_day outside the active plan, empty title
+    assert client.post("/api/plan-items",
+                       json={"date": next_mon, "kind": "snack", "title": "x"}).status_code == 400
+    assert client.post("/api/plan-items",
+                       json={"date": next_mon, "kind": "workout", "plan_day": "9"}).status_code == 400
+    assert client.post("/api/plan-items",
+                       json={"date": next_mon, "kind": "meal", "title": "  "}).status_code == 400
+
+    r = client.patch(f"/api/plan-items/{meal['id']}", json={"notes": "triple batch"})
+    assert r.json()["notes"] == "triple batch"
+
+    # segregation: Shelby sees nothing and can't touch James's items
+    login("shelby@test.dev")
+    ws = client.get(f"/api/week?date={next_mon}").json()
+    assert all(d["planned"] == [] for d in ws["days"])
+    assert client.delete(f"/api/plan-items/{meal['id']}").status_code == 404
+    assert client.patch(f"/api/plan-items/{meal['id']}", json={"title": "hijack"}).status_code == 404
+
+    login()
+    assert client.delete(f"/api/plan-items/{meal['id']}").json()["ok"] is True
+    assert client.delete(f"/api/plan-items/{wo['id']}").json()["ok"] is True
+    w = client.get(f"/api/week?date={next_mon}").json()
+    assert all(d["planned"] == [] for d in w["days"])
+
+
 def test_history_pagination():
     login()
     full = client.get("/api/history").json()
