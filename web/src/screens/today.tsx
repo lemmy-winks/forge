@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { addDaysISO, api, fmtDur, fmtLoad, kgDisp, loadUnitFor, todayISO, weekStartISO, type ProposalResp, type Today, type WeekResp } from '../api';
 import { MuscleMap } from '../musclemap';
 import { Back, Chip, Loading, Shell, Title, toast, useApp } from '../ui';
@@ -239,6 +239,43 @@ function budgetDefault(t?: Today): number {
   return Math.min(75, Math.max(25, Math.ceil(full / 5) * 5));
 }
 
+/** Swipe left/right (and ←/→ on a keyboard) pages the day view through the
+    calendar — the same navigation as the ‹ › buttons. Vertical scrolls and
+    drags that start on inputs (the budget slider) never trigger it. */
+function useDayPaging(shift: (d: number) => void) {
+  const fn = useRef(shift);
+  fn.current = shift;
+  useEffect(() => {
+    let sx = 0, sy = 0, live = false;
+    const start = (e: TouchEvent) => {
+      const el = e.target as HTMLElement;
+      live = !el.closest('input, textarea, .overlay');
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+    };
+    const end = (e: TouchEvent) => {
+      if (!live) return;
+      live = false;
+      const dx = e.changedTouches[0].clientX - sx;
+      const dy = e.changedTouches[0].clientY - sy;
+      if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy)) fn.current(dx < 0 ? 1 : -1);
+    };
+    const key = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el?.closest?.('input, textarea')) return;
+      if (e.key === 'ArrowRight') fn.current(1);
+      else if (e.key === 'ArrowLeft') fn.current(-1);
+    };
+    document.addEventListener('touchstart', start, { passive: true });
+    document.addEventListener('touchend', end, { passive: true });
+    document.addEventListener('keydown', key);
+    return () => {
+      document.removeEventListener('touchstart', start);
+      document.removeEventListener('touchend', end);
+      document.removeEventListener('keydown', key);
+    };
+  }, []);
+}
+
 export function DayScreen() {
   const { go, budget, setBudget, startSession, me, dayDate } = useApp();
   const [viewDate, setViewDate] = useState<string | null>(dayDate);
@@ -246,13 +283,19 @@ export function DayScreen() {
   const debounce = useRef<ReturnType<typeof setTimeout>>(undefined);
   const t = q.data;
 
+  // Anchor paging on the server's idea of today (Europe/London), not the
+  // device clock — around midnight they disagree and ± would skip a day.
+  const srvToday = useRef(todayISO());
+  if (!viewDate && t) srvToday.current = t.date;
+  const shift = (d: number) => {
+    const next = addDaysISO(viewDate || srvToday.current, d);
+    setViewDate(next === srvToday.current ? null : next);
+  };
+  useDayPaging(shift);
+
   if (!t) return <Shell><Loading /></Shell>;
 
   const isOther = !!viewDate;
-  const shift = (d: number) => {
-    const next = addDaysISO(viewDate || todayISO(), d);
-    setViewDate(next === todayISO() ? null : next);
-  };
   const head = (
     <div className="row" style={{ alignItems: 'center' }}>
       <div>
