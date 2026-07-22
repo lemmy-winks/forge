@@ -289,6 +289,7 @@ input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%;
 .herocard .toprow{ display:flex; justify-content:space-between; align-items:baseline; }
 .herocard .hname{ font-size:20px; font-weight:650; letter-spacing:-.01em; margin-top:2px; }
 .herocard .est{ color:var(--volt); font-size:13px; font-weight:700; }
+.herocard.today{ background:linear-gradient(135deg, var(--volt-dim), var(--raised) 62%); }
 .fpills{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
 .fpill{ background:var(--sunken); border-radius:999px; padding:4px 11px; font-size:12px; color:var(--mut); }
 .glyphslot{ flex:none; width:18px; display:flex; justify-content:center; }

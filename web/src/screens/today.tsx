@@ -81,8 +81,6 @@ export function PlanScreen() {
     d.date < w.today && d.kind !== 'rest' && !(d.session && d.session.status !== 'active');
 
   const maxMin = Math.max(...w.days.map(dayMinutes), 30);
-  const today = w.days.find((d) => d.is_today);
-  const rest = w.days.filter((d) => !d.is_today);
 
   const curMonday = weekStartISO(todayISO());
   const isCurrent = (weekStart || curMonday) === curMonday;
@@ -153,21 +151,24 @@ export function PlanScreen() {
         </button>
       )}
 
-      {today && (
-        <button className="herocard press" onClick={() => go('day', { dayDate: null })}>
-          <div className="toprow">
-            <span className="kick" style={{ fontSize: 11 }}>{today.day_name} · today</span>
-            <span className="est num">{today.session?.status === 'completed' ? right(today)
-              : dayMinutes(today) ? `~${dayMinutes(today)} min` : ''}</span>
-          </div>
-          <div className="hname">{today.name || 'Rest day'}</div>
-          {today.focus.length > 0 && (
-            <div className="fpills">{today.focus.map((f) => <span key={f} className="fpill">{f}</span>)}</div>
-          )}
-        </button>
-      )}
-
-      {rest.map((d) => {
+      {w.days.map((d) => {
+        if (d.is_today) {
+          return (
+            <button key={d.date} className="herocard today press" onClick={() => go('day', { dayDate: null })}>
+              <div className="toprow">
+                <span className="kick" style={{ fontSize: 11, color: 'var(--volt)', display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <span className="pulse" />{d.day_name} · today
+                </span>
+                <span className="est num">{d.session?.status === 'completed' ? right(d)
+                  : dayMinutes(d) ? `~${dayMinutes(d)} min` : ''}</span>
+              </div>
+              <div className="hname">{d.name || 'Rest day'}</div>
+              {d.focus.length > 0 && (
+                <div className="fpills">{d.focus.map((f) => <span key={f} className="fpill">{f}</span>)}</div>
+              )}
+            </button>
+          );
+        }
         const done = d.session?.status === 'completed';
         return (
           <button key={d.date} className={'lrow press' + (d.kind === 'rest' && !d.session ? ' dimrow' : '')}
