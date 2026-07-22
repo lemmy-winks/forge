@@ -331,8 +331,22 @@ input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%;
            background:var(--volt); opacity:.22; }
 .ws.done .fill{ opacity:1; }
 .ws .d{ font-size:11px; color:var(--dim); letter-spacing:.05em; }
-.ws.today .d{ color:var(--volt); font-weight:700; }
+.ws .dt{ font-size:10px; color:var(--dim); margin-top:-3px; }
+.ws.today .d, .ws.today .dt{ color:var(--volt); font-weight:700; }
 .ws.miss .d{ color:var(--warn); }
+.daynum{ color:var(--dim); font-weight:400; font-size:12px; }
+/* pencilled-in future workouts & meals under a day row */
+.dayplan{ display:flex; flex-wrap:wrap; gap:6px; margin:6px 2px 0 26px; }
+.dpill{ border:none; font:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:6px;
+        background:var(--raised); border-radius:999px; padding:5px 12px; font-size:12.5px;
+        color:var(--ink); }
+.dpill.add{ background:var(--sunken); color:var(--dim); }
+.pk{ width:6px; height:6px; border-radius:50%; background:var(--volt); flex:none; }
+.pk.meal{ background:var(--mut); }
+.dprow{ display:flex; align-items:center; gap:9px; background:var(--sunken); border-radius:12px;
+        padding:9px 12px; text-align:left; font-size:14px; }
+button.fpill{ border:none; font:inherit; cursor:pointer; }
+.fpill.on{ background:var(--sel); color:var(--ink); font-weight:600; }
 .coachnote{ border:none; background:none; padding:0; font:inherit; text-align:left; width:100%;
             color:var(--mut); font-size:13.5px; line-height:1.5; }
 .coachnote .clamp{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
