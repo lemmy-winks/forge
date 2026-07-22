@@ -29,6 +29,59 @@
   --map-base:#e6e8e1;
   color-scheme:light;
 }
+
+/* ---- accent palettes (Settings → Appearance) ----
+   A palette re-points ONLY the accent family (--volt/--volt-deep/--on-volt/
+   --volt-dim/--cta-*); neutrals and --warn never move. Each palette carries a
+   hand-tuned pair: a bright accent for the void, a deepened one for paper —
+   same contrast logic as volt→moss. Dark CTA inherits var(--volt) from :root;
+   the light CTA pill keeps the bright accent with dark ink (it stays legible
+   where the bright accent as text would not). Default volt = no attribute. */
+:root[data-palette="glacier"]{
+  --volt:#58b0ff; --volt-deep:#3a86d6; --on-volt:#06131c;
+  --volt-dim:rgba(88,176,255,.13);
+}
+:root[data-theme="light"][data-palette="glacier"]{
+  --volt:#1257a8; --volt-deep:#0e4382; --on-volt:#ffffff;
+  --volt-dim:rgba(18,87,168,.11);
+  --cta-bg:#58b0ff; --cta-ink:#06131c;
+}
+:root[data-palette="aurora"]{
+  --volt:#3ae6c1; --volt-deep:#23ad91; --on-volt:#04150f;
+  --volt-dim:rgba(58,230,193,.13);
+}
+:root[data-theme="light"][data-palette="aurora"]{
+  --volt:#0c7a60; --volt-deep:#095c49; --on-volt:#ffffff;
+  --volt-dim:rgba(12,122,96,.12);
+  --cta-bg:#3ae6c1; --cta-ink:#04150f;
+}
+:root[data-palette="flare"]{
+  --volt:#ff5c7c; --volt-deep:#d63e5f; --on-volt:#1c040a;
+  --volt-dim:rgba(255,92,124,.14);
+}
+:root[data-theme="light"][data-palette="flare"]{
+  --volt:#b3234a; --volt-deep:#8d1a3a; --on-volt:#ffffff;
+  --volt-dim:rgba(179,35,74,.10);
+  --cta-bg:#ff5c7c; --cta-ink:#1c040a;
+}
+:root[data-palette="ultraviolet"]{
+  --volt:#b78aff; --volt-deep:#9161e0; --on-volt:#120626;
+  --volt-dim:rgba(183,138,255,.14);
+}
+:root[data-theme="light"][data-palette="ultraviolet"]{
+  --volt:#6a3ec2; --volt-deep:#532f9a; --on-volt:#ffffff;
+  --volt-dim:rgba(106,62,194,.10);
+  --cta-bg:#b78aff; --cta-ink:#120626;
+}
+
+/* palette picker (Settings → Appearance): split dot previews both modes */
+.palrow{ display:flex; gap:6px; margin-top:10px; }
+.palrow button{ flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;
+  padding:8px 2px 7px; border-radius:12px; font-size:10.5px; color:var(--mut); }
+.palrow button.sel{ background:var(--sel); color:var(--ink); font-weight:700; }
+.palrow .pdot{ width:24px; height:24px; border-radius:50%; }
+.palrow button.sel .pdot{ box-shadow:0 0 0 2px var(--raised), 0 0 0 4px var(--volt); }
+
 *{ margin:0; padding:0; box-sizing:border-box; }
 html,body{ height:100%; }
 body{ background:var(--outer); color:var(--ink);

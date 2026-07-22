@@ -18,7 +18,7 @@ import {
 } from './screens/settings';
 import { DayScreen, PlanScreen } from './screens/today';
 import {
-  AppCtx, applyTheme, curTarget, storedTheme, toast,
+  AppCtx, applyPalette, applyTheme, curTarget, storedPalette, storedTheme, toast,
   type AppCtxType, type LogAction, type LogState, type LogTarget, type Screen, type SummaryData, type Tab,
 } from './ui';
 
@@ -283,9 +283,13 @@ function Gate() {
 
   if (denied) return <DeniedScreen email={denied} />;
   const themePref = meQ.data?.prefs?.theme;
+  const palettePref = meQ.data?.prefs?.palette;
   useEffect(() => {
     if (themePref && themePref !== storedTheme()) applyTheme(themePref);
   }, [themePref]);
+  useEffect(() => {
+    if (palettePref && palettePref !== storedPalette()) applyPalette(palettePref);
+  }, [palettePref]);
 
   if (meQ.isLoading) return <div className="boot">FORGE<span>.</span></div>;
   if (!meQ.data) return <AuthScreen onSignedIn={() => meQ.refetch()} />;

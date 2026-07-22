@@ -3,10 +3,11 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import DashboardApp from './dashboard';
 import { openQueue, flushQueue } from './queue';
-import { applyTheme, storedTheme } from './ui';
+import { applyPalette, applyTheme, storedPalette, storedTheme } from './ui';
 import './styles.css';
 
 applyTheme(storedTheme()); // before first paint — prefs sync again after sign-in
+applyPalette(storedPalette());
 openQueue().then(() => flushQueue());
 
 const isDashboard = location.pathname.startsWith('/dashboard');
