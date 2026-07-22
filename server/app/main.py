@@ -149,6 +149,7 @@ async def lifespan(_app: FastAPI):
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
 
     _add_missing_columns("exercises", {"benefit": "TEXT DEFAULT ''"})
+    _add_missing_columns("workout_sessions", {"favorite": "BOOLEAN DEFAULT FALSE"})
     # full macro set on the food tables (carbs/sugar/fat/sodium joined the trio)
     _new_macros = {c: "FLOAT DEFAULT 0" for c in ("carbs_g", "sugar_g", "fat_g", "sodium_mg")}
     _add_missing_columns("recipes", {"sugar_g": "FLOAT DEFAULT 0", "sodium_mg": "FLOAT DEFAULT 0"})

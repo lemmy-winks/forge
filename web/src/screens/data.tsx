@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import {
   api, fmtDur, fmtLoad, kgDisp, kgToDisp, loadUnitFor,
   type HistoryItem, type LoadUnit, type MetricHistory, type Progress, type RecordRow,
@@ -7,7 +7,7 @@ import {
 } from '../api';
 import { smoothPath } from '../chart';
 import { RouteCard } from '../routemap';
-import { Back, Chip, Loading, Shell, Title, toast, useApp } from '../ui';
+import { Back, Chip, ConfirmSheet, Loading, Shell, Title, toast, useApp } from '../ui';
 
 /** What was actually done, at a glance: strength barbell, or the cardio
     flavour (run / walk / hike / ride / swim) sniffed from the matched
@@ -54,21 +54,101 @@ function ActivityGlyph({ h }: { h: HistoryItem }) {
 
 const HISTORY_PAGE = 30;
 
+/** A history row that slides left to reveal a Delete action. Vertical scroll
+    stays native (touch-action:pan-y); we only take over once a drag reads as
+    horizontal, and a completed drag swallows the click so it can't navigate. */
+function SwipeRow({ onDelete, children }: { onDelete: () => void; children: ReactNode }) {
+  const REVEAL = 78;
+  const [dx, setDx] = useState(0);
+  const [open, setOpen] = useState(false);
+  const drag = useRef<{ x: number; y: number; base: number; live: boolean; moved: boolean } | null>(null);
+  const swiped = useRef(false);
+
+  const down = (e: React.PointerEvent) => {
+    drag.current = { x: e.clientX, y: e.clientY, base: open ? -REVEAL : 0, live: true, moved: false };
+  };
+  const move = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d || !d.live) return;
+    const mx = e.clientX - d.x, my = e.clientY - d.y;
+    if (!d.moved && Math.abs(my) > Math.abs(mx)) { d.live = false; return; }  // vertical → let it scroll
+    if (Math.abs(mx) > 4) d.moved = true;
+    setDx(Math.max(-REVEAL, Math.min(0, d.base + mx)));
+  };
+  const up = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || !d.live) return;
+    if (d.moved) {
+      swiped.current = true;
+      const shouldOpen = dx < -REVEAL / 2;
+      setOpen(shouldOpen);
+      setDx(shouldOpen ? -REVEAL : 0);
+    }
+  };
+  // a real drag (or an open tray) must not fall through to the row's navigation
+  const clickCapture = (e: React.MouseEvent) => {
+    if (swiped.current) { swiped.current = false; e.preventDefault(); e.stopPropagation(); return; }
+    if (open) { e.preventDefault(); e.stopPropagation(); setOpen(false); setDx(0); }
+  };
+
+  return (
+    <div className="swipe">
+      <button className="swipe-del press" tabIndex={open ? 0 : -1} aria-hidden={!open}
+        onClick={onDelete}>Delete</button>
+      <div className="swipe-fg" style={{ transform: `translateX(${dx}px)`,
+        transition: drag.current ? 'none' : 'transform .18s' }}
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+        onClickCapture={clickCapture}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function HistoryScreen() {
   const { go } = useApp();
+  const qc = useQueryClient();
+  const [favOnly, setFavOnly] = useState(false);
+  const [toDelete, setToDelete] = useState<HistoryItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const q = useInfiniteQuery<HistoryItem[]>({
-    queryKey: ['history'],
-    queryFn: ({ pageParam }) => api(`/api/history?limit=${HISTORY_PAGE}&offset=${pageParam}`),
+    queryKey: ['history', favOnly ? 'starred' : 'all'],
+    queryFn: ({ pageParam }) =>
+      api(`/api/history?limit=${HISTORY_PAGE}&offset=${pageParam}${favOnly ? '&favorites=true' : ''}`),
     initialPageParam: 0,
     getNextPageParam: (last, all) =>
       last.length === HISTORY_PAGE ? all.reduce((n, p) => n + p.length, 0) : undefined,
   });
   const items = q.data?.pages.flat();
+
+  const del = async () => {
+    if (!toDelete || deleting) return;
+    setDeleting(true);
+    try {
+      await api(`/api/sessions/${toDelete.id}`, { method: 'DELETE' });
+      toast('Workout deleted');
+      setToDelete(null);
+      qc.invalidateQueries({ queryKey: ['history'] });
+      qc.invalidateQueries({ queryKey: ['week'] });
+      qc.invalidateQueries({ queryKey: ['progress'] });
+      qc.invalidateQueries({ queryKey: ['records'] });
+    } catch (e) { toast(String((e as Error).message)); }
+    setDeleting(false);
+  };
+
   return (
     <Shell>
       <Title kick="All sessions">History</Title>
+      <div className="seg" style={{ marginTop: 2 }}>
+        <button className={favOnly ? '' : 'sel'} onClick={() => setFavOnly(false)}>All</button>
+        <button className={favOnly ? 'sel' : ''} onClick={() => setFavOnly(true)}>★ Starred</button>
+      </div>
       {!items && <Loading />}
-      {items && !items.length && <Chip>Nothing yet — your first logged session lands here.</Chip>}
+      {items && !items.length && (
+        <Chip>{favOnly ? 'No starred sessions yet — tap the star on a session you’re proud of.'
+                        : 'Nothing yet — your first logged session lands here.'}</Chip>
+      )}
       {(items || []).map((h) => {
         const s = h.stats || {};
         const head = h.kind === 'cardio'
@@ -79,10 +159,13 @@ export function HistoryScreen() {
              s.sets_done != null ? s.sets_done + ' sets' : null,
              s.partial ? 'partial' : null].filter(Boolean).join(' · ');
         return (
-          <button key={h.id} className="lrow press num" onClick={() => go('detail', { detailId: h.id })}>
-            <span className="glyphslot"><ActivityGlyph h={h} /></span>
-            <b>{h.day} · {h.name}</b><span className="rsub">{head || h.status}</span><span className="chev">›</span>
-          </button>
+          <SwipeRow key={h.id} onDelete={() => setToDelete(h)}>
+            <button className="lrow press num" onClick={() => go('detail', { detailId: h.id })}>
+              <span className="glyphslot"><ActivityGlyph h={h} /></span>
+              <b>{h.day} · {h.name}{h.favorite && <span className="star">★</span>}</b>
+              <span className="rsub">{head || h.status}</span><span className="chev">›</span>
+            </button>
+          </SwipeRow>
         );
       })}
       {q.hasNextPage && (
@@ -91,7 +174,40 @@ export function HistoryScreen() {
           {q.isFetchingNextPage ? 'Loading…' : 'Earlier sessions'}
         </button>
       )}
+      {toDelete && (
+        <ConfirmSheet
+          title="Delete this workout?"
+          body={<>This permanently removes <b style={{ color: 'var(--ink)' }}>{toDelete.day} · {toDelete.name}</b>{' '}
+            and everything logged with it. This can't be undone.</>}
+          confirmLabel="Delete workout" danger busy={deleting}
+          onConfirm={del} onCancel={() => setToDelete(null)} />
+      )}
     </Shell>
+  );
+}
+
+/** Star toggle for a standout session — sets `favorite`, which History filters on. */
+function StarButton({ id, on }: { id: string; on: boolean }) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const toggle = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await api<{ favorite: boolean }>(`/api/sessions/${id}/favorite`,
+        { method: 'PATCH', body: { favorite: !on } });
+      qc.invalidateQueries({ queryKey: ['session', id] });
+      qc.invalidateQueries({ queryKey: ['history'] });
+      toast(r.favorite ? 'Starred' : 'Unstarred', r.favorite);
+    } catch (e) { toast(String((e as Error).message)); }
+    setBusy(false);
+  };
+  return (
+    <button className="starbtn press" disabled={busy} onClick={toggle} aria-pressed={on}
+      aria-label={on ? 'Unstar this workout' : 'Star this workout'}
+      style={{ color: on ? 'var(--volt)' : 'var(--dim)', fontSize: 24 }}>
+      {on ? '★' : '☆'}
+    </button>
   );
 }
 
@@ -109,7 +225,10 @@ export function DetailScreen() {
   return (
     <Shell>
       <Back label="History" onClick={() => openTab('history')} />
-      <Title kick={`${d.day}${d.kind === 'cardio' ? ' · Watch sync' : ''}`}>{d.name}</Title>
+      <div className="row" style={{ alignItems: 'flex-start' }}>
+        <Title kick={`${d.day}${d.kind === 'cardio' ? ' · Watch sync' : ''}`}>{d.name}</Title>
+        <StarButton id={d.id} on={!!d.favorite} />
+      </div>
       {d.stats?.partial && (
         <Chip>Saved incomplete — {d.stats.sets_done} of {d.stats.sets_planned} planned sets logged</Chip>
       )}

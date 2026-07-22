@@ -1,8 +1,8 @@
 from datetime import date, datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import (JSON, Date, DateTime, Float, ForeignKey, Integer, LargeBinary, String,
-                        Text, UniqueConstraint)
+from sqlalchemy import (JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, LargeBinary,
+                        String, Text, UniqueConstraint)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -130,6 +130,7 @@ class WorkoutSession(Base):
     fitted: Mapped[dict] = mapped_column(JSON, default=dict)  # snapshot: targets, cooldown list
     cooldown_status: Mapped[str] = mapped_column(String(16), default="")  # done | partial | skipped
     notes: Mapped[str] = mapped_column(Text, default="")
+    favorite: Mapped[bool] = mapped_column(Boolean, default=False, index=True)  # user-starred standout
     stats: Mapped[dict] = mapped_column(JSON, default=dict)  # tonnage, duration_s, cardio stats...
     sets: Mapped[list["LoggedSet"]] = relationship(order_by="LoggedSet.ts")
 
