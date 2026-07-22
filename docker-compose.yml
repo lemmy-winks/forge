@@ -34,6 +34,7 @@ services:
       - ALLOWED_USERS=you@example.com:You,partner@example.com:Partner # bootstrap only: seeds an empty database (first user is admin); manage users in-app afterwards
       # --- ingress ---
       - BASE_URL=http://localhost:33524 # set to your public URL once behind a reverse proxy
+      - ALLOWED_HOSTS= # extra domains the app is also served on, comma-separated (each needs its /auth/callback registered with the Google OAuth client)
       # --- Google sign-in (optional; while empty, dev sign-in buttons show — LAN use only).
       #     Stays here by design: it must exist before anyone can log in. ---
       - GOOGLE_CLIENT_ID=

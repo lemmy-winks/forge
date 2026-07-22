@@ -665,6 +665,29 @@ def test_user_segregation():
     assert not any(c.get("why") for c in t["cooldown"]), "James's niggle must not leak"
 
 
+def test_map_config():
+    # signed-in only — the key is publishable but not anonymous
+    fresh = TestClient(app)
+    assert fresh.get("/api/map/config").status_code == 401
+
+    login("shelby@test.dev")
+    assert client.get("/api/map/config").json() == {"enabled": False, "key": ""}
+
+    # admin stores the key in-app; it applies live, and any member gets it in
+    # full (it ships to the browser to fetch tiles — masking would be theater)
+    login()
+    r = client.put("/api/admin/settings", json={"values": {"maptiler_key": "mt-test-key"}})
+    assert r.status_code == 200
+    assert r.json()["maptiler_key"] == {"set": True, "value": "mt-test-key", "source": "app"}
+    login("shelby@test.dev")
+    assert client.get("/api/map/config").json() == {"enabled": True, "key": "mt-test-key"}
+
+    # clearing reverts to the env default (empty) — clients fall back to the SVG trace
+    login()
+    client.put("/api/admin/settings", json={"values": {"maptiler_key": ""}})
+    assert client.get("/api/map/config").json()["enabled"] is False
+
+
 def test_admin_settings_and_user_management():
     # member is locked out entirely
     login("shelby@test.dev")

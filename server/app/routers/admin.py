@@ -29,6 +29,9 @@ FIELDS: dict[str, tuple[bool, str]] = {
     "withings_client_secret": (True, "Withings client secret"),
     "vapid_public_key": (False, "Web push public key"),
     "vapid_private_key": (True, "Web push private key"),
+    # Publishable by design — it ships to every signed-in browser to fetch
+    # tiles, so there is nothing to hide from the admin who set it.
+    "maptiler_key": (False, "MapTiler API key"),
 }
 
 

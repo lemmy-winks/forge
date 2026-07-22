@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     dev_auth: bool = False
 
     base_url: str = "http://localhost:8000"
+    # Extra public hostnames the app is served on (comma-separated, bare hostnames
+    # or full URLs). Requests from these hosts complete Google OAuth on their own
+    # domain instead of bouncing to BASE_URL; every entry also needs its
+    # https://host/auth/callback added to the Google OAuth client's redirect URIs.
+    # BASE_URL's host is always allowed and stays the canonical home for Withings.
+    allowed_hosts: str = ""
     media_dir: str = "/data/media"
 
     # Phase 4 — Withings OAuth (per-user link; webhooks need public ingress)
@@ -34,6 +40,10 @@ class Settings(BaseSettings):
     reminder_hour: int = 16
     quiet_start: int = 8   # no pushes before
     quiet_end: int = 21    # or from this hour on
+
+    # Run-detail basemap (E5.4 follow-up). A MapTiler publishable key — restrict
+    # it to the app's domains in the MapTiler dashboard. Empty = the SVG trace.
+    maptiler_key: str = ""
 
     # Phase 3 — the coach
     anthropic_api_key: str = ""
@@ -52,6 +62,21 @@ class Settings(BaseSettings):
             email, _, name = pair.partition(":")
             out[email.strip().lower()] = name.strip() or email.split("@")[0].title()
         return out
+
+    @property
+    def host_allowlist(self) -> set[str]:
+        from urllib.parse import urlsplit
+
+        hosts = {(urlsplit(self.base_url).hostname or "").lower()}
+        for entry in self.allowed_hosts.split(","):
+            entry = entry.strip().lower()
+            if not entry:
+                continue
+            if "//" in entry:
+                entry = urlsplit(entry).hostname or ""
+            hosts.add(entry.split(":")[0])
+        hosts.discard("")
+        return hosts
 
     @property
     def google_enabled(self) -> bool:
@@ -87,6 +112,7 @@ OVERRIDABLE = (
     "withings_client_secret",
     "vapid_public_key",
     "vapid_private_key",
+    "maptiler_key",
 )
 
 _env_defaults: dict[str, str] = {}
