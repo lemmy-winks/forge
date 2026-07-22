@@ -1414,3 +1414,15 @@ def test_demo_food_seed_and_enrich():
     finally:
         db.close()
     login()
+
+
+def test_security_txt():
+    """RFC 9116: served at the well-known path (and the legacy root alias),
+    contact derived from the admin seat, expiry present and in the future."""
+    r = client.get("/.well-known/security.txt")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
+    assert "Contact: mailto:james@test.dev" in r.text
+    exp = next(line for line in r.text.splitlines() if line.startswith("Expires: "))
+    assert exp.split(" ", 1)[1] > "2026"
+    alias = client.get("/security.txt")
+    assert alias.status_code == 200 and "Contact: mailto:james@test.dev" in alias.text

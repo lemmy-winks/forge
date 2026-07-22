@@ -3,7 +3,7 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -216,6 +216,32 @@ def dashboard_page():
     # SPA route: the desktop dashboard lives at /dashboard but is the same bundle.
     from fastapi.responses import FileResponse
     return FileResponse(str(_static / "index.html"))
+
+
+@app.get("/.well-known/security.txt")
+@app.get("/security.txt")
+def security_txt():
+    """RFC 9116 vulnerability-disclosure pointer (Cloudflare checks for it).
+    Contact derives from the admin seat at request time, so no personal data
+    lands in the tracked repo; Expires rolls six months out."""
+    from fastapi import HTTPException
+    from fastapi.responses import PlainTextResponse
+    db = SessionLocal()
+    try:
+        admin = (db.query(models.User).filter(models.User.role == "admin")
+                 .order_by(models.User.created_at).first())
+    finally:
+        db.close()
+    if not admin:
+        raise HTTPException(status_code=404, detail="no admin seat yet")
+    expires = (datetime.now(timezone.utc) + timedelta(days=182)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    base = get_settings().base_url.rstrip("/")
+    return PlainTextResponse(
+        f"Contact: mailto:{admin.email}\n"
+        f"Expires: {expires}\n"
+        f"Canonical: {base}/.well-known/security.txt\n"
+        "Preferred-Languages: en\n",
+        headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/welcome")
