@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..fitting import epley_e1rm, est_minutes, fit_day, plate_breakdown, warmup_ramp
 from ..models import (EquipmentProfile, Exercise, LoggedSet, Metric, Niggle, Plan,
-                      PlanRevision, Record, User, WorkoutSeries, WorkoutSession, utcnow)
+                      PlannedItem, PlanRevision, Record, User, WorkoutSeries,
+                      WorkoutSession, utcnow)
 from ..security import current_user
 
 router = APIRouter(prefix="/api", tags=["training"])
@@ -208,6 +209,15 @@ def week(date: str | None = None, user: User = Depends(current_user), db: Sessio
             by_day[str(s.day)] = {"id": s.id, "kind": s.kind, "status": s.status,
                                   "stats": s.stats or {}, "name": s.name}
 
+    items = (db.query(PlannedItem)
+             .filter(PlannedItem.user_id == user.id,
+                     PlannedItem.date >= base,
+                     PlannedItem.date <= base + timedelta(days=6))
+             .order_by(PlannedItem.created_at).all())
+    planned_by_day: dict[str, list[dict]] = {}
+    for it in items:
+        planned_by_day.setdefault(str(it.date), []).append(_plan_item_out(it))
+
     out = []
     for i in range(7):
         d = base + timedelta(days=i)
@@ -215,7 +225,8 @@ def week(date: str | None = None, user: User = Depends(current_user), db: Sessio
         item: dict = {"date": str(d), "day_name": DAY_NAMES[d.weekday()],
                       "is_today": d == actual_today,
                       "kind": (e or {}).get("kind", "rest"), "name": (e or {}).get("name"),
-                      "focus": (e or {}).get("focus", []), "session": by_day.get(str(d))}
+                      "focus": (e or {}).get("focus", []), "session": by_day.get(str(d)),
+                      "planned": planned_by_day.get(str(d), [])}
         if e and e.get("kind") == "strength":
             entries = e.get("exercises", [])
             item["est"] = est_minutes(entries, {x["slug"]: x["sets"] for x in entries}, "full")
@@ -241,6 +252,79 @@ def week(date: str | None = None, user: User = Depends(current_user), db: Sessio
     return {"start": str(base), "today": str(actual_today),
             "rationale": rev.rationale if rev else "", "days": out,
             "dangling": dang_out}
+
+
+# ---------- planned items (forward planning of future weeks) ----------
+
+def _plan_item_out(it: PlannedItem) -> dict:
+    return {"id": it.id, "date": str(it.date), "kind": it.kind, "title": it.title,
+            "notes": it.notes, "plan_day": it.plan_day}
+
+
+class PlanItemIn(BaseModel):
+    date: str
+    kind: str  # workout | meal
+    title: str = ""
+    notes: str = ""
+    # For workouts: weekday key ("0".."6") of an active-plan day to pencil onto
+    # this date — the title defaults to that day's name.
+    plan_day: str | None = None
+
+
+@router.post("/plan-items")
+def create_plan_item(body: PlanItemIn, user: User = Depends(current_user),
+                     db: Session = Depends(get_db)):
+    if body.kind not in ("workout", "meal"):
+        raise HTTPException(status_code=400, detail="kind must be workout or meal")
+    day = parse_date(body.date)
+    title = body.title.strip()
+    plan_day = None
+    if body.kind == "workout" and body.plan_day is not None:
+        rev = active_revision(db, user.id)
+        days = ((rev.content or {}).get("days", {}) or {}) if rev else {}
+        entry = days.get(body.plan_day)
+        if not entry:
+            raise HTTPException(status_code=400, detail="plan_day not in the active plan")
+        plan_day = body.plan_day
+        title = title or entry.get("name") or ""
+    if not title:
+        raise HTTPException(status_code=400, detail="title required")
+    item = PlannedItem(user_id=user.id, date=day, kind=body.kind, title=title[:120],
+                       notes=body.notes.strip(), plan_day=plan_day)
+    db.add(item)
+    db.commit()
+    return _plan_item_out(item)
+
+
+class PlanItemPatch(BaseModel):
+    title: str | None = None
+    notes: str | None = None
+
+
+@router.patch("/plan-items/{pid}")
+def edit_plan_item(pid: str, body: PlanItemPatch, user: User = Depends(current_user),
+                   db: Session = Depends(get_db)):
+    item = db.get(PlannedItem, pid)
+    if not item or item.user_id != user.id:
+        raise HTTPException(status_code=404, detail="planned item not found")
+    if body.title is not None:
+        if not body.title.strip():
+            raise HTTPException(status_code=400, detail="title required")
+        item.title = body.title.strip()[:120]
+    if body.notes is not None:
+        item.notes = body.notes.strip()
+    db.commit()
+    return _plan_item_out(item)
+
+
+@router.delete("/plan-items/{pid}")
+def delete_plan_item(pid: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    item = db.get(PlannedItem, pid)
+    if not item or item.user_id != user.id:
+        raise HTTPException(status_code=404, detail="planned item not found")
+    db.delete(item)
+    db.commit()
+    return {"ok": True}
 
 
 # ---------- sessions & sets ----------

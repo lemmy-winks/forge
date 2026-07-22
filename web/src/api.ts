@@ -188,11 +188,17 @@ export interface ChatMsg { who: 'me' | 'coach'; text: string; at?: string; }
 export interface ChatResp { messages: ChatMsg[]; pending: boolean; }
 /** Deep-link context: what the user was looking at when they opened the coach. */
 export interface ChatContext { kind: 'session' | 'exercise' | 'proposal'; id?: string; label: string; }
+/** A workout or meal the user pencilled onto a specific (usually future) date. */
+export interface PlannedItem {
+  id: string; date: string; kind: 'workout' | 'meal'; title: string; notes: string;
+  plan_day: string | null;
+}
 export interface WeekDay {
   date: string; day_name: string; is_today: boolean;
   kind: 'strength' | 'cardio' | 'rest'; name: string | null; focus: string[];
   est?: number; exercise_count?: number; minutes?: number;
   session: { id: string; kind: string; status: string; stats: any; name: string } | null;
+  planned: PlannedItem[];
 }
 export interface WeekResp {
   start: string; today: string; rationale: string; days: WeekDay[];
