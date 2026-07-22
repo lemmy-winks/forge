@@ -329,3 +329,36 @@ input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%;
              font:inherit; color:var(--ink); border-radius:14px; padding:12px 13px; font-size:13.5px;
              width:100%; text-align:left; }
 .warnbanner b{ flex:1; font-weight:600; }
+
+/* ============== responsive: small phones → tablets → desktop ==============
+   Same DOM at every size — this is all CSS.
+   ≤380px  compact type + padding so nothing crowds or wraps
+   ≥640px  the bordered column breathes a little wider
+   ≥900px  (with real height, so landscape phones keep their thumbs)
+           the bottom tab bar becomes a fixed left rail, content centers
+           in a 700px reading column, sheets become centered dialogs */
+@media (max-width:380px){
+  .app{ font-size:14.5px; }
+  .scroll{ padding:6px 12px 16px; }
+  .hdr{ padding-left:14px; padding-right:14px; }
+  h2.title{ font-size:23px; }
+  .statchip{ flex:1 1 74px; padding:6px 8px; }
+  .fchip{ font-size:11px; }
+}
+@media (min-width:640px){ .app{ max-width:600px; } }
+@media (min-width:900px) and (min-height:520px){
+  .app{ max-width:none; border-left:none; border-right:none; font-size:16px; }
+  /* every band of the shell (header, offline strip, scroll body, footer bars)
+     caps to a reading column; the rail is the one full-height exception */
+  .app > *:not(.tabs){ width:100%; max-width:700px; margin-left:auto; margin-right:auto; }
+  .app:has(> .tabs){ padding-left:88px; }  /* room for the rail when signed in */
+  .tabs{ position:fixed; left:0; top:0; bottom:0; width:88px;
+         flex-direction:column; justify-content:center; gap:16px;
+         border-top:none; border-right:1px solid var(--hair);
+         padding:14px 6px calc(14px + env(safe-area-inset-bottom)) 6px; }
+  .tab{ flex:0 0 auto; padding:9px 0; gap:5px; font-size:11px; }
+  .tab svg{ width:24px; height:24px; }
+  .scroll{ padding-top:12px; }
+  .overlay{ align-items:center; padding:24px; }
+  .sheet{ border-radius:22px; padding-bottom:20px; }
+}
