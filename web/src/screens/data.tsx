@@ -198,7 +198,9 @@ function RouteMap({ pts }: { pts: [number, number][] }) {
         if (dead || !ref.current) return;
         const theme = () =>
           document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-        const stroke = (m: string) => (m === 'light' ? '#6a8a10' : '#c9f73a');
+        // Leaflet needs literal colors — read the accent so palettes apply
+        const stroke = () =>
+          getComputedStyle(document.documentElement).getPropertyValue('--volt').trim() || '#c9f73a';
         const tileFor = (m: string) => L.tileLayer(
           `https://{s}.basemaps.cartocdn.com/${m === 'light' ? 'light_all' : 'dark_all'}/{z}/{x}/{y}{r}.png`,
           { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 });
@@ -206,23 +208,26 @@ function RouteMap({ pts }: { pts: [number, number][] }) {
         map.attributionControl.setPrefix('');
         let mode = theme();
         let tiles = tileFor(mode).addTo(map);
-        const line = L.polyline(pts, { color: stroke(mode), weight: 3, opacity: 0.92 }).addTo(map);
-        const start = L.circleMarker(pts[0], { radius: 5, weight: 2, color: stroke(mode),
-                                               fillColor: stroke(mode), fillOpacity: 1 }).addTo(map);
+        const line = L.polyline(pts, { color: stroke(), weight: 3, opacity: 0.92 }).addTo(map);
+        const start = L.circleMarker(pts[0], { radius: 5, weight: 2, color: stroke(),
+                                               fillColor: stroke(), fillOpacity: 1 }).addTo(map);
         const finish = L.circleMarker(pts[pts.length - 1], { radius: 5, weight: 2,
-                                                            color: stroke(mode), fillOpacity: 0 }).addTo(map);
+                                                            color: stroke(), fillOpacity: 0 }).addTo(map);
         map.fitBounds(line.getBounds(), { padding: [24, 24] });
         obs = new MutationObserver(() => {
+          if (!map) return;
           const m = theme();
-          if (m === mode || !map) return;
-          mode = m;
-          map.removeLayer(tiles);
-          tiles = tileFor(m).addTo(map);
-          line.setStyle({ color: stroke(m) });
-          start.setStyle({ color: stroke(m), fillColor: stroke(m) });
-          finish.setStyle({ color: stroke(m) });
+          if (m !== mode) {
+            mode = m;
+            map.removeLayer(tiles);
+            tiles = tileFor(m).addTo(map);
+          }
+          line.setStyle({ color: stroke() });
+          start.setStyle({ color: stroke(), fillColor: stroke() });
+          finish.setStyle({ color: stroke() });
         });
-        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        obs.observe(document.documentElement,
+          { attributes: true, attributeFilter: ['data-theme', 'data-palette'] });
       } catch {
         if (!dead) setFailed(true);
       }
