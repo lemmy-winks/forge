@@ -13,6 +13,19 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    // The OG/Twitter tags carry an __ORIGIN__ placeholder that FastAPI fills with
+    // the request's own origin at runtime (host-aware, multi-domain). The built
+    // dist/index.html must keep the token; only the dev server, where nothing
+    // injects it, strips it to leave valid relative URLs.
+    {
+      name: 'og-origin-dev',
+      transformIndexHtml: {
+        order: 'pre' as const,
+        handler(html: string, ctx: { server?: unknown }) {
+          return ctx.server ? html.replaceAll('__ORIGIN__', '') : html;
+        },
+      },
+    },
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg'],
@@ -31,7 +44,9 @@ export default defineConfig({
         importScripts: ['push-listener.js'],
         // The maplibre chunk only loads on the run-detail route — keep it out
         // of the install-time precache and cache it on first use instead.
-        globIgnores: ['**/maplibre-gl-*'],
+        // og-image.png is only ever fetched by link-preview scrapers, never by
+        // the app itself — no reason to ship it in every client's precache.
+        globIgnores: ['**/maplibre-gl-*', 'og-image.png'],
         runtimeCaching: [
           {
             urlPattern: /\/assets\/maplibre-gl-.*\.(?:js|css)$/,

@@ -7,7 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import OperationalError
 from starlette.middleware.sessions import SessionMiddleware
@@ -17,6 +18,7 @@ from .config import apply_overrides, get_settings
 from .db import Base, SessionLocal, engine
 from .notify import push_enabled, send_push
 from .routers import admin, auth, coach_api, ingest, misc, push, training, withings
+from .security import public_base_url
 from .seed import run_seed
 
 # uvicorn only configures its own loggers — without this, forge.* INFO logs
@@ -191,11 +193,27 @@ _candidates = [
 _static = next((p for p in _candidates if (p / "index.html").exists()), _candidates[-1])
 
 
-@app.get("/dashboard")
-def dashboard_page():
+def _render_index(request: Request) -> HTMLResponse:
+    # Serve the SPA shell with the __ORIGIN__ placeholder in its link-preview
+    # (Open Graph / Twitter) tags resolved to the request's own origin, so the
+    # absolute og:image / og:url track whichever allowed domain the link was
+    # shared from (spoof-safe via public_base_url). Read per-request: the shell
+    # is tiny and only navigations hit it. no-cache keeps a shared proxy from
+    # serving one host's absolute URLs to another.
+    html = (_static / "index.html").read_text(encoding="utf-8")
+    html = html.replace("__ORIGIN__", public_base_url(request))
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/", response_class=HTMLResponse)
+def index_page(request: Request):
+    return _render_index(request)
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard_page(request: Request):
     # SPA route: the desktop dashboard lives at /dashboard but is the same bundle.
-    from fastapi.responses import FileResponse
-    return FileResponse(str(_static / "index.html"))
+    return _render_index(request)
 
 
 app.mount("/", StaticFiles(directory=str(_static), html=True), name="static")
