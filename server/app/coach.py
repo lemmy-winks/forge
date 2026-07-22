@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -75,7 +76,9 @@ TOOLS: list[dict] = [
                      "cooldown never empty on strength days. rationale = 2-3 plain sentences on what THIS "
                      "WEEK ACHIEVES, written forward: the load/volume milestones it reaches, the weekly cardio "
                      "minutes it banks, what it sets up next ('Bench moves to 60 kg for the first time; 90 min "
-                     "of Zone 2 keeps the aerobic block on track'). Real numbers, future tense. Do NOT restate "
+                     "of Zone 2 keeps the aerobic block on track'). Real numbers, future tense. The user reads "
+                     "it ON that week's Plan screen once the plan is active, so present voice — 'This week', "
+                     "day names — NEVER 'next week' (the validator rejects it). Do NOT restate "
                      "the diff — changes[] already carries per-change whys."),
      "input_schema": {"type": "object", "properties": {"content": {"type": "object"}, "rationale": {"type": "string"}},
                       "required": ["content", "rationale"]}},
@@ -90,6 +93,39 @@ TOOLS: list[dict] = [
      "input_schema": {"type": "object", "properties": {"drawn_on": {"type": "string"},
                       "results": {"type": "array", "items": {"type": "object"}}}, "required": ["drawn_on", "results"]}},
 ]
+
+
+_UESC = re.compile(r"\\u([0-9a-fA-F]{4})")
+
+
+def repair_text(s: str) -> str:
+    """The model sometimes double-escapes unicode in tool args ('\\u2014'
+    survives JSON decoding as six literal characters) and the user sees raw
+    backslash sequences in their coach note. Decode exactly that pattern —
+    nothing else, so legitimate backslashes elsewhere stay untouched."""
+    return _UESC.sub(lambda m: chr(int(m.group(1), 16)), s)
+
+
+def repair_deep(x):
+    """repair_text over every string in a nested content dict/list."""
+    if isinstance(x, str):
+        return repair_text(x)
+    if isinstance(x, dict):
+        return {k: repair_deep(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [repair_deep(v) for v in x]
+    return x
+
+
+def _validate_rationale_voice(rationale: str) -> str | None:
+    """The rationale is displayed as the coach's note ON the week it covers —
+    by the time the user reads it, that week is 'this week'. 'Next week's…'
+    framing (natural at Sunday-review time) reads as a mismatch."""
+    low = rationale.strip().lower()
+    if low.startswith("next week") or "next week's" in low:
+        return ("rationale is shown on that week's Plan screen once active — by then it IS the "
+                "current week. Write it in present voice ('This week…', day names), never 'next week'")
+    return None
 
 
 def _validate_content(db: Session, content: dict) -> str | None:
@@ -132,7 +168,9 @@ def _validate_content(db: Session, content: dict) -> str | None:
 
 
 def create_proposal(db: Session, user: User, content: dict, rationale: str) -> dict:
-    err = _validate_content(db, content)
+    content = repair_deep(content)
+    rationale = repair_text(rationale)
+    err = _validate_content(db, content) or _validate_rationale_voice(rationale)
     if err:
         return {"error": err}
     plan = (db.query(Plan).filter(Plan.user_id == user.id, Plan.domain == "training")

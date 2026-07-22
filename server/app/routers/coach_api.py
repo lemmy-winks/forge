@@ -11,9 +11,10 @@ router = APIRouter(prefix="/api", tags=["coach"])
 
 @router.get("/proposal")
 def get_proposal(user: User = Depends(current_user), db: Session = Depends(get_db)):
-    rev = (db.query(PlanRevision).join(Plan)
-           .filter(Plan.user_id == user.id, PlanRevision.status == "proposed")
-           .order_by(PlanRevision.num.desc()).first())
+    from .training import heal_revision
+    rev = heal_revision(db, (db.query(PlanRevision).join(Plan)
+                             .filter(Plan.user_id == user.id, PlanRevision.status == "proposed")
+                             .order_by(PlanRevision.num.desc()).first()))
     if not rev:
         return {"proposal": None}
     return {"proposal": {"id": rev.id, "num": rev.num, "rationale": rev.rationale,

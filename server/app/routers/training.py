@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ..coach import repair_deep, repair_text
 from ..db import get_db
 from ..fitting import epley_e1rm, est_minutes, fit_day, plate_breakdown, warmup_ramp
 from ..models import (EquipmentProfile, Exercise, LoggedSet, Metric, Niggle, Plan,
@@ -20,11 +21,24 @@ DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 
 # ---------- helpers ----------
 
+def heal_revision(db: Session, rev: PlanRevision | None) -> PlanRevision | None:
+    """Rows written before the write-side escape repair can still carry literal
+    '\\uXXXX' sequences — fix them the first time anyone reads the revision."""
+    if not rev:
+        return rev
+    fixed_r = repair_text(rev.rationale or "")
+    fixed_c = repair_deep(rev.content or {})
+    if fixed_r != (rev.rationale or "") or fixed_c != (rev.content or {}):
+        rev.rationale, rev.content = fixed_r, fixed_c
+        db.commit()
+    return rev
+
+
 def active_revision(db: Session, user_id: str) -> PlanRevision | None:
-    return (db.query(PlanRevision).join(Plan)
-            .filter(Plan.user_id == user_id, Plan.domain == "training",
-                    PlanRevision.status == "active")
-            .order_by(PlanRevision.num.desc()).first())
+    return heal_revision(db, (db.query(PlanRevision).join(Plan)
+                              .filter(Plan.user_id == user_id, Plan.domain == "training",
+                                      PlanRevision.status == "active")
+                              .order_by(PlanRevision.num.desc()).first()))
 
 
 def active_profile(db: Session, user: User) -> EquipmentProfile | None:

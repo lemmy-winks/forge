@@ -203,6 +203,9 @@ def test_pull_forward_another_days_workout():
     assert any(t["slug"] == "bench-press" for t in fitted["targets"])
     detail = client.get(f"/api/sessions/{r.json()['id']}").json()
     assert detail["day"] == tuesday, "session recorded on the requested date, not Friday"
+    # complete it: once real time passes this fixed date, an active session here
+    # becomes "dangling" and poisons test_dangling_session_save_incomplete
+    client.post(f"/api/sessions/{r.json()['id']}/complete", json={"cooldown_status": "skipped"})
     # cardio days can't be pulled into a strength session
     bad = client.post("/api/sessions", json={"date": "2026-07-23", "plan_day": "2"})
     assert bad.status_code == 400
@@ -921,3 +924,55 @@ def test_restart_with_new_budget_refits():
     again = client.post("/api/sessions", json={"date": monday}).json()
     assert {t["slug"]: t["sets"] for t in again["fitted"]["targets"]} == full_sets
     client.post(f"/api/sessions/{full['id']}/complete", json={"cooldown_status": "skipped"})
+
+
+def test_weekly_note_repair_and_voice():
+    """Two real failure modes from the live coach (Jul 2026): the model
+    double-escapes unicode in tool args (the user saw literal '\\u2014' in the
+    Plan-screen note), and at Sunday review it writes the rationale in 'next
+    week' voice — but the note is read ON the week it covers."""
+    from app.coach import create_proposal, repair_text
+    from app.db import SessionLocal
+    from app.models import Plan, PlanRevision, User
+
+    assert repair_text("light work \\u2014 not a grind") == "light work — not a grind"
+
+    login()
+    db = SessionLocal()
+    try:
+        james = db.query(User).filter(User.email == "james@test.dev").first()
+        days = {"0": {"name": "Lower A", "kind": "strength", "focus": ["Quads"],
+                      "why": "squats climb \\u2014 watch bar speed",
+                      "exercises": [{"slug": "back-squat", "sets": 3, "reps": 5, "weight": 65.0,
+                                     "rest": 120, "priority": 1, "min_sets": 3}],
+                      "cooldown": [{"slug": "quad-hip-flexor-stretch", "hold": "45 s"}]}}
+
+        bad = create_proposal(db, james, {"days": days, "changes": []},
+                              "Next week's squats move to 65 kg.")
+        assert "present voice" in bad["error"]
+
+        good = create_proposal(db, james, {"days": days, "changes": []},
+                               "This week banks 65 kg squats \\u2014 a first at this load.")
+        assert good.get("ok"), good
+    finally:
+        db.close()
+
+    prop = client.get("/api/proposal").json()["proposal"]
+    assert "—" in prop["rationale"] and "\\u" not in prop["rationale"]
+    assert "—" in prop["content"]["days"]["0"]["why"]
+    client.post(f"/api/proposal/{prop['id']}/reject")  # leave the seeded plan active
+
+    # rows written before the write-side repair heal on first read
+    db = SessionLocal()
+    try:
+        james = db.query(User).filter(User.email == "james@test.dev").first()
+        rev = (db.query(PlanRevision).join(Plan)
+               .filter(Plan.user_id == james.id, Plan.domain == "training",
+                       PlanRevision.status == "active")
+               .order_by(PlanRevision.num.desc()).first())
+        rev.rationale = "Bench nudges up \\u2014 light work, not a grind."
+        db.commit()
+    finally:
+        db.close()
+    wk = client.get("/api/week").json()
+    assert "—" in wk["rationale"] and "\\u" not in wk["rationale"]
