@@ -181,9 +181,14 @@ def _validate_dinner_notes(db: Session, user: User, content: dict, rationale: st
 
 def create_food_proposal(db: Session, user: User, content: dict, changes: list,
                          rationale: str) -> dict:
-    if not (rationale or "").strip():
+    from .coach import _validate_rationale_voice, repair_deep, repair_text
+    content = repair_deep(content)
+    changes = repair_deep(changes or [])
+    rationale = repair_text(rationale or "")
+    if not rationale.strip():
         return {"error": "rationale is required — 2-3 sentences on what this week achieves"}
     err = (validate_food_content(db, user, content, changes or [])
+           or _validate_rationale_voice(rationale)
            or _validate_dinner_notes(db, user, content, rationale))
     if err:
         return {"error": err}
