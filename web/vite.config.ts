@@ -29,6 +29,32 @@ export default defineConfig({
       workbox: {
         navigateFallbackDenylist: [/^\/api/, /^\/auth/, /^\/ingest/, /^\/healthz/, /^\/welcome/],
         importScripts: ['push-listener.js'],
+        // The maplibre chunk only loads on the run-detail route — keep it out
+        // of the install-time precache and cache it on first use instead.
+        globIgnores: ['**/maplibre-gl-*'],
+        runtimeCaching: [
+          {
+            urlPattern: /\/assets\/maplibre-gl-.*\.(?:js|css)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'maplibre-lib',
+              expiration: { maxEntries: 4, purgeOnQuotaError: true },
+            },
+          },
+          // Basemap tiles/glyphs for the run-detail map: cache-first so a run
+          // you've already looked at renders instantly and offline. Capped so
+          // the cache can't grow without bound (MapTiler ToS allows transient
+          // caching, not bulk pre-download).
+          {
+            urlPattern: /^https:\/\/api\.maptiler\.com\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'maptiler',
+              expiration: { maxEntries: 400, maxAgeSeconds: 30 * 24 * 3600, purgeOnQuotaError: true },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
     }),
   ],
