@@ -144,6 +144,10 @@ async def lifespan(_app: FastAPI):
     if "benefit" not in cols:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE exercises ADD COLUMN benefit TEXT DEFAULT ''"))
+    sess_cols = {c["name"] for c in inspect(engine).get_columns("workout_sessions")}
+    if "favorite" not in sess_cols:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE workout_sessions ADD COLUMN favorite BOOLEAN DEFAULT FALSE"))
     # scrub artefacts of the old agent loop that could end a run with no message
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM chat_messages WHERE text = '(no reply)'"))
