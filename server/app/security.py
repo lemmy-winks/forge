@@ -20,14 +20,25 @@ def session_cookie_value(user_id: str) -> str:
     return _serializer().dumps({"uid": user_id})
 
 
-def set_session(response, user_id: str) -> None:
+def public_base_url(request: Request) -> str:
+    """Origin to build absolute self-URLs (OAuth redirect_uri) from: the
+    requesting host when it's on the host allowlist, else the canonical
+    BASE_URL — a spoofed Host header must never steer an OAuth redirect."""
+    settings = get_settings()
+    if (request.url.hostname or "").lower() in settings.host_allowlist:
+        return f"{request.url.scheme}://{request.url.netloc}"
+    return settings.base_url.rstrip("/")
+
+
+def set_session(response, user_id: str, request: Request | None = None) -> None:
     response.set_cookie(
         COOKIE,
         session_cookie_value(user_id),
         max_age=MAX_AGE,
         httponly=True,
         samesite="lax",
-        secure=get_settings().base_url.startswith("https"),
+        secure=get_settings().base_url.startswith("https")
+        or (request is not None and request.url.scheme == "https"),
     )
 
 

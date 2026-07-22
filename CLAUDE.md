@@ -35,4 +35,11 @@ live in `docs/`.
 
 ## Current environment
 
+Multi-domain: the app can be served on several hostnames at once — `ALLOWED_HOSTS` (compose env)
+lists the extra domains; `security.public_base_url` completes Google OAuth on the requesting host
+when it's on the allowlist (each host's `/auth/callback` must be registered with the Google client)
+and falls back to `BASE_URL` otherwise, so Host-header spoofing can't steer redirects. Withings
+stays anchored to `BASE_URL` (single registered callback). Uvicorn already trusts proxy headers
+(`--proxy-headers --forwarded-allow-ips *` in the Dockerfile).
+
 Runs via Docker Compose on a single home server (`deploy/fresh-install.sh` bootstraps a clean install). As of Jul 2026 the app is on public ingress (`https://forge.blopperstoppers.com`, `BASE_URL` in the compose override) with Google OAuth active — dev sign-in buttons only appear when Google is unconfigured (fresh installs). Health Auto Export syncs from anywhere; Withings OAuth round-trips against the public callback URL. Rate limiting is still Phase 6 — the public surface is login + the demo seat.
