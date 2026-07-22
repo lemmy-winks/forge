@@ -218,4 +218,13 @@ def dashboard_page():
     return FileResponse(str(_static / "index.html"))
 
 
+@app.get("/welcome")
+def welcome_page():
+    # Pretty URL for the shareable landing page. StaticFiles only matches the
+    # exact filename, and the SW denylists /welcome from the SPA fallback — so
+    # without this route a shared "/welcome" link 404s on any fresh browser.
+    from fastapi.responses import FileResponse
+    return FileResponse(str(_static / "welcome.html"))
+
+
 app.mount("/", StaticFiles(directory=str(_static), html=True), name="static")

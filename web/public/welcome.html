@@ -6,7 +6,19 @@
 <meta name="theme-color" content="#060708">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <title>Forge — an agent-coached training log</title>
-<meta name="description" content="Your own strength & conditioning coach: an agent that reads your real training data and proposes your week. Self-hosted, private, two seats.">
+<meta name="description" content="Your own strength & conditioning coach: an agent that reads your real training data and proposes your week — training and dinners. Self-hosted, private, two seats.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Forge">
+<meta property="og:title" content="Forge — an agent-coached training log">
+<meta property="og:description" content="An agent coach that reads your real data and proposes your week — training and dinners. Self-hosted, private, two seats.">
+<meta property="og:url" content="https://forge.blopperstoppers.com/welcome">
+<meta property="og:image" content="https://forge.blopperstoppers.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Forge — an agent-coached training log">
+<meta name="twitter:description" content="An agent coach that reads your real data and proposes your week — training and dinners. Self-hosted, private, two seats.">
+<meta name="twitter:image" content="https://forge.blopperstoppers.com/og.png">
 <style>
   :root{ --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
          --ink:#edeef0; --mut:#8b9096; --dim:#565b61;
@@ -68,6 +80,35 @@
   .chg .s{ color:var(--volt); }
   .chg .w{ flex:1; color:var(--ink); }
 
+  /* macro meters (food tile) */
+  .meter{ display:flex; align-items:center; gap:8px; padding:4px 0; font-size:11.5px; color:var(--mut); }
+  .meter .lab{ width:52px; }
+  .meter .bar{ flex:1; height:5px; background:var(--hair); border-radius:3px; overflow:hidden; }
+  .meter .bar i{ display:block; height:100%; background:var(--volt); border-radius:3px; }
+  .meter .bar i.w{ background:var(--warn); }
+  .meter .val{ width:66px; text-align:right; color:var(--ink); white-space:nowrap; }
+
+  /* cook-mode step (food tile) */
+  .step{ display:flex; gap:10px; align-items:center; }
+  .ring{ position:relative; width:56px; height:56px; flex:none; }
+  .ring .t{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+            font-size:12px; font-weight:700; }
+  .stept b{ display:block; font-size:13px; }
+  .stept span{ color:var(--mut); font-size:11.5px; }
+
+  /* chat bubbles (coach tile) */
+  .bub{ max-width:88%; border-radius:14px; padding:8px 11px; font-size:12.5px; margin-top:8px; }
+  .bub.me{ background:var(--volt); color:var(--on-volt); margin-left:auto; border-bottom-right-radius:4px; }
+  .bub.coach{ background:var(--raised); border-bottom-left-radius:4px; }
+  .bub .tag{ display:block; font-size:10px; opacity:.7; margin-top:3px; }
+
+  /* everything-else grid */
+  .more{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  @media (max-width:760px){ .more{ grid-template-columns:repeat(2,1fr); } }
+  .more div{ background:var(--sunken); border-radius:12px; padding:12px 13px; }
+  .more b{ display:block; font-size:13px; margin-bottom:3px; }
+  .more span{ color:var(--mut); font-size:12px; line-height:1.45; display:block; }
+
   /* library strip */
   .libband{ border-top:1px solid var(--hair); padding:40px 0; }
   .libband .head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; }
@@ -96,6 +137,7 @@
       <span class="badge"><span class="dot" style="background:#ff375f"></span><b>Apple Health</b></span>
       <span class="badge"><span class="dot" style="background:#4cc2ff"></span><b>Withings</b></span>
       <span class="badge"><span class="dot" style="background:var(--volt)"></span><b>Claude</b>&nbsp;coach</span>
+      <span class="badge"><span class="dot" style="background:var(--warn)"></span><b>Food</b>&nbsp;· beta</span>
     </div>
   </div>
 
@@ -140,9 +182,59 @@
   </div>
 </div></div>
 
+<div class="band"><div class="wrap tiles3">
+  <div class="f"><h3>Dinner is decided too <span style="color:var(--warn);font-size:11px;vertical-align:middle">BETA</span></h3>
+    <p>The coach plans the week's food with the training: high protein, high fiber, a hard sat-fat cap.
+       Tick the plate you ate — done.</p>
+    <div class="viz num">
+      <div class="meter"><span class="lab">Protein</span><span class="bar"><i style="width:86%"></i></span><span class="val">138/160 g</span></div>
+      <div class="meter"><span class="lab">Fiber</span><span class="bar"><i style="width:92%"></i></span><span class="val">35/38 g</span></div>
+      <div class="meter"><span class="lab">Sat fat</span><span class="bar"><i class="w" style="width:61%"></i></span><span class="val">11/18 g</span></div>
+      <div class="meter"><span class="lab">Calories</span><span class="bar"><i style="width:78%"></i></span><span class="val">1790/2300</span></div>
+    </div>
+  </div>
+  <div class="f"><h3>Cook mode</h3>
+    <p>One step per screen, kitchen-sized type, timers built in. Every step says how you know it's done —
+       not just what to do.</p>
+    <div class="viz num step">
+      <div class="ring"><svg viewBox="0 0 56 56"><circle cx="28" cy="28" r="23" fill="none" stroke="var(--hair)" stroke-width="5"/>
+        <circle cx="28" cy="28" r="23" fill="none" stroke="var(--volt)" stroke-width="5" stroke-linecap="round"
+          stroke-dasharray="101 144" transform="rotate(-90 28 28)"/></svg>
+        <span class="t">17:24</span></div>
+      <div class="stept"><b>Step 3 · Simmer</b>
+        <span>Done when a spoon dragged through leaves a trail.</span></div>
+    </div>
+  </div>
+  <div class="f"><h3>Just tell the coach</h3>
+    <p>Move a session, log a meal out, report a niggle — it answers with your numbers and
+       fixes the plan, pending your OK.</p>
+    <div class="viz num">
+      <div class="bub me">Ate a chicken burrito bowl at Chipotle</div>
+      <div class="bub coach">Logged — est. 640 kcal · 45 g protein. Sat-fat cap still has 7 g headroom today.
+        <span class="tag">estimated · tap to correct</span></div>
+    </div>
+  </div>
+</div></div>
+
+<div class="band"><div class="wrap">
+  <div class="head" style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+    <h3 style="font-size:16px">And the parts you notice in week three</h3>
+    <span class="sub" style="color:var(--mut);font-size:13.5px">small things, done properly</span></div>
+  <div class="more">
+    <div><b>Plate math</b><span>Warm-up ramp and per-side plates from your actual inventory.</span></div>
+    <div><b>Swaps that fit</b><span>Machine taken? Same muscles, your equipment, one tap.</span></div>
+    <div><b>Niggle-aware</b><span>Tweaked knee? Selection avoids it; cool-downs treat it until cleared.</span></div>
+    <div><b>PR ledger</b><span>e1RM and best-set records, next milestone always in sight.</span></div>
+    <div><b>Works offline</b><span>Log sets in a concrete basement; it syncs when you surface.</span></div>
+    <div><b>Your units</b><span>lb or kg per lift, mmol/L or mg/dL — stored canonically, shown your way.</span></div>
+    <div><b>Desktop dashboard</b><span>Every trend on one big screen at /dashboard.</span></div>
+    <div><b>Quiet notifications</b><span>Exactly two kinds: plan proposed, planned day unlogged. Both optional.</span></div>
+  </div>
+</div></div>
+
 <div class="libband"><div class="wrap">
   <div class="head"><h3>A curated exercise library</h3>
-    <span class="sub">form photos & cues for every prescribed movement</span></div>
+    <span class="sub">65 movements · photos, cues, muscle maps & animated form guides</span></div>
   <div class="strip">
     <figure><img src="/media/exercises/back-squat-0.jpg" alt="Back squat, start position" loading="lazy"></figure>
     <figure><img src="/media/exercises/back-squat-1.jpg" alt="Back squat, bottom position" loading="lazy"></figure>
