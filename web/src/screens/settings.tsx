@@ -26,6 +26,12 @@ export function SettingsScreen() {
     qc.setQueryData<Me>(['me'], (old) => old && { ...old, prefs: { ...old.prefs, palette: v } });
     api('/api/prefs', { method: 'PATCH', body: { prefs: { palette: v } } }).catch(() => toast('Offline — not saved'));
   };
+  const mascotOn = me.prefs?.mascot !== false;
+  const flipMascot = () => {
+    const v = !mascotOn;
+    qc.setQueryData<Me>(['me'], (old) => old && { ...old, prefs: { ...old.prefs, mascot: v } });
+    api('/api/prefs', { method: 'PATCH', body: { prefs: { mascot: v } } }).catch(() => toast('Offline — not saved'));
+  };
   const nigQ = useQuery<NiggleRow[]>({ queryKey: ['niggles'], queryFn: () => api('/api/niggles') });
   const activeN = (nigQ.data || []).filter((n) => n.status === 'active').length;
   const exportData = async () => {
@@ -76,6 +82,17 @@ export function SettingsScreen() {
             </button>
           ))}
         </div>
+        <button className="press" onClick={flipMascot}
+          style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, marginTop: 12 }}>
+          <span style={{ flex: 1 }}>
+            <b style={{ fontSize: 14.5 }}>Rep, the chat mascot</b>
+            <div style={{ fontSize: 12, color: 'var(--mut)' }}>
+              sometimes hops onto the coach chat bar — tap him for a workout
+            </div>
+          </span>
+          <span style={{ fontSize: 12, fontWeight: 700,
+            color: mascotOn ? 'var(--volt)' : 'var(--dim)' }}>{mascotOn ? 'ON' : 'OFF'}</span>
+        </button>
       </div>
       {rows.map(([label, sub, onClick]) => (
         <button key={label} className="lrow press" onClick={onClick}>

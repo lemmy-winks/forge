@@ -5,8 +5,10 @@
 
    Purely cosmetic: CSS keyframes in styles.css (".mascot" block) drive all the
    motion; this component only decides when he shows up and what plays next.
-   localStorage 'forge-mascot' = 'always' | 'never' overrides the dice. */
+   Settings → Appearance owns the on/off switch (prefs.mascot, default on);
+   localStorage 'forge-mascot' = 'always' | 'never' is a dev knob on top. */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useApp } from './ui';
 
 const MOVES = ['squat', 'press', 'curl', 'jacks', 'pushup'] as const;
 type Move = (typeof MOVES)[number];
@@ -28,6 +30,8 @@ const CHANCE_FIRST = 0.55;   // odds he shows on opening the coach tab
 const CHANCE_LATER = 0.35;   // odds per later re-roll while you linger
 
 export function CoachMascot() {
+  const { me } = useApp();
+  const enabled = me.prefs?.mascot !== false;
   const [phase, setPhase] = useState<'hidden' | 'enter' | 'leave'>('hidden');
   const [set, setSet] = useState<Set_ | null>(null);
   const [flexQuip, setFlexQuip] = useState<string | null>(null);
@@ -46,7 +50,7 @@ export function CoachMascot() {
 
   useEffect(() => {
     const pref = localStorage.getItem('forge-mascot');
-    if (pref === 'never') return;
+    if (!enabled || pref === 'never') return;
     const timers: number[] = [];
     const appear = () => {
       setLeftPct(12 + Math.random() * 58); // lands somewhere new each visit
@@ -63,7 +67,7 @@ export function CoachMascot() {
     };
     roll(CHANCE_FIRST);
     return () => { timers.forEach(clearTimeout); window.clearTimeout(leaveTimer.current); };
-  }, [armLeave]);
+  }, [armLeave, enabled]);
 
   // 'leave' plays the drop animation, then he's gone until the next visit
   useEffect(() => {
@@ -90,7 +94,7 @@ export function CoachMascot() {
     window.setTimeout(() => setFlexQuip(null), 1900);
   };
 
-  if (phase === 'hidden') return null;
+  if (!enabled || phase === 'hidden') return null;
   const dataMove = set ? set.move : flexQuip ? 'flex' : undefined;
 
   return (
