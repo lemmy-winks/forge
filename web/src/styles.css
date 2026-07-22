@@ -414,5 +414,6 @@ input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%;
   .tab svg{ width:24px; height:24px; }
   .scroll{ padding-top:12px; }
   .overlay{ align-items:center; padding:24px; }
+  .runmap{ height:360px; }
   .sheet{ border-radius:22px; padding-bottom:20px; }
 }
