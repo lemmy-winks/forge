@@ -932,8 +932,22 @@ def test_food_household_scope_and_demo_wall():
     client.post("/api/admin/demo")
     client.post("/auth/demo")
     wd = client.get(f"/api/food/week?date={MONDAY}").json()
-    assert all(not d["slots"] for d in wd["days"]), "household food week invisible to demo"
-    assert all(d["totals"]["kcal"] == 0 for d in wd["days"])
+    # the demo now ships its own food week — but it must be served from the
+    # demo's OWN revision, and the household's plates must never leak into it
+    from app.db import SessionLocal
+    from app.models import MealRevision, User
+    db = SessionLocal()
+    try:
+        bruce = db.query(User).filter(User.role == "demo").first()
+        active = (db.query(MealRevision)
+                  .filter(MealRevision.user_id == bruce.id, MealRevision.status == "active").first())
+        assert active is not None, "demo food week lives in the demo's own scope"
+    finally:
+        db.close()
+    assert wd["has_plan"] is True
+    # James's seg-1 dinner log (still present) must not appear anywhere in the demo's week
+    assert not any(s.get("log_id") == jid for d in wd["days"] for s in d["slots"])
+    assert not any(x["id"] == jid for d in wd["days"] for x in d["extras"])
     assert client.get("/api/food/recipes/harissa-chicken-traybake").status_code == 200
 
     login()
@@ -1344,3 +1358,59 @@ def test_restart_with_new_budget_refits():
     again = client.post("/api/sessions", json={"date": monday}).json()
     assert {t["slug"]: t["sets"] for t in again["fitted"]["targets"]} == full_sets
     client.post(f"/api/sessions/{full['id']}/complete", json={"cooldown_status": "skipped"})
+
+
+def test_demo_food_seed_and_enrich():
+    """The demo seat ships with a food story (E16 beta): an active week in its
+    own scope, a pending food proposal, weeks of meal logs including order-out
+    lunches with venue/cost — and /api/admin/demo/enrich tops up a demo created
+    before the food beta without touching its training history."""
+    from app.db import SessionLocal
+    from app.models import Carryover, LunchFavorite, MealLog, MealRevision, User, WorkoutSession
+
+    login()
+    client.post("/api/admin/demo")
+
+    client.post("/auth/demo")
+    assert client.get("/api/food/week").json()["has_plan"] is True
+    prop = client.get("/api/food/proposal").json()["proposal"]
+    assert prop and prop["changes"], "demo ships with a pending food proposal"
+
+    db = SessionLocal()
+    try:
+        bruce = db.query(User).filter(User.role == "demo").first()
+        orders = db.query(MealLog).filter(MealLog.user_id == bruce.id, MealLog.source == "order").all()
+        assert orders and all(o.venue and o.cost > 0 for o in orders), "order lunches carry venue+cost"
+        assert db.query(Carryover).filter_by(user_id=bruce.id).count() >= 3
+        assert db.query(LunchFavorite).filter_by(user_id=bruce.id).count() == 2
+        sessions_before = db.query(WorkoutSession).filter_by(user_id=bruce.id).count()
+    finally:
+        db.close()
+
+    # enrich is a no-op when the demo already has everything
+    login()
+    assert client.post("/api/admin/demo/enrich").json()["added"] == []
+
+    # a demo from before the food beta gets topped up in place
+    db = SessionLocal()
+    try:
+        bruce = db.query(User).filter(User.role == "demo").first()
+        db.query(MealLog).filter_by(user_id=bruce.id).delete()
+        db.query(MealRevision).filter_by(user_id=bruce.id).delete()
+        db.query(Carryover).filter_by(user_id=bruce.id).delete()
+        db.query(LunchFavorite).filter_by(user_id=bruce.id).delete()
+        db.commit()
+    finally:
+        db.close()
+    assert client.post("/api/admin/demo/enrich").json()["added"] == ["food"]
+
+    client.post("/auth/demo")
+    assert client.get("/api/food/week").json()["has_plan"] is True
+    db = SessionLocal()
+    try:
+        bruce = db.query(User).filter(User.role == "demo").first()
+        assert db.query(WorkoutSession).filter_by(user_id=bruce.id).count() == sessions_before, \
+            "enrich never touches training history"
+    finally:
+        db.close()
+    login()

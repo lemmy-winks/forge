@@ -165,6 +165,14 @@ def demo_create(user: User = Depends(admin_user), db: Session = Depends(get_db))
     return {"exists": True}
 
 
+@router.post("/demo/enrich")
+def demo_enrich(user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    """Top up an existing demo with data newer features expect (e.g. the food
+    beta) without resetting its year of training history. No-op when current."""
+    from ..demo import enrich_demo
+    return enrich_demo(db)
+
+
 @router.delete("/demo")
 def demo_delete(user: User = Depends(admin_user), db: Session = Depends(get_db)):
     from ..demo import delete_demo

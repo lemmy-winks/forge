@@ -870,6 +870,15 @@ function DemoCard() {
       {exists ? (
         <div className="btnrow">
           <button className="ghost press" disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const r = await api<{ added: string[] }>('/api/admin/demo/enrich', { method: 'POST' });
+                toast(r.added.length ? `Added: ${r.added.join(', ')}` : 'Demo already has everything', true);
+              } catch (e: any) { toast(e?.message || 'Failed'); }
+              setBusy(false);
+            }}>Top up data</button>
+          <button className="ghost press" disabled={busy}
             onClick={call('POST', 'Demo data reset')}>Reset data</button>
           <button className="ghost press" disabled={busy} style={{ color: 'var(--warn)' }}
             onClick={() => confirm('Remove the demo account and all its data?')

@@ -18,10 +18,10 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from .fitting import epley_e1rm
-from .models import (AgentRun, Carryover, ChatMessage, EquipmentProfile, IngestToken, LabPanel,
-                     LabResult, LoggedSet, LunchFavorite, MealLog, MealRevision, Metric, Niggle,
-                     NotificationLog, Plan, PlanRevision, PushSub, Record, User, WithingsLink,
-                     WorkoutSeries, WorkoutSession)
+from .models import (MACRO_FIELDS, AgentRun, Carryover, ChatMessage, EquipmentProfile, IngestToken,
+                     LabPanel, LabResult, LoggedSet, LunchFavorite, MealLog, MealRevision, MediaBlob,
+                     Metric, Niggle, NotificationLog, Plan, PlanRevision, PushSub, Recipe, Record,
+                     User, WithingsLink, WorkoutSeries, WorkoutSession)
 from .security import new_ingest_token
 from .seed import _week, seed_user_defaults
 
@@ -259,7 +259,123 @@ def seed_demo(db: Session) -> User:
                         tool_calls=rng.randint(6, 11), ok=1, created_at=_ts(d, 20, 2)))
 
     db.commit()
+    enrich_demo(db)  # food/nutrition beta data rides the same reset
     return bruce
+
+
+# ---------------------------------------------------------------- food (beta)
+
+def _resolve_demo_slot(entry: dict, days: dict) -> str | None:
+    if not entry or entry.get("out") or entry.get("order"):
+        return None
+    if entry.get("leftover_of") is not None:
+        src = days.get(str(entry["leftover_of"])) or {}
+        return ((src.get("slots") or {}).get("dinner") or {}).get("recipe")
+    return entry.get("recipe")
+
+
+def _seed_demo_food(db: Session, bruce: User, rng: random.Random) -> None:
+    """Bruce's food story: an active week (his own scope — the demo never sees
+    the household's), a pending food proposal, three weeks of plausible meal
+    logs including order-out lunches with venue/cost, carry-overs and two
+    vetted lunch favorites."""
+    from .config import local_today
+    from .food_seed import _first_week
+
+    # the food week keys off the app's calendar (Europe/London), not the OS zone —
+    # date.today() here would park "today's" half-logged day on yesterday overnight
+    today = local_today()
+    monday = today - timedelta(days=today.weekday())
+    week = _first_week()
+    days = week["days"]
+
+    db.add(MealRevision(user_id=bruce.id, num=1, status="active", content=week,
+                        rationale="Protein and fiber land on target with sat-fat headroom "
+                                  "banked Mon–Thu for the Friday night out; the chili batch "
+                                  "covers Friday lunch so only three lunches are ordered."))
+    proposed = _first_week()
+    proposed["days"]["1"]["slots"]["dinner"] = {
+        "recipe": "prawn-soba-stirfry",
+        "why": "twelve minutes on your longest office day — and the week's fish without repeating salmon"}
+    db.add(MealRevision(user_id=bruce.id, num=2, status="proposed", content=proposed,
+                        changes=[{"sign": "~", "what": "Tue dinner: salmon → prawn soba stir-fry",
+                                  "why": "salmon ran twice last week — keep the omega-3s, vary the plate"},
+                                 {"sign": "+", "what": "Thu chili batch +2 servings",
+                                  "why": "boxes Monday lunch too — one fewer order-out"}],
+                        rationale="Averages hold at protein 158 g and fiber 39 g while sat fat "
+                                  "stays 4 g under the cap. Tuesday's stir-fry keeps cook time "
+                                  "at 12 minutes on the longest office day."))
+
+    recipes = {r.slug: r for r in db.query(Recipe).all()}
+    orders = [("Sweetgreen", "Harvest bowl, chicken", 13.75,
+               dict(kcal=620, protein_g=42, carbs_g=55, sugar_g=9, fiber_g=10, fat_g=25, satfat_g=4.5, sodium_mg=880)),
+              ("Chipotle", "Chicken bowl, brown rice, no cheese", 11.90,
+               dict(kcal=650, protein_g=48, carbs_g=62, sugar_g=5, fiber_g=11, fat_g=21, satfat_g=5, sodium_mg=1100)),
+              ("Pret", "Chicken & avocado salad", 9.50,
+               dict(kcal=430, protein_g=33, carbs_g=18, sugar_g=6, fiber_g=8, fat_g=25, satfat_g=4, sodium_mg=720))]
+
+    def log(d: date, slot: str, hh: int, mm: int, **kw) -> None:
+        db.add(MealLog(user_id=bruce.id, day=d, slot=slot, ts=_ts(d, hh, mm), **kw))
+
+    slot_times = {"breakfast": (8, 5), "lunch": (12, 45), "dinner": (19, 15), "snack": (15, 30)}
+    for back in range(21, -1, -1):
+        d = today - timedelta(days=back)
+        slots = (days.get(str(d.weekday())) or {}).get("slots") or {}
+        for slot, entry in slots.items():
+            if d == today and slot in ("dinner", "snack"):
+                continue  # today: dinner still ahead — the tick rows have work to do
+            hh, mm = slot_times[slot]
+            if entry.get("order"):
+                if rng.random() < 0.9:
+                    venue, label, cost, macros = orders[(d.toordinal() + d.weekday()) % len(orders)]
+                    log(d, slot, hh, mm, label=label, venue=venue, cost=cost, currency="USD",
+                        source="order", estimated=1, **macros)
+                continue
+            if entry.get("out"):
+                log(d, slot, 20, 30, label="Trattoria — pizza, side salad, one beer",
+                    source="chat", estimated=1, kcal=1150, protein_g=42, carbs_g=118, sugar_g=14,
+                    fiber_g=8, fat_g=48, satfat_g=16, sodium_mg=2100)
+                continue
+            slug = _resolve_demo_slot(entry, days)
+            r = recipes.get(slug or "")
+            if r and rng.random() < 0.88:
+                log(d, slot, hh, mm, recipe_slug=r.slug, label=r.name, source="plan",
+                    **{k: round(getattr(r, k) or 0, 1) for k in MACRO_FIELDS})
+        if back == 6 and rng.random():  # one honest off-plan extra last week
+            log(d, "snack", 21, 40, label="Two squares dark chocolate", source="chat",
+                estimated=1, kcal=110, protein_g=1.5, carbs_g=9, sugar_g=7, fiber_g=2,
+                fat_g=8, satfat_g=4.5, sodium_mg=5)
+
+    db.add_all([
+        Carryover(user_id=bruce.id, week_start=monday - timedelta(days=7), item="harissa paste",
+                  qty="⅔ jar", status="kept"),
+        Carryover(user_id=bruce.id, week_start=monday - timedelta(days=7), item="baby spinach",
+                  qty="½ bag", status="binned"),
+        Carryover(user_id=bruce.id, week_start=monday, item="greek yogurt", qty="½ tub",
+                  use_by=today + timedelta(days=3), status="open"),
+        LunchFavorite(user_id=bruce.id, vendor="grubhub", item="Sweetgreen harvest bowl",
+                      price=13.75, kcal=620, protein_g=42, carbs_g=55, sugar_g=9, fiber_g=10,
+                      fat_g=25, satfat_g=4.5, sodium_mg=880),
+        LunchFavorite(user_id=bruce.id, vendor="mealpal", item="Poke bowl, salmon + brown rice",
+                      price=12.00, kcal=560, protein_g=38, carbs_g=58, sugar_g=8, fiber_g=7,
+                      fat_g=18, satfat_g=3.5, sodium_mg=950),
+    ])
+
+
+def enrich_demo(db: Session) -> dict:
+    """Top up an existing demo with data newer features expect — the update
+    path for demos created before those features shipped. Idempotent per
+    block: only adds what's missing, never touches training history.
+    POST /api/admin/demo/enrich; a full reset gets everything anyway."""
+    bruce = demo_user(db)
+    if not bruce:
+        return {"exists": False, "added": []}
+    added: list[str] = []
+    if not db.query(MealRevision.id).filter_by(user_id=bruce.id).first():
+        _seed_demo_food(db, bruce, random.Random(7))
+        added.append("food")
+    db.commit()
+    return {"exists": True, "added": added}
 
 
 def delete_demo(db: Session) -> bool:
@@ -281,7 +397,7 @@ def delete_demo(db: Session) -> bool:
     # subscribe to push, etc.). sqlite doesn't enforce FKs, so tests won't save you.
     for model in (WorkoutSeries, WorkoutSession, LabPanel, Plan, Metric, Record, Niggle,
                   ChatMessage, AgentRun, IngestToken, EquipmentProfile,
-                  MealLog, MealRevision, Carryover, LunchFavorite,
+                  MealLog, MealRevision, Carryover, LunchFavorite, MediaBlob,
                   PushSub, NotificationLog, WithingsLink):
         db.query(model).filter_by(user_id=bruce.id).delete(synchronize_session=False)
     db.delete(bruce)
