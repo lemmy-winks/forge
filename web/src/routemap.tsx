@@ -183,6 +183,15 @@ function LiveMap({ pts, apiKey }: { pts: Pt[]; apiKey: string }) {
           loaded = true;
           setState('ready');
         });
+        // MapLibre's compact attribution defaults to expanded (it adds
+        // `maplibregl-compact-show` on init). Strip it once the map settles so
+        // we open with just the ⓘ button — the user can still tap to expand,
+        // and MapLibre never re-adds the class while `maplibregl-compact` is set.
+        map.once('idle', () => {
+          if (dead) return;
+          ref.current?.querySelector('.maplibregl-ctrl-attrib')
+            ?.classList.remove('maplibregl-compact-show');
+        });
         // Bad key / no network before first render → stay on the SVG for good.
         map.on('error', (e: any) => {
           const status = e?.error?.status;
