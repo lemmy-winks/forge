@@ -103,57 +103,48 @@ export function CoachMascot() {
     >
       {flexQuip && <span className="m-quip">{flexQuip}</span>}
       <span className="m-fig">
-        <svg viewBox="0 0 72 72" aria-hidden="true">
-          <ellipse className="m-shadow" cx="36" cy="66.5" rx="15" ry="2.4" fill="var(--hair)" />
+        {/* pixel sprite on a 4px grid — crispEdges keeps every cell square */}
+        <svg viewBox="0 0 72 72" aria-hidden="true" shapeRendering="crispEdges">
+          <rect className="m-shadow" x="22" y="66" width="28" height="3" fill="var(--hair)" />
           <g className="m-all" onAnimationEnd={onSetDone}>
             {/* stubby legs */}
-            <rect className="m-leg m-legL" x="25" y="49" width="9" height="16" rx="4.4"
-              fill="var(--volt)" stroke="var(--bg)" strokeWidth="1.4" />
-            <rect className="m-leg m-legR" x="38" y="49" width="9" height="16" rx="4.4"
-              fill="var(--volt)" stroke="var(--bg)" strokeWidth="1.4" />
-            {/* stubby arms (dumbbells ride inside so curls carry them) */}
+            <rect className="m-leg m-legL" x="24" y="52" width="8" height="13" fill="var(--volt)" />
+            <rect className="m-leg m-legR" x="40" y="52" width="8" height="13" fill="var(--volt)" />
+            {/* stub arms (dumbbells ride inside so curls carry them) */}
             <g className="m-arm m-armL">
-              <rect x="12.5" y="28" width="8" height="14.5" rx="4" fill="var(--volt)"
-                stroke="var(--bg)" strokeWidth="1.4" />
+              <rect x="10" y="28" width="8" height="13" fill="var(--volt)" />
               <g className="m-db">
-                <rect x="10" y="40.4" width="13" height="3" rx="1.4" fill="var(--mut)" />
-                <rect x="9" y="38.8" width="3.4" height="6.2" rx="1.4" fill="var(--raised)"
-                  stroke="var(--mut)" strokeWidth="0.8" />
-                <rect x="20.6" y="38.8" width="3.4" height="6.2" rx="1.4" fill="var(--raised)"
-                  stroke="var(--mut)" strokeWidth="0.8" />
+                <rect x="6" y="39" width="16" height="3" fill="var(--dim)" />
+                <rect x="4" y="36" width="4" height="9" fill="var(--mut)" />
+                <rect x="20" y="36" width="4" height="9" fill="var(--mut)" />
               </g>
             </g>
             <g className="m-arm m-armR">
-              <rect x="51.5" y="28" width="8" height="14.5" rx="4" fill="var(--volt)"
-                stroke="var(--bg)" strokeWidth="1.4" />
+              <rect x="54" y="28" width="8" height="13" fill="var(--volt)" />
               <g className="m-db">
-                <rect x="49" y="40.4" width="13" height="3" rx="1.4" fill="var(--mut)" />
-                <rect x="48" y="38.8" width="3.4" height="6.2" rx="1.4" fill="var(--raised)"
-                  stroke="var(--mut)" strokeWidth="0.8" />
-                <rect x="59.6" y="38.8" width="3.4" height="6.2" rx="1.4" fill="var(--raised)"
-                  stroke="var(--mut)" strokeWidth="0.8" />
+                <rect x="50" y="39" width="16" height="3" fill="var(--dim)" />
+                <rect x="48" y="36" width="4" height="9" fill="var(--mut)" />
+                <rect x="64" y="36" width="4" height="9" fill="var(--mut)" />
               </g>
             </g>
-            {/* one chunky meat-boy body: head and torso are the same blob */}
-            <rect x="20" y="16" width="32" height="38" rx="12" fill="var(--volt)" />
-            <rect x="22.5" y="23" width="27" height="4.6" rx="2.3" fill="var(--on-volt)" opacity="0.9" />
-            <circle className="m-eye" cx="29.5" cy="34" r="2.7" fill="var(--on-volt)" />
-            <circle className="m-eye" cx="42.5" cy="34" r="2.7" fill="var(--on-volt)" />
-            <path className="m-smile" d="M31 41.5 q5 4.4 10 0" fill="none"
-              stroke="var(--on-volt)" strokeWidth="2.2" strokeLinecap="round" />
-            <circle className="m-grit" cx="36" cy="43" r="2.5" fill="var(--on-volt)" />
+            {/* one blocky body: head and torso are the same slab, ear nubs on top */}
+            <rect x="24" y="16" width="4" height="4" fill="var(--volt)" />
+            <rect x="44" y="16" width="4" height="4" fill="var(--volt)" />
+            <rect x="20" y="20" width="32" height="32" fill="var(--volt)" />
+            <rect x="20" y="24" width="32" height="4" fill="var(--on-volt)" opacity="0.9" />
+            <rect className="m-eye" x="26" y="32" width="4" height="5" fill="var(--on-volt)" />
+            <rect className="m-eye" x="42" y="32" width="4" height="5" fill="var(--on-volt)" />
+            <rect className="m-smile" x="30" y="44" width="12" height="3" fill="var(--on-volt)" />
+            <rect className="m-grit" x="33" y="42" width="6" height="6" fill="var(--on-volt)" />
             {/* barbell (front rack for squats, chest→overhead for presses) */}
             <g className="m-bar">
-              <line x1="12" y1="38" x2="60" y2="38" stroke="var(--mut)" strokeWidth="2.6"
-                strokeLinecap="round" />
-              <rect x="11" y="32.5" width="4.4" height="11" rx="2" fill="var(--raised)"
-                stroke="var(--mut)" strokeWidth="0.9" />
-              <rect x="56.6" y="32.5" width="4.4" height="11" rx="2" fill="var(--raised)"
-                stroke="var(--mut)" strokeWidth="0.9" />
+              <rect x="10" y="36" width="52" height="4" fill="var(--dim)" />
+              <rect x="6" y="29" width="6" height="18" fill="var(--mut)" />
+              <rect x="60" y="29" width="6" height="18" fill="var(--mut)" />
             </g>
             {/* effort sweat */}
-            <circle className="m-sweat" cx="18" cy="20" r="1.5" fill="var(--mut)" />
-            <circle className="m-sweat s2" cx="55" cy="17" r="1.2" fill="var(--mut)" />
+            <rect className="m-sweat" x="16" y="18" width="3" height="3" fill="var(--mut)" />
+            <rect className="m-sweat s2" x="54" y="15" width="3" height="3" fill="var(--mut)" />
           </g>
         </svg>
       </span>

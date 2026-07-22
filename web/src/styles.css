@@ -425,7 +425,7 @@ input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%;
                     100%{ opacity:0; transform:translateY(9px) } }
 
 .mascot[data-move=squat] .m-all{ animation-name:m-rep-squat; }
-.mascot[data-move=squat] .m-bar{ opacity:1; transform:translateY(-10px); } /* front rack */
+.mascot[data-move=squat] .m-bar{ opacity:1; transform:translateY(-12px); } /* front rack */
 @keyframes m-rep-squat{ 0%,100%{ transform:translateY(0) scaleY(1) }
                         55%{ transform:translateY(7px) scaleY(.76) scaleX(1.14) } }
 
@@ -436,7 +436,7 @@ input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%;
 .mascot[data-move=press] .m-armR{ animation:m-armR-up var(--spd) ease-in-out var(--reps) both; }
 @keyframes m-rep-press{ 0%,100%{ transform:scaleY(1) } 25%{ transform:translateY(2px) scaleY(.95) }
                         60%{ transform:translateY(-1.5px) scaleY(1.02) } }
-@keyframes m-bar-press{ 0%,100%{ transform:translateY(0) } 55%{ transform:translateY(-21px) } }
+@keyframes m-bar-press{ 0%,100%{ transform:translateY(0) } 55%{ transform:translateY(-24px) } }
 @keyframes m-armL-up{ 0%,100%{ transform:rotate(0) } 55%{ transform:rotate(165deg) } }
 @keyframes m-armR-up{ 0%,100%{ transform:rotate(0) } 55%{ transform:rotate(-165deg) } }
 
