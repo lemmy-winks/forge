@@ -431,11 +431,8 @@ input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%;
 .ringcook .ringnum{ font-weight:300; font-size:34px; letter-spacing:-.01em; fill:var(--ink); }
 .ringcook .ringcap{ font-size:9.5px; fill:var(--mut); letter-spacing:.1em; text-transform:uppercase; }
 
-/* run map (Leaflet + CARTO) — palette-native chrome, contained stacking */
-.runmap{ height:260px; border-radius:14px; overflow:hidden; margin-top:8px; background:var(--sunken); }
-.leaflet-container{ isolation:isolate; z-index:0; background:var(--sunken); font-family:inherit; }
-.runmap .leaflet-control-attribution{ background:transparent !important; color:var(--dim) !important; font-size:9px; }
-.runmap .leaflet-control-attribution a{ color:var(--dim) !important; }
+/* run map (MapLibre) — sizes the live-map container; taller on desktop below */
+.runmap{ height:260px; border-radius:12px; overflow:hidden; background:var(--sunken); }
 
 /* ============== responsive: small phones → tablets → desktop ==============
    Same DOM at every size — this is all CSS.
