@@ -139,6 +139,34 @@ def test_ingest_flow():
     assert any(h["kind"] == "cardio" for h in hist)
 
 
+def test_ingest_sleep_stage_breakdown():
+    """iOS 16+ Apple Watch reports sleep as stages (core/deep/rem) with the
+    legacy `asleep` bucket empty — sleep_h must sum the stages, not store 0.
+    Older single-total exports and minute units still land too."""
+    from app.db import SessionLocal
+    from app.models import Metric, User
+    login()
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+    r = client.post("/ingest", headers={"Authorization": f"Bearer {tok}"}, json={"data": {"metrics": [
+        {"name": "sleep_analysis", "units": "hr", "data": [
+            # stage breakdown, empty legacy bucket → 4.5 + 1.1 + 1.4 = 7.0 h
+            {"date": "2026-07-20 08:00:00 +0000", "asleep": 0, "awake": 0.4,
+             "core": 4.5, "deep": 1.1, "rem": 1.4, "inBed": 7.8},
+            # older device: single total only
+            {"date": "2026-07-21 08:00:00 +0000", "asleep": 6.5}]},
+        # minutes unit is its own metric (units is per-metric)
+        {"name": "sleep_analysis", "units": "min", "data": [
+            {"sleepStart": "2026-07-22 23:00:00 +0000", "asleep": 480}]}]}})
+    assert r.status_code == 200
+    with SessionLocal() as db:
+        uid = db.query(User).filter(User.email == "james@test.dev").first().id
+        by_day = {str(m.ts.date()): m.value for m in
+                  db.query(Metric).filter(Metric.user_id == uid, Metric.type == "sleep_h").all()}
+    assert abs(by_day["2026-07-20"] - 7.0) < 0.01
+    assert abs(by_day["2026-07-21"] - 6.5) < 0.01
+    assert abs(by_day["2026-07-22"] - 8.0) < 0.01  # 480 min → 8 h
+
+
 def test_reveal_token_for_mcp_config():
     login("shelby@test.dev")
     tok = client.post("/api/connections/rotate-token").json()["token"]
@@ -1527,6 +1555,47 @@ def test_mcp_import_creates_ingredients_and_library_lists_all():
     hits = client.get("/api/food/recipes?q=unicorn&kind=dinner").json()
     assert {r["slug"] for r in hits["recipes"]} == {"unicorn-shank-stew", "unicorn-skewers"}
     assert client.get("/api/food/recipes?q=unicorn&kind=breakfast").json()["count"] == 0
+
+
+def test_logged_meal_replaces_planned_slot():
+    """Logging a meal into a slot (the coach's log_meal path) replaces the
+    planned option shown for that slot, and the day's macros reflect what was
+    actually eaten — not the plan, and never both. Non-snack slots hold one meal
+    (re-logging replaces); snacks stay additive."""
+    login()
+    day = "2026-08-03"  # a Monday untouched by other tests
+    d0 = next(d for d in client.get(f"/api/food/week?date={day}").json()["days"]
+              if d["date"] == day)
+    assert next(s for s in d0["slots"] if s["slot"] == "dinner")["logged"] is False
+
+    # coach logs an off-plan dinner
+    client.post("/api/food/log", json={
+        "date": day, "slot": "dinner", "label": "Pub burger & chips",
+        "kcal": 1100, "protein_g": 45, "carbs_g": 90, "fat_g": 60,
+        "fiber_g": 5, "satfat_g": 20, "estimated": True, "source": "chat"})
+    day0 = next(d for d in client.get(f"/api/food/week?date={day}").json()["days"]
+                if d["date"] == day)
+    din = next(s for s in day0["slots"] if s["slot"] == "dinner")
+    assert din["logged"] is True and din["off_plan"] is True
+    assert din.get("recipe") is None and din["label"] == "Pub burger & chips"
+    assert din["macros"]["kcal"] == 1100
+    assert day0["totals"]["kcal"] == 1100  # planned dinner not double-counted
+
+    # re-logging dinner replaces it (one meal per non-snack slot)
+    client.post("/api/food/log", json={
+        "date": day, "slot": "dinner", "label": "Leftover curry",
+        "kcal": 600, "protein_g": 35, "estimated": True, "source": "chat"})
+    day1 = next(d for d in client.get(f"/api/food/week?date={day}").json()["days"]
+                if d["date"] == day)
+    assert day1["totals"]["kcal"] == 600
+    assert next(s for s in day1["slots"] if s["slot"] == "dinner")["label"] == "Leftover curry"
+
+    # snacks stay additive (several small things)
+    client.post("/api/food/log", json={"date": day, "slot": "snack", "label": "Apple", "kcal": 80})
+    client.post("/api/food/log", json={"date": day, "slot": "snack", "label": "Nuts", "kcal": 180})
+    day2 = next(d for d in client.get(f"/api/food/week?date={day}").json()["days"]
+                if d["date"] == day)
+    assert day2["totals"]["kcal"] == 600 + 80 + 180
 
 
 def test_food_week_slot_swap_and_parallel_step():

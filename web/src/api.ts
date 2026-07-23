@@ -235,6 +235,8 @@ export interface FoodSlot {
   slot: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   logged: boolean; log_id: string | null; why?: string;
   recipe?: RecipeCard; order?: boolean; out?: boolean; leftover?: boolean; note?: string;
+  // a logged off-plan meal that replaced the planned option for this slot
+  off_plan?: boolean; label?: string; estimated?: boolean; macros?: Macros;
 }
 export interface FoodExtra extends Macros {
   id: string; slot: string; label: string; estimated: boolean;

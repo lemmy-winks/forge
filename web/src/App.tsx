@@ -114,6 +114,7 @@ function AppInner({ me }: { me: Me }) {
   const [foodSlug, setFoodSlug] = useState('');
   const [foodDate, setFoodDate] = useState<string | null>(null);
   const [foodFrom, setFoodFrom] = useState<Screen>('food');
+  const [foodReplaceDate, setFoodReplaceDate] = useState<string | null>(null);
   const [budget, setBudget] = useState<number | null>(null);
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [chatContext, setChatContext] = useState<AppCtxType['chatContext']>(null);
@@ -128,6 +129,7 @@ function AppInner({ me }: { me: Me }) {
     if (extra?.foodSlug !== undefined) setFoodSlug(extra.foodSlug);
     if (extra && 'foodDate' in extra) setFoodDate(extra.foodDate ?? null);
     if (extra?.foodFrom !== undefined) setFoodFrom(extra.foodFrom);
+    if (extra && 'foodReplaceDate' in extra) setFoodReplaceDate(extra.foodReplaceDate ?? null);
     if (extra && 'chatContext' in extra) setChatContext(extra.chatContext ?? null);
     setScreen(s);
     if (s === 'coach') setTab('coach');
@@ -246,10 +248,10 @@ function AppInner({ me }: { me: Me }) {
   }, []);
 
   const ctx = useMemo<AppCtxType>(() => ({
-    me, screen, tab, learnSlug, learnFrom, detailId, lift, dayDate, foodSlug, foodDate, foodFrom,
+    me, screen, tab, learnSlug, learnFrom, detailId, lift, dayDate, foodSlug, foodDate, foodFrom, foodReplaceDate,
     chatContext, setChatContext,
     go, openTab, budget, setBudget, log, logDispatch, startSession, resumeSession, finishSession, summary, signOut,
-  }), [me, screen, tab, learnSlug, learnFrom, detailId, lift, dayDate, foodSlug, foodDate, foodFrom,
+  }), [me, screen, tab, learnSlug, learnFrom, detailId, lift, dayDate, foodSlug, foodDate, foodFrom, foodReplaceDate,
        chatContext, go, openTab, budget, log, startSession, resumeSession, finishSession, summary, signOut]);
 
   const SCREENS: Record<Screen, () => JSX.Element> = {

@@ -45,9 +45,10 @@ export interface AppCtxType {
   dayDate: string | null;
   foodSlug: string; foodDate: string | null;
   foodFrom: Screen; // where the recipe detail's Back returns to ('food' | 'recipes')
+  foodReplaceDate: string | null; // library in "replace this date's dinner" mode
   chatContext: ChatContext | null;
   setChatContext: (c: ChatContext | null) => void;
-  go: (s: Screen, extra?: Partial<Pick<AppCtxType, 'learnSlug' | 'learnFrom' | 'detailId' | 'lift' | 'dayDate' | 'foodSlug' | 'foodDate' | 'foodFrom' | 'chatContext'>>) => void;
+  go: (s: Screen, extra?: Partial<Pick<AppCtxType, 'learnSlug' | 'learnFrom' | 'detailId' | 'lift' | 'dayDate' | 'foodSlug' | 'foodDate' | 'foodFrom' | 'foodReplaceDate' | 'chatContext'>>) => void;
   openTab: (t: Tab) => void;
   budget: number | null;
   setBudget: (n: number) => void;

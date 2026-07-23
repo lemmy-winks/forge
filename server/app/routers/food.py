@@ -68,6 +68,17 @@ def _resolve_slot(entry: dict, days: dict, recipes: dict[str, Recipe]) -> dict |
     return {**out, "recipe": recipe_card(r)}
 
 
+def _logged_slot_view(lg: MealLog, recipes: dict[str, Recipe]) -> dict:
+    """What a slot shows once a meal is logged into it — replacing the planned
+    option so the slot reflects what was actually eaten. A logged recipe (even a
+    swap for the planned one) shows its card; an off-plan estimate shows its own
+    label + macros."""
+    if lg.recipe_slug and lg.recipe_slug in recipes:
+        return {"recipe": recipe_card(recipes[lg.recipe_slug])}
+    return {"label": lg.label, "estimated": bool(lg.estimated),
+            "macros": {k: getattr(lg, k) or 0 for k in MACRO_FIELDS}}
+
+
 @router.get("/week")
 def food_week(date: str | None = None, user: User = Depends(current_user),
               db: Session = Depends(get_db)):
@@ -78,10 +89,6 @@ def food_week(date: str | None = None, user: User = Depends(current_user),
     rev = active_meal_revision(db, user)
     days = ((rev.content or {}).get("days", {}) or {}) if rev else {}
 
-    slugs = {s.get("recipe") for d in days.values() for s in (d.get("slots") or {}).values()
-             if s and s.get("recipe")}
-    recipes = {r.slug: r for r in db.query(Recipe).filter(Recipe.slug.in_(slugs)).all()} if slugs else {}
-
     logs = (db.query(MealLog)
             .filter(MealLog.user_id == user.id, MealLog.day >= base,
                     MealLog.day <= base + timedelta(days=6))
@@ -89,6 +96,13 @@ def food_week(date: str | None = None, user: User = Depends(current_user),
     by_day: dict[str, list[MealLog]] = {}
     for lg in logs:
         by_day.setdefault(str(lg.day), []).append(lg)
+
+    # planned slugs AND anything actually logged (a logged meal can replace the
+    # planned option in its slot, so its recipe card must be available too)
+    slugs = {s.get("recipe") for d in days.values() for s in (d.get("slots") or {}).values()
+             if s and s.get("recipe")}
+    slugs |= {lg.recipe_slug for lg in logs if lg.recipe_slug}
+    recipes = {r.slug: r for r in db.query(Recipe).filter(Recipe.slug.in_(slugs)).all()} if slugs else {}
 
     out_days = []
     for i in range(7):
@@ -101,10 +115,16 @@ def food_week(date: str | None = None, user: User = Depends(current_user),
         for slot in SLOT_ORDER:
             resolved = _resolve_slot(slots_in.get(slot), days, recipes)
             if resolved is None:
-                continue
+                continue  # unplanned slot — any log for it stays an extra
             match = next((lg for lg in day_logs if lg.slot == slot and lg.id not in matched_ids), None)
             if match:
                 matched_ids.add(match.id)
+                planned_slug = (resolved.get("recipe") or {}).get("slug")
+                # what was actually eaten replaces the planned card unless it IS
+                # the planned recipe (then the card just gets ticked)
+                if not (match.recipe_slug and match.recipe_slug == planned_slug):
+                    why = resolved.get("why", "")
+                    resolved = {"why": why, "off_plan": True, **_logged_slot_view(match, recipes)}
             resolved.update({"slot": slot, "logged": bool(match),
                              "log_id": match.id if match else None})
             slots_out.append(resolved)
@@ -317,6 +337,13 @@ def log_meal(body: LogIn, user: User = Depends(current_user), db: Session = Depe
                     .first())
         if existing:  # offline retry — already written
             return {"id": existing.id, "duplicate": True, "totals": _day_totals(db, user, day)}
+    # A slot holds one meal: logging breakfast/lunch/dinner replaces whatever was
+    # there (a planned tick or an earlier estimate) so macros reflect what was
+    # actually eaten — this is what "log it from the coach" expects. Snacks stay
+    # additive (several small things through the day).
+    if body.slot != "snack":
+        db.query(MealLog).filter(MealLog.user_id == user.id, MealLog.day == day,
+                                 MealLog.slot == body.slot).delete()
     if body.recipe:
         r = db.query(Recipe).filter(Recipe.slug == body.recipe).first()
         if not r:

@@ -58,6 +58,10 @@ const SLOT_LABEL: Record<string, string> = {
   breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack',
 };
 
+/** Compact one-line macros for the dense meal rows: "520 · P42 C48 F13". */
+const macroBrief = (m: Macros) =>
+  `${Math.round(m.kcal)} · P${Math.round(m.protein_g)} C${Math.round(m.carbs_g)} F${Math.round(m.fat_g)}`;
+
 /* ---------------- food week proposal (Phase 8, E16.3) ---------------- */
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -167,6 +171,7 @@ function slotName(s: FoodSlot): string {
   if (s.out) return 'Night out — enjoy it';
   if (s.order) return 'Order out — coach-assisted';
   if (s.recipe) return s.leftover ? `${s.recipe.name} · leftovers` : s.recipe.name;
+  if (s.label) return s.label;  // logged off-plan meal that replaced the plan
   return s.note || 'Unplanned';
 }
 
@@ -295,7 +300,8 @@ export function FoodDayScreen() {
       )}
 
       {day.slots.map((s) => {
-        const passive = !s.recipe;
+        // off-plan logged meal (no recipe card) is still interactive — tap to untick
+        const passive = !s.recipe && !s.label;
         const fig = s.out ? 'out' : (s.recipe?.platefig || 'plate');
         return (
           <button key={s.slot} className={'mealrow press' + (s.out ? ' dimrow' : '')}
@@ -315,8 +321,10 @@ export function FoodDayScreen() {
               <b>{slotName(s)}</b>
               <span className="sub num" style={{ margin: 0, display: 'block' }}>
                 {SLOT_LABEL[s.slot]}
-                {s.recipe && <> · {s.recipe.kcal} kcal · P {s.recipe.protein_g} · C {s.recipe.carbs_g} · F {s.recipe.fat_g} · fib {s.recipe.fiber_g} · sat {s.recipe.satfat_g}</>}
-                {!s.recipe && s.note && <> · {s.note}</>}
+                {s.recipe && <> · {macroBrief(s.recipe)}</>}
+                {!s.recipe && s.macros && <> · {macroBrief(s.macros)}{s.estimated ? ' · est' : ''}</>}
+                {s.off_plan && <> · off plan</>}
+                {!s.recipe && !s.macros && s.note && <> · {s.note}</>}
               </span>
             </span>
             {s.recipe && !s.logged && !s.leftover && s.slot === 'dinner' && (
@@ -343,11 +351,14 @@ export function FoodDayScreen() {
               </span>
             )}
             <span className="sub num" style={{ margin: 0, display: 'block' }}>
-              {SLOT_LABEL[x.slot] || x.slot} · {x.kcal} kcal · P {x.protein_g} · C {x.carbs_g} · F {x.fat_g}{x.estimated ? ' · estimated' : ''}
+              {SLOT_LABEL[x.slot] || x.slot} · {macroBrief(x)}{x.estimated ? ' · est' : ''}
             </span></span>
         </div>
       ))}
 
+      <button className="ghost press" onClick={() => go('recipes', { foodReplaceDate: day.date })}>
+        Not feeling the plan? Cook something else
+      </button>
       <button className="ghost press" onClick={() => openTab('coach')}>
         Ate something else? Tell the coach — it logs it
       </button>
@@ -564,7 +575,9 @@ export function FoodWeekScreen() {
 const KINDS = ['dinner', 'lunch', 'breakfast', 'snack'] as const;
 
 export function RecipeLibraryScreen() {
-  const { go } = useApp();
+  const { go, foodReplaceDate } = useApp();
+  const qc = useQueryClient();
+  const replace = !!foodReplaceDate;
   const [q, setQ] = useState('');
   const [kind, setKind] = useState<string | null>(null);
   const lib = useQuery<RecipeList>({
@@ -572,29 +585,58 @@ export function RecipeLibraryScreen() {
     queryFn: () => api('/api/food/recipes'),
     staleTime: 60_000,
   });
+  const swap = useMutation({
+    mutationFn: (slug: string) => api<{ recipe?: { name: string } }>('/api/food/week/slot', {
+      method: 'PATCH', body: { date: foodReplaceDate, recipe: slug, slot: 'dinner' },
+    }),
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: ['foodweek'] });
+      toast(`Dinner swapped to ${d.recipe?.name || 'your pick'}`, true);
+      go('food', { foodDate: foodReplaceDate, foodReplaceDate: null });
+    },
+    onError: (e) => toast(e instanceof ApiError && e.network
+      ? 'Need a connection to swap' : String((e as Error).message)),
+  });
   if (!lib.data) return <Shell><Loading /></Shell>;
 
-  // household-sized library: fetch once, filter as-you-type client-side
+  const replDay = foodReplaceDate
+    ? new Date(foodReplaceDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long' })
+    : '';
+  // household-sized library: fetch once, filter as-you-type client-side. In
+  // replace mode only dinners can fill a dinner slot.
   const term = q.trim().toLowerCase();
   const rows = lib.data.recipes.filter((r) =>
-    (!kind || r.kind === kind) &&
+    (replace ? r.kind === 'dinner' : (!kind || r.kind === kind)) &&
     (!term || r.name.toLowerCase().includes(term) || r.tags.some((t) => t.toLowerCase().includes(term))));
+
+  const pick = (slug: string) =>
+    replace ? swap.mutate(slug) : go('recipe', { foodSlug: slug, foodFrom: 'recipes' });
 
   return (
     <Shell>
-      <Back label="Food" onClick={() => go('food')} />
-      <Title kick={`${lib.data.count} recipes · seed + imports`}>Library</Title>
+      <Back label="Food" onClick={() => go('food',
+        replace ? { foodDate: foodReplaceDate, foodReplaceDate: null } : {})} />
+      <Title kick={replace ? `replace ${replDay} dinner` : `${lib.data.count} recipes · seed + imports`}>
+        {replace ? 'Cook something else' : 'Library'}
+      </Title>
+      {replace && (
+        <div className="sub" style={{ margin: '-2px 2px 4px' }}>
+          Pick any dinner — it swaps in for {replDay} on your food week.
+        </div>
+      )}
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or tag…"
         style={{ background: 'var(--raised)', border: 0, borderRadius: 12, padding: '10px 13px', width: '100%' }} />
-      <div className="fchips">
-        {KINDS.map((k) => (
-          <button key={k} className={'fchip press' + (kind === k ? '' : ' dim')}
-            onClick={() => setKind(kind === k ? null : k)}>{k}</button>
-        ))}
-      </div>
+      {!replace && (
+        <div className="fchips">
+          {KINDS.map((k) => (
+            <button key={k} className={'fchip press' + (kind === k ? '' : ' dim')}
+              onClick={() => setKind(kind === k ? null : k)}>{k}</button>
+          ))}
+        </div>
+      )}
       {rows.map((r) => (
-        <button key={r.slug} className="mealrow press"
-          onClick={() => go('recipe', { foodSlug: r.slug, foodFrom: 'recipes' })}>
+        <button key={r.slug} className="mealrow press" disabled={swap.isPending}
+          onClick={() => pick(r.slug)}>
           {r.image ? (
             <img src={r.image} alt="" style={{ width: 42, height: 42, borderRadius: 10, objectFit: 'cover', flex: 'none' }} />
           ) : (
@@ -603,11 +645,12 @@ export function RecipeLibraryScreen() {
           <span className="mname">
             <b>{r.name}</b>
             <span className="sub num" style={{ margin: 0, display: 'block' }}>
-              {r.kind} · {r.minutes} min · {r.kcal} kcal · P {r.protein_g} · fib {r.fiber_g}
+              {r.kind} · {r.minutes} min · {macroBrief(r)}
             </span>
           </span>
           <span className="rsub num">
-            {!r.complete ? <span style={{ color: 'var(--warn)', fontWeight: 700 }}>parked</span>
+            {replace ? <span style={{ color: 'var(--volt)', fontWeight: 700 }}>pick</span>
+              : !r.complete ? <span style={{ color: 'var(--warn)', fontWeight: 700 }}>parked</span>
               : (r.rating ?? 0) > 0 ? <><span style={{ color: 'var(--volt)' }}>★</span> {(r.rating ?? 0).toFixed(1)}</>
               : null}
           </span>
@@ -615,8 +658,10 @@ export function RecipeLibraryScreen() {
         </button>
       ))}
       {!rows.length && <div className="sub" style={{ textAlign: 'center' }}>No recipes match.</div>}
-      <Chip>Imported recipes land here. Parked ones are missing pantry reference data —
-        still cookable, never proposed by the coach.</Chip>
+      {!replace && (
+        <Chip>Imported recipes land here. Parked ones are missing pantry reference data —
+          still cookable, never proposed by the coach.</Chip>
+      )}
     </Shell>
   );
 }

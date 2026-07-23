@@ -44,6 +44,22 @@ def _first(d: dict, *keys):
     return None
 
 
+def _sleep_hours(sample: dict) -> float | None:
+    """Total hours asleep from an HAE sleep_analysis sample. On iOS 16+ (Apple
+    Watch sleep stages) the legacy `asleep` bucket is empty and the real sleep
+    lives in core/deep/rem — so prefer the stage sum when present, and only fall
+    back to a single total (`asleep`/`totalSleep`/`qty`) for older devices."""
+    stages = [sample.get(k) for k in ("core", "deep", "rem")]
+    vals = [float(s) for s in stages if isinstance(s, (int, float))]
+    if vals and sum(vals) > 0:
+        return sum(vals)
+    total = _first(sample, "asleep", "totalSleep", "totalSleepTime", "qty", "value")
+    try:
+        return float(total) if total is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _parse_ts(raw) -> datetime | None:
     if not raw:
         return None
@@ -240,17 +256,23 @@ async def ingest(request: Request,
         elif mtype == "height" and src_unit in ("in", "inch", "inches"):
             factor = 2.54
         for sample in metric.get("data", []) or []:
-            ts = _parse_ts(sample.get("date") or sample.get("startDate"))
+            # sleep samples may carry only sleepStart/inBedStart, no plain date
+            ts = _parse_ts(sample.get("date") or sample.get("startDate")
+                           or sample.get("sleepStart") or sample.get("inBedStart"))
             if ts is None:
                 continue
             if mtype == "sleep_h":
-                qty = _first(sample, "asleep", "totalSleep", "qty")
+                value = _sleep_hours(sample)
+                if value is None:
+                    skipped += 1
+                    continue
+                if src_unit in ("min", "mins", "minute", "minutes"):
+                    value /= 60.0  # HAE usually reports hours, but honor minutes
             else:
-                qty = _first(sample, "qty", "Avg", "avg")
-            try:
-                value = float(qty) * factor
-            except (TypeError, ValueError):
-                continue
+                try:
+                    value = float(_first(sample, "qty", "Avg", "avg")) * factor
+                except (TypeError, ValueError):
+                    continue
             if _store_metric(db, tok.user_id, mtype, round(value, 2), unit, ts, "hae"):
                 stored += 1
             else:
