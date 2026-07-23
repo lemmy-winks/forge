@@ -16,7 +16,8 @@ from . import models  # noqa: F401  (register tables)
 from .config import apply_overrides, get_settings
 from .db import Base, SessionLocal, engine
 from .notify import push_enabled, send_push
-from .routers import admin, auth, coach_api, food, ingest, mcp_food, misc, push, training, withings
+from .routers import (admin, auth, coach_api, food, ingest, mcp_food, mcp_oauth, misc, push,
+                      training, withings)
 from .seed import run_seed
 
 # uvicorn only configures its own loggers — without this, forge.* INFO logs
@@ -200,6 +201,7 @@ app.include_router(withings.router)
 app.include_router(push.router)
 app.include_router(food.router)
 app.include_router(mcp_food.router)
+app.include_router(mcp_oauth.router)
 
 # Serve the frontend: the built React app when available (web/dist locally, or
 # copied to ./static in the Docker image); the legacy vanilla client otherwise.

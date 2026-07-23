@@ -38,6 +38,44 @@ class IngestToken(Base):
     samples: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class OAuthClient(Base):
+    """Dynamically-registered MCP client (RFC 7591) — e.g. Claude's connector UI.
+    Public clients only (PKCE, no secret); registration grants nothing by itself,
+    every token still requires a signed-in user's consent."""
+    __tablename__ = "oauth_clients"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    name: Mapped[str] = mapped_column(String(120), default="")
+    redirect_uris: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class OAuthCode(Base):
+    """Single-use authorization code binding a consenting user to a client + PKCE
+    challenge. Short-lived; deleted on redemption."""
+    __tablename__ = "oauth_codes"
+    code: Mapped[str] = mapped_column(String(64), primary_key=True)
+    client_id: Mapped[str] = mapped_column(ForeignKey("oauth_clients.id"))
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    redirect_uri: Mapped[str] = mapped_column(String(500))
+    code_challenge: Mapped[str] = mapped_column(String(128))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class OAuthToken(Base):
+    """Access + refresh token pair for one user↔client grant. Refresh rotates on
+    use; deleting the row is revocation."""
+    __tablename__ = "oauth_tokens"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    client_id: Mapped[str] = mapped_column(ForeignKey("oauth_clients.id"))
+    access_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    refresh_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    access_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    refresh_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class Metric(Base):
     __tablename__ = "metrics"
     __table_args__ = (UniqueConstraint("user_id", "type", "ts", "source", name="uq_metric_sample"),)

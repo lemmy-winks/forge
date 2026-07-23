@@ -30,7 +30,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        navigateFallbackDenylist: [/^\/api/, /^\/auth/, /^\/ingest/, /^\/healthz/, /^\/welcome/],
+        navigateFallbackDenylist: [/^\/api/, /^\/auth/, /^\/ingest/, /^\/healthz/, /^\/welcome/,
+                                   /^\/mcp/, /^\/\.well-known/],
         importScripts: ['push-listener.js'],
       },
     }),

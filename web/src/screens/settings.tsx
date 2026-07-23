@@ -440,28 +440,52 @@ export function ConnectionsScreen() {
         )}
       </div>
       <div className="card">
-        <div className="row"><span className="xname">Claude Desktop</span>
-          <span className={ah.configured ? 'up' : 'sub'} style={{ fontSize: 12, margin: 0 }}>
-            {ah.configured ? '● Ready' : 'needs a token'}</span></div>
+        <div className="row"><span className="xname" style={{ flex: 'none' }}>Claude · MCP</span>
+          <span className={c.mcp_clients.length ? 'up' : 'sub'} style={{ fontSize: 12, margin: 0,
+            flex: 1, minWidth: 0, textAlign: 'right' }}>
+            {c.mcp_clients.length ? `● ${c.mcp_clients.length} connected` : 'not connected'}</span></div>
         <div className="sub">
-          Log meals and import recipes from Claude Desktop over MCP. Add this to{' '}
-          <b style={{ color: 'var(--ink)' }}>claude_desktop_config.json</b> (Settings → Developer → Edit Config):
+          Log meals and import recipes from Claude over MCP. In Claude (desktop or web):
+          Settings → Connectors → <b style={{ color: 'var(--ink)' }}>Add custom connector</b>, URL:
         </div>
         <div className="sub num" style={{ fontFamily: 'ui-monospace,Menlo,monospace', background: 'var(--sunken)',
-          borderRadius: 8, padding: '6px 9px', marginTop: 6, whiteSpace: 'pre', overflowX: 'auto',
-          fontSize: 11, lineHeight: 1.5 }}>
-          {mcpConfig(revealed || ah.token_masked || '<token>')}
+          borderRadius: 8, padding: '6px 9px', marginTop: 6 }}>
+          {location.origin}/mcp
+          <button className="press" style={{ color: 'var(--volt)', fontWeight: 700, float: 'right' }}
+            onClick={async () => {
+              try { await navigator.clipboard.writeText(location.origin + '/mcp'); toast('Copied'); }
+              catch { toast('Copy failed — long-press to select'); }
+            }}>COPY</button>
         </div>
-        {ah.configured ? (
-          <button className="ghost press" style={{ width: '100%', marginTop: 8 }} onClick={async () => {
-            try {
-              const r = await api<{ token: string }>('/api/connections/token');
-              await navigator.clipboard.writeText(mcpConfig(r.token));
-              toast('Config copied — token included');
-            } catch { toast('Copy failed — long-press to select'); }
-          }}>Copy config with token</button>
-        ) : (
-          <div className="sub">Rotate above to create your token first — the config needs it.</div>
+        <div className="sub">
+          Claude opens Forge to sign in and approve — no token to paste. Each approval shows up
+          below and can be disconnected any time.
+        </div>
+        {c.mcp_clients.map((g) => (
+          <div className="row" key={g.id} style={{ marginTop: 8 }}>
+            <span className="sub" style={{ margin: 0, flex: 1, minWidth: 0 }}>
+              <b style={{ color: 'var(--ink)' }}>{g.name}</b>
+              {' · '}{g.last_used_at
+                ? `used ${new Date(g.last_used_at).toLocaleDateString()}`
+                : `connected ${new Date(g.connected_at).toLocaleDateString()}`}
+            </span>
+            <button className="press" style={{ color: 'var(--warn)', fontSize: 12, fontWeight: 700 }}
+              onClick={async () => {
+                await api(`/api/connections/mcp/${g.id}`, { method: 'DELETE' });
+                toast(`${g.name} disconnected`);
+                qc.invalidateQueries({ queryKey: ['connections'] });
+              }}>DISCONNECT</button>
+          </div>
+        ))}
+        {ah.configured && (
+          <button className="press" style={{ marginTop: 10, fontSize: 12, color: 'var(--mut)' }}
+            onClick={async () => {
+              try {
+                const r = await api<{ token: string }>('/api/connections/token');
+                await navigator.clipboard.writeText(mcpConfig(r.token));
+                toast('Config copied — token included');
+              } catch { toast('Copy failed'); }
+            }}>Scripted setup instead? Copy a claude_desktop_config.json block (ingest token inside) →</button>
         )}
       </div>
       <div className="card">

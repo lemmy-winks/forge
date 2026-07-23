@@ -148,6 +148,86 @@ def test_reveal_token_for_mcp_config():
     assert james != tok
 
 
+def test_mcp_oauth_flow():
+    import base64
+    import hashlib
+    from urllib.parse import parse_qs, urlsplit
+
+    # discovery: both well-known docs, and the 401 that points clients at them
+    meta = client.get("/.well-known/oauth-authorization-server").json()
+    assert meta["code_challenge_methods_supported"] == ["S256"]
+    assert meta["registration_endpoint"].endswith("/mcp/oauth/register")
+    assert client.get("/.well-known/oauth-protected-resource/mcp").json()["resource"].endswith("/mcp")
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    assert r.status_code == 401 and "resource_metadata" in r.headers["www-authenticate"]
+
+    # dynamic client registration — https only
+    cb = "https://claude.ai/api/mcp/auth_callback"
+    reg = client.post("/mcp/oauth/register", json={"client_name": "Claude", "redirect_uris": [cb]})
+    assert reg.status_code == 201
+    cid = reg.json()["client_id"]
+    assert client.post("/mcp/oauth/register",
+                       json={"redirect_uris": ["http://evil.example/cb"]}).status_code == 400
+
+    login()
+    verifier = "smoke-test-pkce-verifier-string"
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    q = {"response_type": "code", "client_id": cid, "redirect_uri": cb, "state": "xyz",
+         "code_challenge": challenge, "code_challenge_method": "S256"}
+
+    def get_code():
+        r = client.post("/mcp/oauth/authorize", params=q, data={"decision": "allow"},
+                        follow_redirects=False)
+        assert r.status_code == 302 and r.headers["location"].startswith(cb + "?")
+        qs = parse_qs(urlsplit(r.headers["location"]).query)
+        assert qs["state"] == ["xyz"]
+        return qs["code"][0]
+
+    # consent page renders; deny redirects with access_denied and mints nothing
+    page = client.get("/mcp/oauth/authorize", params=q)
+    assert page.status_code == 200 and "Connect Claude?" in page.text
+    denied = client.post("/mcp/oauth/authorize", params=q, data={"decision": "deny"},
+                         follow_redirects=False)
+    assert "error=access_denied" in denied.headers["location"]
+
+    # a wrong PKCE verifier is rejected and spends the code
+    code = get_code()
+    bad = client.post("/mcp/oauth/token", data={
+        "grant_type": "authorization_code", "code": code, "client_id": cid,
+        "redirect_uri": cb, "code_verifier": "wrong"})
+    assert bad.status_code == 400
+
+    # the real exchange: token works against /mcp as James, and codes are single-use
+    code = get_code()
+    form = {"grant_type": "authorization_code", "code": code, "client_id": cid,
+            "redirect_uri": cb, "code_verifier": verifier}
+    tok = client.post("/mcp/oauth/token", data=form).json()
+    assert tok["access_token"].startswith("fgm_") and tok["refresh_token"].startswith("fgr_")
+    assert client.post("/mcp/oauth/token", data=form).status_code == 400  # reuse
+    rpc = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+    r = client.post("/mcp", headers={"Authorization": f"Bearer {tok['access_token']}"}, json=rpc)
+    assert any(t["name"] == "log_food" for t in r.json()["result"]["tools"])
+
+    # refresh rotates both tokens; the old access token dies with it
+    tok2 = client.post("/mcp/oauth/token", data={
+        "grant_type": "refresh_token", "refresh_token": tok["refresh_token"]}).json()
+    assert tok2["access_token"] != tok["access_token"]
+    assert client.post("/mcp", headers={"Authorization": f"Bearer {tok['access_token']}"},
+                       json=rpc).status_code == 401
+    assert client.post("/mcp", headers={"Authorization": f"Bearer {tok2['access_token']}"},
+                       json=rpc).status_code == 200
+
+    # the grant shows in Settings → Connections; only its owner can revoke it
+    grants = client.get("/api/connections").json()["mcp_clients"]
+    assert [g["name"] for g in grants] == ["Claude"]
+    login("shelby@test.dev")
+    assert client.delete(f"/api/connections/mcp/{grants[0]['id']}").status_code == 404
+    login()
+    assert client.delete(f"/api/connections/mcp/{grants[0]['id']}").json()["ok"] is True
+    assert client.post("/mcp", headers={"Authorization": f"Bearer {tok2['access_token']}"},
+                       json=rpc).status_code == 401
+
+
 def test_labs_and_niggles_and_export():
     login()
     r = client.post("/api/labs", json={"drawn_on": "2026-06-14", "results": [

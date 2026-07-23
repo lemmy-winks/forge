@@ -284,7 +284,31 @@ def connections(user: User = Depends(current_user), db: Session = Depends(get_db
         "coach_mcp": {"active": bool(get_settings().anthropic_api_key),
                       "note": ("agent live" if get_settings().anthropic_api_key
                                else "add an API key in Settings → Server")},
+        "mcp_clients": _mcp_clients(user, db),
     }
+
+
+def _mcp_clients(user: User, db: Session) -> list[dict]:
+    from ..models import OAuthClient, OAuthToken
+    rows = (db.query(OAuthToken, OAuthClient.name)
+            .join(OAuthClient, OAuthToken.client_id == OAuthClient.id)
+            .filter(OAuthToken.user_id == user.id)
+            .order_by(OAuthToken.created_at).all())
+    return [{"id": t.id, "name": name or "MCP client",
+             "connected_at": t.created_at.isoformat(),
+             "last_used_at": t.last_used_at.isoformat() if t.last_used_at else None}
+            for t, name in rows]
+
+
+@router.delete("/connections/mcp/{grant_id}")
+def revoke_mcp_grant(grant_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    from ..models import OAuthToken
+    tok = db.get(OAuthToken, grant_id)
+    if not tok or tok.user_id != user.id:
+        raise HTTPException(404, "grant not found")
+    db.delete(tok)
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/connections/rotate-token")

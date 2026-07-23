@@ -72,10 +72,18 @@ def dev_login(body: DevLogin, db: Session = Depends(get_db)):
     return resp
 
 
+def _safe_next(nxt: str) -> str:
+    # same-origin relative paths only — anything else falls back to the app root
+    return nxt if nxt.startswith("/") and not nxt.startswith("//") else "/"
+
+
 @router.get("/login")
 async def login(request: Request):
     if not get_settings().google_enabled:
         raise HTTPException(status_code=404, detail="google not configured")
+    nxt = _safe_next(request.query_params.get("next", "/"))
+    if nxt != "/":
+        request.session["post_login_next"] = nxt  # e.g. the MCP OAuth consent page
     redirect_uri = get_settings().base_url.rstrip("/") + "/auth/callback"
     return await _google().authorize_redirect(request, redirect_uri)
 
@@ -90,7 +98,7 @@ async def callback(request: Request, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == email).first()
     if not user:
         return RedirectResponse("/?denied=" + email)
-    resp = RedirectResponse("/")
+    resp = RedirectResponse(_safe_next(request.session.pop("post_login_next", "/")))
     set_session(resp, user.id)
     return resp
 

@@ -27,6 +27,7 @@ from ..db import get_db
 from ..media import store_images
 from ..models import MACRO_FIELDS, Ingredient, MealLog, Recipe, User
 from ..security import user_for_ingest_token
+from .mcp_oauth import user_for_mcp_token
 from .food import SLOT_ORDER, recipe_card, targets_for
 from .training import parse_date
 
@@ -406,17 +407,25 @@ def _rpc_result(rid, result: dict) -> JSONResponse:
     return JSONResponse({"jsonrpc": "2.0", "id": rid, "result": result})
 
 
+def _www_auth() -> dict:
+    """401 header pointing at the resource metadata — this is what makes Claude's
+    connector UI discover the OAuth flow instead of giving up (RFC 9728 §5.1)."""
+    base = get_settings().base_url.rstrip("/")
+    return {"WWW-Authenticate":
+            f'Bearer resource_metadata="{base}/.well-known/oauth-protected-resource/mcp"'}
+
+
 @router.post("/mcp")
 async def mcp_endpoint(request: Request, db: Session = Depends(get_db)):
     token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
-    tok = user_for_ingest_token(db, token)
-    if not tok:
-        return JSONResponse({"error": "missing or unknown bearer token — use your Forge ingest token"},
-                            status_code=401, headers={"WWW-Authenticate": "Bearer"})
-    user = db.get(User, tok.user_id)
+    user = user_for_mcp_token(db, token)  # OAuth access token (connector UI)
     if not user:
-        return JSONResponse({"error": "token has no user"}, status_code=401,
-                            headers={"WWW-Authenticate": "Bearer"})
+        tok = user_for_ingest_token(db, token)  # ingest token (mcp-remote / config file)
+        user = db.get(User, tok.user_id) if tok else None
+    if not user:
+        return JSONResponse({"error": "missing or unknown bearer token — connect via OAuth "
+                                      "or use your Forge ingest token"},
+                            status_code=401, headers=_www_auth())
 
     try:
         msg = json.loads(await request.body())

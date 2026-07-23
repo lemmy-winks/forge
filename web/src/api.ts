@@ -274,6 +274,7 @@ export interface Connections {
   withings: { configured: boolean; linked: boolean; status: string | null;
     last_sync: string | null; warning: string | null; note: string };
   coach_mcp: { active: boolean; note: string };
+  mcp_clients: { id: string; name: string; connected_at: string; last_used_at: string | null }[];
 }
 
 /* ---------- web push ---------- */
