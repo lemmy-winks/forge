@@ -298,6 +298,9 @@ export function FoodDayScreen() {
         </div>
       )}
 
+      {(day.slots.length > 0 || day.extras.length > 0) && <>
+      <div className="sect">Meals</div>
+      <div className="group">
       {day.slots.map((s) => {
         // off-plan logged meal (no recipe card) is still interactive — tap to untick
         const passive = !s.recipe && !s.label;
@@ -354,6 +357,8 @@ export function FoodDayScreen() {
             </span></span>
         </div>
       ))}
+      </div>
+      </>}
 
       <button className="ghost press" onClick={() => go('recipes', { foodReplaceDate: day.date })}>
         Not feeling the plan? Cook something else

@@ -299,14 +299,15 @@ export function PlanScreen() {
             );
           }
           const done = d.session?.status === 'completed';
+          const wasMissed = missed(d, wk.today);
           return (
             <div key={d.date}>
-              <button className={'lrow press' + (d.kind === 'rest' && !d.session ? ' dimrow' : '')}
-                style={{ width: '100%' }} onClick={() => go('day', { dayDate: d.date })}>
+              <button className={'daycard press' + (d.kind === 'rest' && !d.session ? ' dimrow' : '')}
+                onClick={() => go('day', { dayDate: d.date })}>
                 <span className="glyphslot"><KindGlyph kind={d.session?.kind || d.kind} done={done} /></span>
-                <span>
+                <span className="lt">
                   <b>{d.day_name} <span className="daynum num">{dayNum(d.date)}</span></b>
-                  <span style={{ display: 'block', fontSize: 13, color: 'var(--mut)', marginTop: 2 }}>
+                  <span className="lsub">
                     {d.name || 'Rest'}
                     {(() => {
                       const din = dinnerFor(food, d.date);
@@ -318,10 +319,11 @@ export function PlanScreen() {
                     })()}
                   </span>
                 </span>
-                <span className="rsub num" style={done ? { color: 'var(--volt)', fontWeight: 700 }
-                  : missed(d, wk.today) ? { color: 'var(--warn)', fontWeight: 600 } : undefined}>
-                  {right(d, wk.today)}
-                </span>
+                {wasMissed
+                  ? <span className="mtag">Missed</span>
+                  : <span className="rsub num" style={done ? { color: 'var(--volt)', fontWeight: 700 } : undefined}>
+                      {right(d, wk.today)}
+                    </span>}
                 <span className="chev">›</span>
               </button>
               {dayplan}

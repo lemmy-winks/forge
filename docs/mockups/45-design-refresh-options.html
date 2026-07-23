@@ -1,0 +1,798 @@
+<title>Forge — card language refresh</title>
+<style>
+  /* Void × Volt tokens, verbatim from styles.css — plus the two proposed additions */
+  :root{
+    --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
+    --ink:#f3f4f6; --mut:#9ea4ab; --dim:#6d737a;
+    --volt:#c9f73a; --on-volt:#131602; --volt-dim:rgba(201,247,58,.12);
+    --warn:#e8a360; --warn-dim:rgba(232,163,96,.16);
+    --hair-in:#2b2f37;            /* PROPOSED: separator that lives inside a raised card */
+    --canvas:#0a0b0d;
+  }
+  *{ box-sizing:border-box; margin:0; }
+  body{ background:var(--canvas); color:var(--ink);
+        font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+        -webkit-font-smoothing:antialiased; padding:44px 20px 80px; }
+  .num{ font-variant-numeric:tabular-nums; }
+  .wrap{ max-width:1160px; margin:0 auto; display:flex; flex-direction:column; gap:46px; }
+
+  /* ---------- masthead ---------- */
+  .kick{ color:var(--volt); font-size:11px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; }
+  h1{ font-size:34px; font-weight:650; letter-spacing:-.02em; margin-top:6px; text-wrap:balance; }
+  .lede{ color:var(--mut); max-width:62ch; margin-top:12px; }
+  .lede b{ color:var(--ink); font-weight:600; }
+
+  h3{ font-size:20px; font-weight:650; letter-spacing:-.01em; }
+  .secnote{ color:var(--mut); font-size:13.5px; margin-top:4px; max-width:70ch; }
+
+  /* ---------- spec panels ---------- */
+  .spec{ display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px; }
+  .panel{ background:var(--raised); border-radius:16px; padding:16px 17px; }
+  .panel h4{ font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase;
+             color:var(--mut); margin-bottom:12px; }
+  .ladder{ display:flex; flex-direction:column; }
+  .rung{ display:flex; align-items:center; gap:11px; padding:7px 0; font-size:13px; }
+  .swch{ width:40px; height:26px; border-radius:7px; flex:none; box-shadow:inset 0 0 0 1px rgba(255,255,255,.07); }
+  .rung .hex{ color:var(--dim); font-size:11.5px; margin-left:auto; }
+  .rung .use{ color:var(--mut); }
+  .rung b{ color:var(--ink); font-weight:600; }
+  .rule{ margin-top:10px; padding-top:10px; border-top:1px solid var(--hair-in);
+         font-size:12.5px; color:var(--mut); line-height:1.5; }
+  .rule b{ color:var(--volt); font-weight:600; }
+
+  table{ border-collapse:collapse; width:100%; font-size:12.5px; }
+  th{ text-align:left; color:var(--dim); font-size:10px; text-transform:uppercase;
+      letter-spacing:.1em; font-weight:700; padding:0 8px 7px 0; }
+  td{ padding:6px 8px 6px 0; border-top:1px solid var(--hair-in); vertical-align:top; }
+  td.r{ text-align:right; padding-right:0; white-space:nowrap; }
+  .pass{ color:var(--volt); font-weight:700; }
+  .fail{ color:var(--warn); font-weight:700; }
+  .strike{ color:var(--dim); text-decoration:line-through; }
+
+  /* anatomy diagram */
+  .anat{ background:var(--sunken); border-radius:12px; padding:12px 13px; }
+  .anat .itemx{ display:flex; align-items:center; gap:10px; background:var(--raised);
+                border-radius:13px; padding:13px 14px; outline:1px dashed rgba(201,247,58,.35); }
+  .anat .g{ width:18px; text-align:center; color:var(--volt); flex:none; }
+  .anat .tt{ flex:1; min-width:0; }
+  .anat .tt b{ font-size:16px; font-weight:550; display:block; }
+  .anat .tt span{ font-size:13.5px; color:var(--mut); display:block; margin-top:2px;
+                  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .anat .vv{ font-size:15px; white-space:nowrap; }
+  .anat .ch{ color:var(--dim); flex:none; }
+  .callouts{ display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:10px; font-size:11.5px; color:var(--dim); }
+  .callouts i{ font-style:normal; color:var(--volt); font-weight:700; }
+  .replaces{ margin-top:10px; font-size:12.5px; color:var(--mut); line-height:1.55; }
+  .replaces code{ font:11.5px ui-monospace,SFMono-Regular,Menlo,monospace; background:var(--sunken);
+                  border-radius:5px; padding:1px 5px; color:var(--warn); }
+  .replaces code.new{ color:var(--volt); }
+
+  /* ---------- phone rows ---------- */
+  .screenrow{ display:flex; gap:26px; overflow-x:auto; padding:16px 4px 8px; align-items:flex-start; }
+  .opt{ flex:none; width:332px; }
+  .cap{ font-size:12.5px; color:var(--mut); line-height:1.5; margin-top:12px; padding:0 6px; }
+  .cap b{ color:var(--ink); font-weight:700; }
+  .cap .tag{ display:inline-block; font-size:9.5px; font-weight:800; letter-spacing:.12em;
+             text-transform:uppercase; border-radius:5px; padding:2px 7px; margin-right:7px;
+             vertical-align:1px; }
+  .tag.cur{ background:var(--warn-dim); color:var(--warn); }
+  .tag.opt{ background:var(--volt-dim); color:var(--volt); }
+
+  .phone{ width:332px; background:var(--bg); border-radius:32px; padding:20px 15px 24px;
+          box-shadow:0 24px 64px rgba(0,0,0,.55), inset 0 0 0 1px #17191d; }
+  .phone.light{ background:#f4f5f2; box-shadow:0 24px 64px rgba(0,0,0,.45); }
+
+  /* ----- shared in-phone bits (current metrics, faithful) ----- */
+  .pk{ font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--mut); }
+  .ph2{ font-size:22px; font-weight:650; letter-spacing:-.02em; margin:2px 0 10px; }
+  .banner{ background:var(--volt-dim); color:var(--volt); border-radius:12px; padding:9px 12px;
+           font-size:12.5px; font-weight:600; display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+  .banner .sp{ flex:1; }
+  .weekstrip{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:12px; }
+  .ws{ display:flex; flex-direction:column; align-items:center; gap:5px; }
+  .ws .col{ width:100%; height:34px; border-radius:8px; background:var(--raised); position:relative; overflow:hidden; }
+  .ws .fill{ position:absolute; bottom:0; left:0; right:0; top:0; background:var(--volt); opacity:.34; border-radius:8px; }
+  .ws span{ font-size:9.5px; color:var(--dim); letter-spacing:.05em; }
+  .ws.today span{ color:var(--volt); font-weight:800; }
+  .ws.miss span{ color:var(--warn); }
+  /* PROPOSED: bolder calendar — solid fills for done days, ring on today, mut 700 labels */
+  .weekstrip.bold .col{ height:40px; border-radius:10px; }
+  .weekstrip.bold .ws.done .fill{ opacity:1; }
+  .weekstrip.bold span{ font-size:10.5px; font-weight:700; color:var(--mut); }
+  .weekstrip.bold .ws.today .col{ box-shadow:inset 0 0 0 2px var(--volt); }
+  .weekstrip.bold .ws.today span{ color:var(--volt); font-weight:800; }
+  .weekstrip.bold .ws.miss span{ color:var(--warn); }
+  .weekstrip.bold .ws.miss .fill{ background:var(--warn); opacity:.32; }
+  .seg{ display:flex; background:var(--raised); border-radius:11px; padding:3px; margin-bottom:10px; font-size:12.5px; }
+  .seg span{ flex:1; text-align:center; padding:6px 0; border-radius:8px; color:var(--mut); }
+  .seg .on{ background:#1e2126; color:var(--ink); font-weight:600; }
+  .glyph{ width:18px; flex:none; display:flex; justify-content:center; color:var(--volt); }
+  .glyph svg{ width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2;
+              stroke-linecap:round; stroke-linejoin:round; }
+  .glyph.mut{ color:var(--dim); }
+
+  /* CURRENT: hairline rows, faithful to today's build */
+  .c-row{ display:flex; align-items:baseline; gap:9px; border-top:1px solid var(--hair); padding:12px 2px; }
+  .c-row .tt{ flex:1; }
+  .c-row .tt b{ font-size:15px; font-weight:650; }
+  .c-row .tt .dnum{ color:var(--dim); font-size:11.5px; font-weight:400; }
+  .c-row .tt > span{ display:block; font-size:13px; color:var(--mut); margin-top:2px; line-height:1.45; }
+  .c-row .vv{ width:104px; flex:none; text-align:right; font-size:13px; color:var(--mut); line-height:1.4; }
+  .c-row .vv .warn{ color:var(--warn); font-weight:650; font-size:14px; }
+  .c-row.dimmed{ opacity:.45; }        /* the .dimrow bug, reproduced */
+  .c-hero{ background:linear-gradient(135deg, var(--volt-dim), var(--raised) 62%);
+           border-radius:16px; padding:13px 14px; margin:10px 0; }
+  .c-hero .pk{ color:var(--volt); }
+  .c-hero .nm{ font-size:19px; font-weight:650; margin:2px 0 8px; }
+  .c-hero .mrow{ display:flex; gap:8px; align-items:baseline; font-size:13.5px; }
+  .c-hero .mrow .sp{ flex:1; }
+  .c-hero .est{ color:var(--volt); font-weight:700; font-size:13px; white-space:nowrap; }
+
+  /* PROPOSED A: card per item */
+  .a-card{ background:var(--raised); border-radius:15px; padding:12px 13px; margin-bottom:8px; }
+  .a-item{ display:flex; align-items:center; gap:10px; }
+  .a-item .tt{ flex:1; min-width:0; }
+  .a-item .tt b{ font-size:15.5px; font-weight:550; }
+  .a-item .tt b .dnum{ color:var(--dim); font-weight:400; font-size:12px; }
+  .a-item .tt > span{ display:block; font-size:13px; color:var(--mut); margin-top:2px;
+                      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .a-item .vv{ font-size:14px; white-space:nowrap; text-align:right; }
+  .a-item .vv small{ display:block; font-size:11px; color:var(--dim); margin-top:1px; }
+  .a-item .ch{ color:var(--dim); flex:none; font-size:13px; }
+  .a-item .est{ color:var(--volt); font-weight:700; font-size:13px; white-space:nowrap; }
+  .mtag{ display:inline-block; background:var(--warn-dim); color:var(--warn); font-size:9px;
+         font-weight:800; letter-spacing:.1em; text-transform:uppercase; border-radius:5px;
+         padding:2px 6px; }
+  /* flat accent wash — the gradient is gone; color-mix(volt 12%, raised) in the real CSS */
+  .a-hero{ background-color:var(--raised);
+           background-image:linear-gradient(var(--volt-dim), var(--volt-dim));
+           border-radius:17px; padding:14px 15px; margin-bottom:8px; }
+  .a-hero .pk{ color:var(--volt); }
+  .a-hero .nm{ font-size:20px; font-weight:650; margin:2px 0 9px; }
+
+  /* PROPOSED B: grouped card */
+  .b-card{ background:var(--raised); border-radius:16px; padding:3px 13px; margin-bottom:10px; }
+  .b-item{ display:flex; align-items:center; gap:10px; padding:11px 1px; border-top:1px solid var(--hair-in); }
+  .b-item:first-child{ border-top:0; }
+  .b-item .tt{ flex:1; min-width:0; }
+  .b-item .tt b{ font-size:15px; font-weight:550; }
+  .b-item .tt b .dnum{ color:var(--dim); font-weight:400; font-size:12px; }
+  .b-item .tt > span{ display:block; font-size:12.5px; color:var(--mut); margin-top:2px;
+                      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .b-item .vv{ font-size:13.5px; white-space:nowrap; text-align:right; }
+  .b-item .ch{ color:var(--dim); flex:none; font-size:13px; }
+  .b-item.today{ background:var(--volt-dim); margin:0 -13px; padding:11px 14px; border-radius:12px; border-top:0; }
+  .b-item.today + .b-item{ border-top:0; }
+  .sect{ display:flex; align-items:center; gap:8px; color:var(--dim); font-size:10px;
+         letter-spacing:.13em; text-transform:uppercase; margin:12px 2px 7px; }
+  .sect::after{ content:""; flex:1; height:1px; background:var(--hair); }
+
+  /* food bits */
+  .meter{ display:flex; align-items:baseline; gap:8px; font-size:13px; padding:5px 0; }
+  .meter .k{ color:var(--mut); flex:1; }
+  .meter .v b{ color:var(--volt); font-weight:700; }
+  .meter .v span{ color:var(--mut); }
+  .mtrack{ height:4px; border-radius:2px; background:var(--sunken); margin:2px 0 6px; overflow:hidden; }
+  .mtrack i{ display:block; height:100%; width:0; background:var(--volt); border-radius:2px; }
+  .coachline{ color:var(--volt); font-size:12.5px; font-weight:600; margin-top:8px; }
+  .tick{ width:22px; height:22px; border-radius:50%; background:var(--sunken); color:var(--dim);
+         display:flex; align-items:center; justify-content:center; font-size:11px; flex:none; }
+  .tick.vis{ box-shadow:inset 0 0 0 1.5px var(--hair-in); }
+  .tick.done{ background:var(--volt); color:var(--on-volt); font-weight:800; box-shadow:none; }
+  .macrogrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:9px 10px; }
+  .mcell .k{ font-size:9px; text-transform:uppercase; letter-spacing:.05em; color:var(--mut); white-space:nowrap; }
+  .mcell .v{ font-size:13px; margin:2px 0 4px; white-space:nowrap; }
+  .mcell .v b{ color:var(--volt); font-weight:700; }
+  .mcell .v span{ color:var(--mut); font-weight:300; }
+
+  .ghostpill{ border:1px solid var(--hair-in); border-radius:999px; text-align:center; padding:10px;
+              font-size:13px; font-weight:550; margin-top:10px; }
+
+  /* light phone recolor: Paper × Moss, deepened a step — shipped values were too pale.
+     paper #f4f5f2→#eef0ea, mut #5f656d→#4d545d, dim #969ca3→#7f8790, tints .12→.18 */
+  .phone.light{ --bg:#eef0ea; --raised:#ffffff; --sunken:#e6e8e0; --hair:#d9dccf;
+                --ink:#14171c; --mut:#4d545d; --dim:#7f8790;
+                --volt:#5c7d0a; --volt-dim:rgba(92,125,10,.18); --on-volt:#fff;
+                --warn:#a3641a; --warn-dim:rgba(163,100,26,.2);
+                --hair-in:#cdd1c4;
+                color:var(--ink); }
+  .phone.light .a-card{ box-shadow:0 1px 3px rgba(20,23,28,.1); }
+  .phone.light .a-hero{ box-shadow:0 1px 3px rgba(20,23,28,.1); }
+  .phone.light .seg .on{ background:#fff; box-shadow:0 1px 2px rgba(20,23,28,.1); }
+
+  /* ---------- recommendation ---------- */
+  .rec{ background:var(--raised); border-radius:18px; padding:22px 24px; }
+  .rec h3{ margin-bottom:4px; }
+  .rec .lede{ margin-top:6px; }
+  ol{ margin:14px 0 0 18px; display:flex; flex-direction:column; gap:9px; font-size:14px; color:var(--mut); }
+  ol b{ color:var(--ink); font-weight:600; }
+  ol code{ font:12px ui-monospace,SFMono-Regular,Menlo,monospace; background:var(--sunken);
+           border-radius:5px; padding:1px 5px; color:var(--volt); }
+  .foot{ margin-top:14px; padding-top:12px; border-top:1px solid var(--hair-in); font-size:12.5px; color:var(--dim); }
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="kick">Forge · design refresh · options sheet</div>
+  <h1>Bringing back the card language</h1>
+  <p class="lede">The original mockups put <b>every item on its own raised card</b> — the
+  build has drifted to full-bleed hairline rows because <b>.tap .card</b> strips card chrome
+  from anything tappable. Five row primitives now compete (<b>lrow, mealrow, ingrow, setline,
+  mrow</b>), separators on cards measure <b>1.07:1</b>, and rest days render text at
+  <b>2.4:1</b>. Below: the shared language, then each screen — current build, faithfully
+  reproduced, next to two card treatments.</p>
+</header>
+
+<!-- ================= SPEC ================= -->
+<section>
+  <h3>The common language</h3>
+  <p class="secnote">Everything rides the existing tokens — palettes and light mode inherit
+  automatically. Two additions only: an inset separator token, and one row anatomy that
+  replaces the five variants.</p>
+
+  <div class="spec" style="margin-top:14px">
+    <div class="panel">
+      <h4>Surface ladder</h4>
+      <div class="ladder">
+        <div class="rung"><span class="swch" style="background:#060708"></span><span class="use"><b>bg</b> — the void; shell only</span><span class="hex num">#060708</span></div>
+        <div class="rung"><span class="swch" style="background:#0c0d0f"></span><span class="use"><b>sunken</b> — wells inside cards</span><span class="hex num">#0c0d0f</span></div>
+        <div class="rung"><span class="swch" style="background:#121316"></span><span class="use"><b>raised</b> — every card</span><span class="hex num">#121316</span></div>
+        <div class="rung"><span class="swch" style="background:#1e2126"></span><span class="use"><b>sel</b> — selected / pressed</span><span class="hex num">#1e2126</span></div>
+      </div>
+      <p class="rule"><b>The rule that restores the design:</b> if you can tap it, it sits on
+      raised. No interactive row ever renders flush on the void. The <span class="num">1px</span>
+      &nbsp;hairline stays for shell chrome (tabs, header) — it is not a list separator.</p>
+    </div>
+
+    <div class="panel">
+      <h4>Text on a card · measured contrast</h4>
+      <table>
+        <tr><th>Token</th><th>Role</th><th style="text-align:right">On raised</th></tr>
+        <tr><td><b>ink</b> <span class="num" style="color:var(--dim)">#f3f4f6</span></td><td style="color:var(--mut)">titles, values</td><td class="r num pass">17.3:1</td></tr>
+        <tr><td><b>mut</b> <span class="num" style="color:var(--dim)">#9ea4ab</span></td><td style="color:var(--mut)">subs, labels</td><td class="r num pass">7.4:1</td></tr>
+        <tr><td><b>dim</b> <span class="num" style="color:var(--dim)">#6d737a</span></td><td style="color:var(--mut)">chevrons, décor — never copy</td><td class="r num">3.9:1</td></tr>
+        <tr><td class="strike">mut @ 45% opacity</td><td style="color:var(--mut)">rest-day rows today</td><td class="r num fail">2.4:1 ✕</td></tr>
+        <tr><td class="strike">hair on a card</td><td style="color:var(--mut)">today's separators</td><td class="r num fail">1.07:1 ✕</td></tr>
+        <tr><td><b>hair-in</b> <span class="num" style="color:var(--volt)">#2b2f37 new</span></td><td style="color:var(--mut)">separators inside raised</td><td class="r num">1.4:1</td></tr>
+      </table>
+      <p class="rule">Dimming happens on <b>decoration, never on text</b>: a rest day keeps
+      mut-colored words and dims only its glyph. <code style="font:11.5px ui-monospace,Menlo,monospace;background:var(--sunken);border-radius:5px;padding:1px 5px;color:var(--warn)">.dimrow</code> is deleted.</p>
+    </div>
+
+    <div class="panel">
+      <h4>One row anatomy · replaces five</h4>
+      <div class="anat">
+        <div class="itemx">
+          <span class="g">⏚</span>
+          <span class="tt"><b>Title — wraps, never truncates the value</b>
+          <span>Sub in mut · one line · 13.5px</span></span>
+          <span class="vv num">82.5 kg</span>
+          <span class="ch">›</span>
+        </div>
+        <div class="callouts">
+          <span><i>18px</i> glyph slot</span><span><i>16/550</i> title</span>
+          <span><i>13.5</i> sub</span><span><i>15 tab</i> value, nowrap</span>
+          <span><i>13×15</i> pad</span><span><i>8px</i> card gap</span>
+        </div>
+      </div>
+      <p class="replaces">The value column is <b style="color:var(--ink)">tabular and never
+      wraps</b> — the title side flexes instead. This one anatomy replaces
+      <code>lrow</code> <code>mealrow</code> <code>ingrow</code> <code>setline</code>
+      <code>mrow</code> → <code class="new">.item</code>, standalone on a card
+      (<b style="color:var(--ink)">A</b>) or separated by hair-in inside a group
+      (<b style="color:var(--ink)">B</b>).</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PLAN ================= -->
+<section>
+  <h3>Plan — the week</h3>
+  <p class="secnote">Today's build mixes three treatments on one screen: hairline rows, a
+  45%-opacity rest day, and a lone hero card. Both options make every day the same object.</p>
+
+  <div class="screenrow">
+    <!-- CURRENT -->
+    <div class="opt">
+      <div class="phone">
+        <div class="pk">This week · Jul 20</div>
+        <div class="ph2">Plan</div>
+        <div class="banner"><span>●</span><span class="sp">Next week proposed</span><b>Review ›</b></div>
+        <div class="weekstrip">
+          <div class="ws miss"><div class="col"><div class="fill"></div></div><span>Mo</span></div>
+          <div class="ws"><div class="col"></div><span>Tu</span></div>
+          <div class="ws miss"><div class="col"><div class="fill"></div></div><span>We</span></div>
+          <div class="ws today"><div class="col"></div><span>Th</span></div>
+          <div class="ws"><div class="col"><div class="fill"></div></div><span>Fr</span></div>
+          <div class="ws"><div class="col"><div class="fill"></div></div><span>Sa</span></div>
+          <div class="ws"><div class="col"></div><span>Su</span></div>
+        </div>
+        <div class="c-row">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+          <span class="tt"><b>Monday <span class="dnum num">20</span></b><span>Lower A · dinner: harissa chicken traybake</span></span>
+          <span class="vv"><span class="warn">missed</span> ›</span>
+        </div>
+        <div class="c-row dimmed">
+          <span class="glyph mut">·</span>
+          <span class="tt"><b>Tuesday <span class="dnum num">21</span></b><span>Rest · dinner: charred salmon</span></span>
+          <span class="vv">›</span>
+        </div>
+        <div class="c-row">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></span>
+          <span class="tt"><b>Wednesday <span class="dnum num">22</span></b><span>Zone 2 run · dinner: leftovers</span></span>
+          <span class="vv"><span class="warn">missed</span> ›</span>
+        </div>
+        <div class="c-hero">
+          <div class="pk">● Thursday 23 · Today</div>
+          <div class="nm">Rest day</div>
+          <div class="mrow"><span>◉ Tonight · Turkey &amp; black-bean chili</span><span class="sp"></span><span class="est num">35 min ›</span></div>
+        </div>
+        <div class="c-row">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+          <span class="tt"><b>Friday <span class="dnum num">24</span></b><span>Upper A · night out</span></span>
+          <span class="vv num">~52 min ›</span>
+        </div>
+      </div>
+      <p class="cap"><span class="tag cur">Current</span><b>Three treatments on one list.</b>
+      Separators are invisible on OLED, Tuesday is unreadable at 45% opacity, and the value
+      column wraps long dinner names underneath it.</p>
+    </div>
+
+    <!-- OPTION A -->
+    <div class="opt">
+      <div class="phone">
+        <div class="pk">This week · Jul 20</div>
+        <div class="ph2">Plan</div>
+        <div class="banner"><span>●</span><span class="sp">Next week proposed</span><b>Review ›</b></div>
+        <div class="weekstrip bold">
+          <div class="ws miss"><div class="col"><div class="fill"></div></div><span>Mo</span></div>
+          <div class="ws"><div class="col"></div><span>Tu</span></div>
+          <div class="ws miss"><div class="col"><div class="fill"></div></div><span>We</span></div>
+          <div class="ws today"><div class="col"></div><span>Th</span></div>
+          <div class="ws"><div class="col"><div class="fill"></div></div><span>Fr</span></div>
+          <div class="ws"><div class="col"><div class="fill"></div></div><span>Sa</span></div>
+          <div class="ws"><div class="col"></div><span>Su</span></div>
+        </div>
+        <div class="a-card"><div class="a-item">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+          <span class="tt"><b>Monday <span class="dnum num">20</span></b><span>Lower A · Harissa chicken traybake</span></span>
+          <span class="mtag">Missed</span><span class="ch">›</span>
+        </div></div>
+        <div class="a-card"><div class="a-item">
+          <span class="glyph mut"><svg viewBox="0 0 24 24"><path d="M12 3a7 7 0 1 0 9 9 9 9 0 1 1-9-9z"/></svg></span>
+          <span class="tt"><b>Tuesday <span class="dnum num">21</span></b><span>Rest · Charred salmon</span></span>
+          <span class="ch">›</span>
+        </div></div>
+        <div class="a-card"><div class="a-item">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></span>
+          <span class="tt"><b>Wednesday <span class="dnum num">22</span></b><span>Zone 2 run · Leftovers</span></span>
+          <span class="mtag">Missed</span><span class="ch">›</span>
+        </div></div>
+        <div class="a-hero">
+          <div class="pk">Thursday 23 · Today</div>
+          <div class="nm">Rest day</div>
+          <div class="a-item" style="gap:8px">
+            <span class="tt"><span style="white-space:normal">Tonight · Turkey &amp; black-bean chili</span></span>
+            <span class="est num">35 min ›</span>
+          </div>
+        </div>
+        <div class="a-card"><div class="a-item">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+          <span class="tt"><b>Friday <span class="dnum num">24</span></b><span>Upper A · night out</span></span>
+          <span class="vv num" style="color:var(--mut)">~52 min</span><span class="ch">›</span>
+        </div></div>
+      </div>
+      <p class="cap"><span class="tag opt">Option A</span><b>Card per day — the original
+      mockup language.</b> Every day is the same object; today upgrades with a <b>flat</b>
+      volt wash (gradient dropped), missed becomes a quiet warm tag, rest days stay readable.
+      The calendar bolds up: 700 labels, warn wash on missed days, volt ring on today.</p>
+    </div>
+
+    <!-- OPTION B -->
+    <div class="opt">
+      <div class="phone">
+        <div class="pk">This week · Jul 20</div>
+        <div class="ph2">Plan</div>
+        <div class="banner"><span>●</span><span class="sp">Next week proposed</span><b>Review ›</b></div>
+        <div class="weekstrip bold">
+          <div class="ws miss"><div class="col"><div class="fill"></div></div><span>Mo</span></div>
+          <div class="ws"><div class="col"></div><span>Tu</span></div>
+          <div class="ws miss"><div class="col"><div class="fill"></div></div><span>We</span></div>
+          <div class="ws today"><div class="col"></div><span>Th</span></div>
+          <div class="ws"><div class="col"><div class="fill"></div></div><span>Fr</span></div>
+          <div class="ws"><div class="col"><div class="fill"></div></div><span>Sa</span></div>
+          <div class="ws"><div class="col"></div><span>Su</span></div>
+        </div>
+        <div class="b-card">
+          <div class="b-item">
+            <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+            <span class="tt"><b>Monday <span class="dnum num">20</span></b><span>Lower A · Harissa chicken traybake</span></span>
+            <span class="mtag">Missed</span><span class="ch">›</span>
+          </div>
+          <div class="b-item">
+            <span class="glyph mut"><svg viewBox="0 0 24 24"><path d="M12 3a7 7 0 1 0 9 9 9 9 0 1 1-9-9z"/></svg></span>
+            <span class="tt"><b>Tuesday <span class="dnum num">21</span></b><span>Rest · Charred salmon</span></span>
+            <span class="ch">›</span>
+          </div>
+          <div class="b-item">
+            <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></span>
+            <span class="tt"><b>Wednesday <span class="dnum num">22</span></b><span>Zone 2 run · Leftovers</span></span>
+            <span class="mtag">Missed</span><span class="ch">›</span>
+          </div>
+          <div class="b-item today">
+            <span class="glyph"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/></svg></span>
+            <span class="tt"><b>Thursday <span class="dnum num">23</span> · <span style="color:var(--volt)">Today</span></b><span>Rest · Turkey &amp; black-bean chili</span></span>
+            <span class="est num">35 min ›</span>
+          </div>
+          <div class="b-item">
+            <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+            <span class="tt"><b>Friday <span class="dnum num">24</span></b><span>Upper A · night out</span></span>
+            <span class="vv num" style="color:var(--mut)">~52 min</span><span class="ch">›</span>
+          </div>
+        </div>
+      </div>
+      <p class="cap"><span class="tag opt">Option B</span><b>One grouped card, inset
+      separators.</b> The week reads as a single object; hair-in separators are actually
+      visible on the raised surface; today gets an inset volt wash. Loses the hero moment.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= HISTORY ================= -->
+<section>
+  <h3>History</h3>
+  <p class="secnote">Worst readability offender today: ISO dates lead every row, names wrap
+  under them, and the fixed-width value column breaks "128 bpm" onto its own line.</p>
+
+  <div class="screenrow">
+    <!-- CURRENT -->
+    <div class="opt">
+      <div class="phone">
+        <div class="pk">All sessions</div>
+        <div class="ph2">History</div>
+        <div class="seg"><span class="on">All</span><span>★ Starred</span></div>
+        <div class="c-row">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+          <span class="tt"><b class="num">2026-07-17 · Upper A</b></span>
+          <span class="vv num">5.83 t · 12 sets ›</span>
+        </div>
+        <div class="c-row">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M5 7l6 5-6 5M13 7l6 5-6 5"/></svg></span>
+          <span class="tt"><b class="num">2026-07-15 · Zone 2 run</b></span>
+          <span class="vv num">8.0 km · 46 min · 128 bpm ›</span>
+        </div>
+        <div class="c-row">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+          <span class="tt"><b class="num">2026-07-13 · Lower A</b></span>
+          <span class="vv num">4.07 t · 12 sets ›</span>
+        </div>
+        <div class="c-row">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+          <span class="tt"><b class="num">2026-07-10 · Upper A</b></span>
+          <span class="vv num">5.78 t · 12 sets ›</span>
+        </div>
+        <div class="c-row">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M5 7l6 5-6 5M13 7l6 5-6 5"/></svg></span>
+          <span class="tt"><b class="num">2026-07-08 · Zone 2 run</b></span>
+          <span class="vv num">8.2 km · 46 min · 129 bpm ›</span>
+        </div>
+        <div class="c-row">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+          <span class="tt"><b class="num">2026-07-06 · Lower A</b></span>
+          <span class="vv num">4.76 t · 12 sets ›</span>
+        </div>
+      </div>
+      <p class="cap"><span class="tag cur">Current</span><b>The date is doing the name's
+      job.</b> Every row leads with <span class="num">2026-07-…</span>, the session name
+      wraps beneath it, and run metrics fold onto a second line inside a 104px column.</p>
+    </div>
+
+    <!-- OPTION A -->
+    <div class="opt">
+      <div class="phone">
+        <div class="pk">All sessions</div>
+        <div class="ph2">History</div>
+        <div class="seg"><span class="on">All</span><span>★ Starred</span></div>
+        <div class="a-card"><div class="a-item">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+          <span class="tt"><b>Upper A <span style="color:var(--volt);font-size:12px">★</span></b><span>Fri 17 Jul</span></span>
+          <span class="vv num">5.83 t<small>12 sets</small></span><span class="ch">›</span>
+        </div></div>
+        <div class="a-card"><div class="a-item">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M5 7l6 5-6 5M13 7l6 5-6 5"/></svg></span>
+          <span class="tt"><b>Zone 2 run</b><span>Wed 15 Jul · avg 128 bpm</span></span>
+          <span class="vv num">8.0 km<small>46 min</small></span><span class="ch">›</span>
+        </div></div>
+        <div class="a-card"><div class="a-item">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+          <span class="tt"><b>Lower A</b><span>Mon 13 Jul</span></span>
+          <span class="vv num">4.07 t<small>12 sets</small></span><span class="ch">›</span>
+        </div></div>
+        <div class="a-card"><div class="a-item">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+          <span class="tt"><b>Upper A</b><span>Fri 10 Jul</span></span>
+          <span class="vv num">5.78 t<small>12 sets</small></span><span class="ch">›</span>
+        </div></div>
+        <div class="a-card"><div class="a-item">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M5 7l6 5-6 5M13 7l6 5-6 5"/></svg></span>
+          <span class="tt"><b>Zone 2 run</b><span>Wed 8 Jul · avg 129 bpm</span></span>
+          <span class="vv num">8.2 km<small>46 min</small></span><span class="ch">›</span>
+        </div></div>
+        <div class="a-card"><div class="a-item">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+          <span class="tt"><b>Lower A</b><span>Mon 6 Jul</span></span>
+          <span class="vv num">4.76 t<small>12 sets</small></span><span class="ch">›</span>
+        </div></div>
+      </div>
+      <p class="cap"><span class="tag opt">Option A</span><b>Name first, friendly date as
+      the sub.</b> One headline value on the right with its unit pair stacked under it —
+      nothing ever wraps. Stars ride the title. Swipe-to-delete works unchanged on cards.</p>
+    </div>
+
+    <!-- OPTION B -->
+    <div class="opt">
+      <div class="phone">
+        <div class="pk">All sessions</div>
+        <div class="ph2">History</div>
+        <div class="seg"><span class="on">All</span><span>★ Starred</span></div>
+        <div class="sect">July</div>
+        <div class="b-card">
+          <div class="b-item">
+            <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+            <span class="tt"><b>Upper A <span style="color:var(--volt);font-size:12px">★</span></b><span>Fri 17 · 5.83 t · 12 sets</span></span>
+            <span class="ch">›</span>
+          </div>
+          <div class="b-item">
+            <span class="glyph"><svg viewBox="0 0 24 24"><path d="M5 7l6 5-6 5M13 7l6 5-6 5"/></svg></span>
+            <span class="tt"><b>Zone 2 run</b><span>Wed 15 · 8.0 km · 46 min · 128 bpm</span></span>
+            <span class="ch">›</span>
+          </div>
+          <div class="b-item">
+            <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+            <span class="tt"><b>Lower A</b><span>Mon 13 · 4.07 t · 12 sets</span></span>
+            <span class="ch">›</span>
+          </div>
+          <div class="b-item">
+            <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+            <span class="tt"><b>Upper A</b><span>Fri 10 · 5.78 t · 12 sets</span></span>
+            <span class="ch">›</span>
+          </div>
+          <div class="b-item">
+            <span class="glyph"><svg viewBox="0 0 24 24"><path d="M5 7l6 5-6 5M13 7l6 5-6 5"/></svg></span>
+            <span class="tt"><b>Zone 2 run</b><span>Wed 8 · 8.2 km · 46 min · 129 bpm</span></span>
+            <span class="ch">›</span>
+          </div>
+        </div>
+        <div class="sect">June</div>
+        <div class="b-card">
+          <div class="b-item">
+            <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+            <span class="tt"><b>Lower A</b><span>Mon 29 · 3.89 t · 12 sets</span></span>
+            <span class="ch">›</span>
+          </div>
+        </div>
+      </div>
+      <p class="cap"><span class="tag opt">Option B</span><b>Month-grouped cards.</b>
+      The section header carries the month so subs shrink to day + metrics on one line.
+      Denser than A — better for a year of history — but metrics move into the mut sub.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FOOD ================= -->
+<section>
+  <h3>Food — the day</h3>
+  <p class="secnote">Meal rows have the faintest affordances in the app: tick targets at
+  1.07:1, three-line wrapping subs, and the coach's order-out prose pushing rows apart.</p>
+
+  <div class="screenrow">
+    <!-- CURRENT -->
+    <div class="opt">
+      <div class="phone">
+        <div class="pk">Tuesday · 2026-07-21 · Today</div>
+        <div class="ph2">Food</div>
+        <div class="a-card" style="padding:13px 14px">
+          <div class="meter"><span class="k">Protein</span><span class="v num"><b>0</b><span> / 160 g</span></span></div>
+          <div class="mtrack"><i></i></div>
+          <div class="meter"><span class="k">Fiber</span><span class="v num"><b>0</b><span> / 38 g</span></span></div>
+          <div class="mtrack"><i></i></div>
+          <div class="meter"><span class="k">Sat fat · cap</span><span class="v num"><b>0</b><span> / ≤18 g</span></span></div>
+          <div class="mtrack"><i></i></div>
+          <div class="coachline">On plan — dinner closes protein and fiber.</div>
+        </div>
+        <div class="c-row" style="align-items:center">
+          <span class="tick"></span>
+          <span class="tt"><b>Oats №1 — overnight oats, berries &amp; flax</b><span>Breakfast · 420 kcal · P 34 · fib 11 · sat 2</span></span>
+        </div>
+        <div class="c-row" style="align-items:center">
+          <span class="tick"></span>
+          <span class="tt"><b>Order out — coach-assisted</b><span>Lunch · Order out — target P 40+, sat ≤ 6 g, inside the lunch cap. Favorites + menu ranking land in Phase 9.</span></span>
+        </div>
+        <div class="c-row" style="align-items:center">
+          <span class="tick"></span>
+          <span class="tt"><b>Charred salmon, puy lentils &amp; broccoli</b><span>Dinner · 540 kcal · P 38 · fib 9 · sat 3.5</span></span>
+          <span class="vv" style="color:var(--volt);font-weight:700">Cook ›</span>
+        </div>
+        <div class="ghostpill" style="border-color:var(--hair)">Ate something else? Tell the coach — it logs it</div>
+      </div>
+      <p class="cap"><span class="tag cur">Current</span><b>Rows dissolve into the void.</b>
+      Tick circles are nearly invisible, the order-out row's coach prose runs three lines,
+      and "Cook ›" is the only hint anything is tappable.</p>
+    </div>
+
+    <!-- OPTION A -->
+    <div class="opt">
+      <div class="phone">
+        <div class="pk">Tuesday · 2026-07-21 · Today</div>
+        <div class="ph2">Food</div>
+        <div class="a-card" style="padding:13px 14px">
+          <div class="macrogrid">
+            <div class="mcell"><div class="k">Protein</div><div class="v num"><b>0</b><span>/160</span></div><div class="mtrack"><i></i></div></div>
+            <div class="mcell"><div class="k">Fiber</div><div class="v num"><b>0</b><span>/38</span></div><div class="mtrack"><i></i></div></div>
+            <div class="mcell"><div class="k">Sat fat</div><div class="v num"><b>0</b><span>/≤18</span></div><div class="mtrack"><i></i></div></div>
+            <div class="mcell"><div class="k">Kcal</div><div class="v num"><b>0</b><span>/2300</span></div><div class="mtrack"><i></i></div></div>
+          </div>
+          <div class="coachline">On plan — dinner closes protein and fiber.</div>
+        </div>
+        <div class="a-card"><div class="a-item">
+          <span class="tick vis"></span>
+          <span class="tt"><b>Oats №1 — overnight oats</b><span>Breakfast · 420 kcal · P 34 · fib 11</span></span>
+          <span class="ch">›</span>
+        </div></div>
+        <div class="a-card"><div class="a-item">
+          <span class="tick vis"></span>
+          <span class="tt"><b>Order out — coach-assisted</b><span>Lunch · target P 40+ · sat ≤ 6 g</span></span>
+          <span class="ch">›</span>
+        </div></div>
+        <div class="a-card"><div class="a-item">
+          <span class="tick vis"></span>
+          <span class="tt"><b>Charred salmon &amp; puy lentils</b><span>Dinner · 540 kcal · P 38 · fib 9</span></span>
+          <span class="est">Cook ›</span>
+        </div></div>
+        <div class="a-card"><div class="a-item">
+          <span class="tick done">✓</span>
+          <span class="tt"><b>Apple &amp; peanut butter</b><span>Snack · 210 kcal · P 5 · fib 4</span></span>
+          <span class="ch">›</span>
+        </div></div>
+        <div class="ghostpill">Ate something else? Tell the coach</div>
+      </div>
+      <p class="cap"><span class="tag opt">Option A</span><b>Card per meal, one-line subs.</b>
+      Ticks get a visible ring; the coach's order-out prose collapses to its two facts
+      (full text lives one tap in); the dense macro grid replaces four stacked meters.</p>
+    </div>
+
+    <!-- OPTION B -->
+    <div class="opt">
+      <div class="phone">
+        <div class="pk">Tuesday · 2026-07-21 · Today</div>
+        <div class="ph2">Food</div>
+        <div class="a-card" style="padding:13px 14px">
+          <div class="macrogrid">
+            <div class="mcell"><div class="k">Protein</div><div class="v num"><b>0</b><span>/160</span></div><div class="mtrack"><i></i></div></div>
+            <div class="mcell"><div class="k">Fiber</div><div class="v num"><b>0</b><span>/38</span></div><div class="mtrack"><i></i></div></div>
+            <div class="mcell"><div class="k">Sat fat</div><div class="v num"><b>0</b><span>/≤18</span></div><div class="mtrack"><i></i></div></div>
+            <div class="mcell"><div class="k">Kcal</div><div class="v num"><b>0</b><span>/2300</span></div><div class="mtrack"><i></i></div></div>
+          </div>
+          <div class="coachline">On plan — dinner closes protein and fiber.</div>
+        </div>
+        <div class="sect">Meals</div>
+        <div class="b-card">
+          <div class="b-item">
+            <span class="tick vis"></span>
+            <span class="tt"><b>Oats №1 — overnight oats</b><span>Breakfast · 420 kcal · P 34 · fib 11</span></span>
+            <span class="ch">›</span>
+          </div>
+          <div class="b-item">
+            <span class="tick vis"></span>
+            <span class="tt"><b>Order out — coach-assisted</b><span>Lunch · target P 40+ · sat ≤ 6 g</span></span>
+            <span class="ch">›</span>
+          </div>
+          <div class="b-item">
+            <span class="tick vis"></span>
+            <span class="tt"><b>Charred salmon &amp; puy lentils</b><span>Dinner · 540 kcal · P 38 · fib 9</span></span>
+            <span class="est">Cook ›</span>
+          </div>
+          <div class="b-item">
+            <span class="tick done">✓</span>
+            <span class="tt"><b>Apple &amp; peanut butter</b><span>Snack · 210 kcal · P 5 · fib 4</span></span>
+            <span class="ch">›</span>
+          </div>
+        </div>
+        <div class="ghostpill">Ate something else? Tell the coach</div>
+      </div>
+      <p class="cap"><span class="tag opt">Option B</span><b>Summary card + one meals
+      group.</b> The macro card and the meal group read as two clear objects. Tightest
+      vertical rhythm of the three — the whole day fits above the fold.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= LIGHT PROOF ================= -->
+<section>
+  <h3>It carries to Paper × Moss — deepened a step</h3>
+  <p class="secnote">The shipped light tokens are too pale, so this deepens them: paper drops
+  to <span class="num">#eef0ea</span> (white cards actually register), subs to
+  <span class="num">#4d545d</span> (7.6:1), accent tints strengthen from 12% to 18–20%, and
+  cards carry a soft real shadow. The today card is a <b style="color:var(--ink)">flat</b>
+  wash — no gradient — in both themes. All five accent palettes still inherit for free.</p>
+
+  <div class="screenrow">
+    <div class="opt">
+      <div class="phone light">
+        <div class="pk">This week · Jul 20</div>
+        <div class="ph2">Plan</div>
+        <div class="banner"><span>●</span><span class="sp">Next week proposed</span><b>Review ›</b></div>
+        <div class="weekstrip bold">
+          <div class="ws miss"><div class="col"><div class="fill"></div></div><span>Mo</span></div>
+          <div class="ws"><div class="col"></div><span>Tu</span></div>
+          <div class="ws miss"><div class="col"><div class="fill"></div></div><span>We</span></div>
+          <div class="ws today"><div class="col"></div><span>Th</span></div>
+          <div class="ws"><div class="col"><div class="fill"></div></div><span>Fr</span></div>
+          <div class="ws"><div class="col"><div class="fill"></div></div><span>Sa</span></div>
+          <div class="ws"><div class="col"></div><span>Su</span></div>
+        </div>
+        <div class="a-card"><div class="a-item">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+          <span class="tt"><b>Monday <span class="dnum num">20</span></b><span>Lower A · Harissa chicken traybake</span></span>
+          <span class="mtag">Missed</span><span class="ch">›</span>
+        </div></div>
+        <div class="a-card"><div class="a-item">
+          <span class="glyph mut"><svg viewBox="0 0 24 24"><path d="M12 3a7 7 0 1 0 9 9 9 9 0 1 1-9-9z"/></svg></span>
+          <span class="tt"><b>Tuesday <span class="dnum num">21</span></b><span>Rest · Charred salmon</span></span>
+          <span class="ch">›</span>
+        </div></div>
+        <div class="a-hero">
+          <div class="pk" style="color:var(--volt)">Thursday 23 · Today</div>
+          <div class="nm">Rest day</div>
+          <div class="a-item" style="gap:8px">
+            <span class="tt"><span style="white-space:normal">Tonight · Turkey &amp; black-bean chili</span></span>
+            <span class="est num">35 min ›</span>
+          </div>
+        </div>
+        <div class="a-card"><div class="a-item">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M3 9v6M7 6v12M17 6v12M21 9v6M7 12h10"/></svg></span>
+          <span class="tt"><b>Friday <span class="dnum num">24</span></b><span>Upper A · night out</span></span>
+          <span class="vv num" style="color:var(--mut)">~52 min</span><span class="ch">›</span>
+        </div></div>
+      </div>
+      <p class="cap"><span class="tag opt">Option A · light</span>White cards on deeper paper
+      with a soft shadow; moss accent, bold calendar, flat today wash — same anatomy.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= RECOMMENDATION ================= -->
+<div class="rec">
+  <h3>Recommendation</h3>
+  <p class="lede"><b>Option A for content</b> (Plan days, History, meals, recipes) — it is the
+  language the original mockups established and gives every item one obvious tap target.
+  <b>Option B for dense reference lists</b> (Settings, ingredients inside a recipe, sets
+  inside a session) where items are read as a group, using the new hair-in separator.</p>
+  <ol>
+    <li><b>Delete the <code>.tap .card</code> transparent override</b> — tappable items render
+        as cards again, 8px gap, pressed state stays <code>scale(.985)</code>.</li>
+    <li><b>Merge the five row primitives into one <code>.item</code></b> with the anatomy
+        above; value columns get <code>nowrap</code> + tabular numerals, titles flex.</li>
+    <li><b>Add <code>--hair-in</code></b> (<span class="num">#2b2f37</span> dark /
+        <span class="num">#d9dcd1</span> light) for separators inside raised surfaces;
+        <code>--hair</code> returns to shell chrome only.</li>
+    <li><b>Delete <code>.dimrow</code></b> — dim glyphs, never text; rest days keep mut copy.</li>
+    <li><b>History rows lead with the name</b>, friendly date in the sub, one stacked value
+        pair on the right.</li>
+    <li><b>Status becomes a tag, not a paint job</b> — "Missed" is a small warm chip; warm
+        text stops doubling as row color.</li>
+    <li><b>Flatten the today card</b> — the gradient becomes a flat accent wash
+        (<code>color-mix(in srgb, var(--volt) 12%, var(--raised))</code>), both themes.</li>
+    <li><b>Bold the week calendar</b> — 700 mut labels, solid volt fill when done, warn wash
+        when missed, a 2px volt ring on today.</li>
+    <li><b>Deepen the light theme a step</b> — bg <code>#eef0ea</code>, mut
+        <code>#4d545d</code>, dim <code>#7f8790</code>, accent tints 12→18%, soft card
+        shadows. Dark tokens don't move.</li>
+  </ol>
+  <p class="foot">All changes are CSS + class swaps in the row markup — no API or state
+  changes; themes and accent palettes inherit through the tokens. Sheet lives at
+  docs/mockups/45-design-refresh-options.html.</p>
+</div>
+
+</div>

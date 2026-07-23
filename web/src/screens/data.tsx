@@ -121,6 +121,14 @@ export function HistoryScreen() {
       last.length === HISTORY_PAGE ? all.reduce((n, p) => n + p.length, 0) : undefined,
   });
   const items = q.data?.pages.flat();
+  // one grouped card per calendar month — the header carries the month so rows
+  // can lead with the session name and keep day + metrics on a single sub line
+  const groups: { label: string; rows: HistoryItem[] }[] = [];
+  for (const h of items || []) {
+    const label = new Date(h.day + 'T12:00:00Z').toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    if (!groups.length || groups[groups.length - 1].label !== label) groups.push({ label, rows: [] });
+    groups[groups.length - 1].rows.push(h);
+  }
 
   const del = async () => {
     if (!toDelete || deleting) return;
@@ -149,25 +157,37 @@ export function HistoryScreen() {
         <Chip>{favOnly ? 'No starred sessions yet — tap the star on a session you’re proud of.'
                         : 'Nothing yet — your first logged session lands here.'}</Chip>
       )}
-      {(items || []).map((h) => {
-        const s = h.stats || {};
-        const head = h.kind === 'cardio'
-          ? [s.distance ? s.distance.toFixed(1) + ' km' : null,
-             s.duration_s ? fmtDur(s.duration_s) : null,
-             s.avg_hr ? Math.round(s.avg_hr) + ' bpm' : null].filter(Boolean).join(' · ')
-          : [s.tonnage != null ? s.tonnage + ' t' : null,
-             s.sets_done != null ? s.sets_done + ' sets' : null,
-             s.partial ? 'partial' : null].filter(Boolean).join(' · ');
-        return (
-          <SwipeRow key={h.id} onDelete={() => setToDelete(h)}>
-            <button className="lrow press num" onClick={() => go('detail', { detailId: h.id })}>
-              <span className="glyphslot"><ActivityGlyph h={h} /></span>
-              <b>{h.day} · {h.name}{h.favorite && <span className="star">★</span>}</b>
-              <span className="rsub">{head || h.status}</span><span className="chev">›</span>
-            </button>
-          </SwipeRow>
-        );
-      })}
+      {groups.map((g) => (
+        <div key={g.label} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <div className="sect">{g.label}</div>
+          <div className="group">
+            {g.rows.map((h) => {
+              const s = h.stats || {};
+              const head = h.kind === 'cardio'
+                ? [s.distance ? s.distance.toFixed(1) + ' km' : null,
+                   s.duration_s ? fmtDur(s.duration_s) : null,
+                   s.avg_hr ? Math.round(s.avg_hr) + ' bpm' : null].filter(Boolean).join(' · ')
+                : [s.tonnage != null ? s.tonnage + ' t' : null,
+                   s.sets_done != null ? s.sets_done + ' sets' : null,
+                   s.partial ? 'partial' : null].filter(Boolean).join(' · ');
+              const when = new Date(h.day + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'short' })
+                + ' ' + +h.day.slice(8);
+              return (
+                <SwipeRow key={h.id} onDelete={() => setToDelete(h)}>
+                  <button className="lrow press" onClick={() => go('detail', { detailId: h.id })}>
+                    <span className="glyphslot"><ActivityGlyph h={h} /></span>
+                    <span className="lt">
+                      <b>{h.name}{h.favorite && <span className="star">★</span>}</b>
+                      <span className="lsub num">{when} · {head || h.status}</span>
+                    </span>
+                    <span className="chev">›</span>
+                  </button>
+                </SwipeRow>
+              );
+            })}
+          </div>
+        </div>
+      ))}
       {q.hasNextPage && (
         <button className="ghost press" disabled={q.isFetchingNextPage}
           onClick={() => q.fetchNextPage()}>
