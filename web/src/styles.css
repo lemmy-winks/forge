@@ -4,6 +4,9 @@
    always worked — hence the separate --cta-* tokens. */
 :root{
   --bg:#060708; --raised:#121316; --sunken:#0c0d0f; --hair:#191b1f;
+  /* --hair is shell chrome (tabs, header) only; separators INSIDE a raised card
+     use --hair-in — on #121316 the old hairline measured 1.07:1, invisible */
+  --hair-in:#2b2f37;
   /* lifted a step (Jul 2026): secondary text read too dark on dim phone screens */
   --ink:#f3f4f6; --mut:#9ea4ab; --dim:#6d737a;
   --volt:#c9f73a; --volt-deep:#93b821; --on-volt:#131602;
@@ -17,12 +20,15 @@
   color-scheme:dark;
 }
 :root[data-theme="light"]{
-  --bg:#f4f5f2; --raised:#ffffff; --sunken:#eceee7; --hair:#e2e5dc;
-  --ink:#14171c; --mut:#5f656d; --dim:#969ca3;  /* same step: more contrast on paper */
+  /* deepened a step (Jul 2026): white cards didn't register on the old paper
+     and the 12% tints washed out — everything moves one notch darker */
+  --bg:#eef0ea; --raised:#ffffff; --sunken:#e6e8e0; --hair:#d9dccf;
+  --hair-in:#cdd1c4;
+  --ink:#14171c; --mut:#4d545d; --dim:#7f8790;
   --volt:#5c7d0a; --volt-deep:#47620a; --on-volt:#ffffff;
   --warn:#a3641a; --on-warn:#ffffff;
-  --outer:#e4e6e0; --btn:#eceee7; --sel:#ffffff; --neutral:#e2e5dc; --off:#e7e9e2;
-  --volt-dim:rgba(92,125,10,.12); --warn-dim:rgba(163,100,26,.35);
+  --outer:#e2e4dc; --btn:#e6e8e0; --sel:#ffffff; --neutral:#dee1d6; --off:#e3e6dc;
+  --volt-dim:rgba(92,125,10,.18); --warn-dim:rgba(163,100,26,.35);
   --cta-bg:#c9f73a; --cta-ink:#131602;
   --fig-fill:#d8dbd2; --fig-floor:#e3e6dd; --fig-rack:#dde0d6;
   --fig-edge:#b7bdae; --fig-edge2:#aab19f; --fig-dot:#8f978a;
@@ -43,7 +49,7 @@
 }
 :root[data-theme="light"][data-palette="glacier"]{
   --volt:#1257a8; --volt-deep:#0e4382; --on-volt:#ffffff;
-  --volt-dim:rgba(18,87,168,.11);
+  --volt-dim:rgba(18,87,168,.16);
   --cta-bg:#58b0ff; --cta-ink:#06131c;
 }
 :root[data-palette="aurora"]{
@@ -52,7 +58,7 @@
 }
 :root[data-theme="light"][data-palette="aurora"]{
   --volt:#0c7a60; --volt-deep:#095c49; --on-volt:#ffffff;
-  --volt-dim:rgba(12,122,96,.12);
+  --volt-dim:rgba(12,122,96,.16);
   --cta-bg:#3ae6c1; --cta-ink:#04150f;
 }
 :root[data-palette="flare"]{
@@ -61,7 +67,7 @@
 }
 :root[data-theme="light"][data-palette="flare"]{
   --volt:#b3234a; --volt-deep:#8d1a3a; --on-volt:#ffffff;
-  --volt-dim:rgba(179,35,74,.10);
+  --volt-dim:rgba(179,35,74,.15);
   --cta-bg:#ff5c7c; --cta-ink:#1c040a;
 }
 :root[data-palette="ultraviolet"]{
@@ -70,7 +76,7 @@
 }
 :root[data-theme="light"][data-palette="ultraviolet"]{
   --volt:#6a3ec2; --volt-deep:#532f9a; --on-volt:#ffffff;
-  --volt-dim:rgba(106,62,194,.10);
+  --volt-dim:rgba(106,62,194,.15);
   --cta-bg:#b78aff; --cta-ink:#120626;
 }
 
@@ -138,8 +144,9 @@ h2.title{ font-size:26px; line-height:1.08; margin:2px 0 0; font-weight:650; let
 .chip .dot{ width:6px; height:6px; border-radius:50%; background:var(--volt); flex:none; margin-top:5px; }
 
 .card{ background:var(--raised); border-radius:16px; padding:13px 15px; }
+/* tappable = raised: the old .tap .card override that flattened tappable items
+   into hairline rows is gone — if you can tap it, it sits on a card */
 .tap{ width:100%; display:block; }
-.tap .card{ background:transparent; border-radius:0; padding:13px 2px; border-top:1px solid var(--hair); }
 .tap:active .card, .press:active{ transform:scale(.985); }
 .row{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
 .xname{ font-size:16px; font-weight:550; }
@@ -150,7 +157,38 @@ h2.title{ font-size:26px; line-height:1.08; margin:2px 0 0; font-weight:650; let
 .sub{ font-size:13.5px; color:var(--mut); margin-top:3px; line-height:1.45; }
 .up{ color:var(--volt); font-weight:600; }
 .warn{ color:var(--warn); font-weight:600; }
-.dimrow{ opacity:.45; }
+/* de-emphasis dims decoration, never text — text drops to mut (7.4:1), still copy */
+.dimrow{ color:var(--mut); }
+.dimrow b{ font-weight:500; }
+.dimrow .target{ color:inherit; }
+.dimrow .glyphslot, .dimrow svg, .dimrow img{ opacity:.55; }
+
+/* status is a tag, not a paint job */
+.mtag{ background:color-mix(in srgb, var(--warn) 16%, transparent); color:var(--warn);
+       font-size:9.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+       border-radius:6px; padding:3px 7px; flex:none; }
+
+/* ---- shared list anatomy ----
+   .daycard  card-per-item (Plan days)
+   .lt/.lsub two-line left side of any flex row: title wraps, sub ellipsizes,
+             the value column keeps its width and never wraps
+   .group    grouped list card: rows separated by --hair-in, first row flush */
+.daycard{ display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+          background:var(--raised); border-radius:15px; padding:12px 13px; }
+.lt{ flex:1; min-width:0; }
+.lt b{ font-weight:550; }
+.lt .lsub{ display:block; font-size:13px; color:var(--mut); margin-top:2px;
+           white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.group{ background:var(--raised); border-radius:16px; padding:0 15px; overflow:hidden; }
+.group .lrow{ border-top-color:var(--hair-in); }
+.group > *:first-child .lrow, .group > .lrow:first-child{ border-top:0; }
+.group .swipe-fg{ background:var(--raised); }
+
+/* paper needs the depth the void gets from luminance for free */
+[data-theme="light"] .card, [data-theme="light"] .tile, [data-theme="light"] .panel,
+[data-theme="light"] .daycard, [data-theme="light"] .group, [data-theme="light"] .herocard,
+[data-theme="light"] .acct, [data-theme="light"] .active-set, [data-theme="light"] .resty{
+  box-shadow:0 1px 3px rgba(20,23,28,.1); }
 
 .cta{ background:var(--cta-bg); color:var(--cta-ink); text-align:center; border-radius:999px; padding:14px;
       font-size:16px; font-weight:750; width:100%; }
@@ -202,7 +240,8 @@ h2.title{ font-size:26px; line-height:1.08; margin:2px 0 0; font-weight:650; let
 .lrow{ display:flex; align-items:center; gap:11px; border-top:1px solid var(--hair);
        padding:13px 2px; font-size:15.5px; width:100%; }
 .lrow b{ font-weight:550; }
-.lrow .rsub{ margin-left:auto; font-size:12.5px; color:var(--mut); text-align:right; line-height:1.4; }
+.lrow .rsub, .daycard .rsub{ margin-left:auto; font-size:12.5px; color:var(--mut);
+  text-align:right; line-height:1.4; white-space:nowrap; }
 .lrow .chev{ color:var(--dim); }
 .lrow .star{ color:var(--volt); font-size:13px; margin-left:5px; }
 
@@ -344,10 +383,12 @@ input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%;
 .ws .fill{ position:absolute; bottom:0; left:0; right:0; border-radius:9px;
            background:var(--volt); opacity:.22; }
 .ws.done .fill{ opacity:1; }
-.ws .d{ font-size:11px; color:var(--dim); letter-spacing:.05em; }
+.ws .d{ font-size:10.5px; font-weight:700; color:var(--mut); letter-spacing:.05em; }
 .ws .dt{ font-size:10px; color:var(--dim); margin-top:-3px; }
-.ws.today .d, .ws.today .dt{ color:var(--volt); font-weight:700; }
+.ws.today .col{ box-shadow:inset 0 0 0 2px var(--volt); }
+.ws.today .d, .ws.today .dt{ color:var(--volt); font-weight:800; }
 .ws.miss .d{ color:var(--warn); }
+.ws.miss .fill{ background:var(--warn); opacity:.32; }
 .daynum{ color:var(--dim); font-weight:400; font-size:12px; }
 /* swipeable week track: prev/cur/next panes slide with the finger.
    touch-action pan-y keeps vertical scrolling native while horizontal moves
@@ -381,7 +422,8 @@ button.fpill{ border:none; font:inherit; cursor:pointer; }
 .herocard .toprow{ display:flex; justify-content:space-between; align-items:baseline; }
 .herocard .hname{ font-size:20px; font-weight:650; letter-spacing:-.01em; margin-top:2px; }
 .herocard .est{ color:var(--volt); font-size:13px; font-weight:700; }
-.herocard.today{ background:linear-gradient(135deg, var(--volt-dim), var(--raised) 62%); }
+/* flat accent wash — palette-aware; the old gradient washed out on paper */
+.herocard.today{ background:color-mix(in srgb, var(--volt) 12%, var(--raised)); }
 .fpills{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
 .fpill{ background:var(--sunken); border-radius:999px; padding:4px 11px; font-size:12px; color:var(--mut); }
 .glyphslot{ flex:none; width:18px; display:flex; justify-content:center; }
