@@ -341,6 +341,18 @@ export function UnitsScreen() {
 }
 
 /* ---------------- connections ---------------- */
+
+/** claude_desktop_config.json snippet for the /mcp food endpoint. Claude's
+ * connector UI can't send a bearer header, so mcp-remote bridges stdio → HTTP. */
+const mcpConfig = (token: string) => JSON.stringify({
+  mcpServers: {
+    'forge-food': {
+      command: 'npx',
+      args: ['mcp-remote', `${location.origin}/mcp`, '--header', `Authorization: Bearer ${token}`],
+    },
+  },
+}, null, 2);
+
 export function ConnectionsScreen() {
   const { go } = useApp();
   const qc = useQueryClient();
@@ -391,9 +403,9 @@ export function ConnectionsScreen() {
         </div>
       </div>
       <div className="card">
-        <div className="row"><span className="xname">Withings</span>
+        <div className="row"><span className="xname" style={{ flex: 'none' }}>Withings</span>
           <span className={c.withings.linked ? (c.withings.warning ? 'warn' : 'up') : 'sub'}
-            style={{ fontSize: 12, margin: 0 }}>
+            style={{ fontSize: 12, margin: 0, flex: 1, minWidth: 0, textAlign: 'right' }}>
             {c.withings.linked ? (c.withings.warning ? '● Needs re-link' : '● Linked') : c.withings.note}
           </span></div>
         {c.withings.warning && <div className="sub warn" style={{ fontWeight: 400 }}>{c.withings.warning}</div>}
@@ -428,8 +440,33 @@ export function ConnectionsScreen() {
         )}
       </div>
       <div className="card">
-        <div className="row"><span className="xname">Coach access · MCP</span>
-          <span className="sub" style={{ margin: 0 }}>{c.coach_mcp.note}</span></div>
+        <div className="row"><span className="xname">Claude Desktop</span>
+          <span className={ah.configured ? 'up' : 'sub'} style={{ fontSize: 12, margin: 0 }}>
+            {ah.configured ? '● Ready' : 'needs a token'}</span></div>
+        <div className="sub">
+          Log meals and import recipes from Claude Desktop over MCP. Add this to{' '}
+          <b style={{ color: 'var(--ink)' }}>claude_desktop_config.json</b> (Settings → Developer → Edit Config):
+        </div>
+        <div className="sub num" style={{ fontFamily: 'ui-monospace,Menlo,monospace', background: 'var(--sunken)',
+          borderRadius: 8, padding: '6px 9px', marginTop: 6, whiteSpace: 'pre', overflowX: 'auto',
+          fontSize: 11, lineHeight: 1.5 }}>
+          {mcpConfig(revealed || ah.token_masked || '<token>')}
+        </div>
+        {ah.configured ? (
+          <button className="ghost press" style={{ width: '100%', marginTop: 8 }} onClick={async () => {
+            try {
+              const r = await api<{ token: string }>('/api/connections/token');
+              await navigator.clipboard.writeText(mcpConfig(r.token));
+              toast('Config copied — token included');
+            } catch { toast('Copy failed — long-press to select'); }
+          }}>Copy config with token</button>
+        ) : (
+          <div className="sub">Rotate above to create your token first — the config needs it.</div>
+        )}
+      </div>
+      <div className="card">
+        <div className="row"><span className="xname" style={{ flex: 'none' }}>Coach access · MCP</span>
+          <span className="sub" style={{ margin: 0, flex: 1, minWidth: 0, textAlign: 'right' }}>{c.coach_mcp.note}</span></div>
       </div>
     </Shell>
   );

@@ -301,6 +301,16 @@ def rotate_token(user: User = Depends(current_user), db: Session = Depends(get_d
     return {"token": tok.token}
 
 
+@router.get("/connections/token")
+def reveal_token(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Full ingest token for the signed-in owner — the UI shows it masked and only
+    puts the real value on the clipboard (MCP client config needs it verbatim)."""
+    tok = db.query(IngestToken).filter(IngestToken.user_id == user.id).first()
+    if not tok:
+        raise HTTPException(404, "No token yet — rotate to create one")
+    return {"token": tok.token}
+
+
 # Manual body measurements (height etc.) land in the same metrics stream the
 # integrations write to — source 'manual', latest value wins on read.
 BODY_TYPES = {"height": "cm", "weight": "kg", "body_fat_pct": "%"}

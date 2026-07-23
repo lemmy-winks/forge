@@ -139,6 +139,15 @@ def test_ingest_flow():
     assert any(h["kind"] == "cardio" for h in hist)
 
 
+def test_reveal_token_for_mcp_config():
+    login("shelby@test.dev")
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+    assert client.get("/api/connections/token").json()["token"] == tok
+    login()  # james sees his own token, never shelby's
+    james = client.get("/api/connections/token").json()["token"]
+    assert james != tok
+
+
 def test_labs_and_niggles_and_export():
     login()
     r = client.post("/api/labs", json={"drawn_on": "2026-06-14", "results": [
