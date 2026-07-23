@@ -8,7 +8,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import OperationalError
 from starlette.middleware.sessions import SessionMiddleware
@@ -217,6 +217,22 @@ def index_page(request: Request):
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard_page(request: Request):
     # SPA route: the desktop dashboard lives at /dashboard but is the same bundle.
+    return _render_index(request)
+
+
+@app.get("/welcome")
+def welcome_page(request: Request):
+    # First-time-visitor landing page. It ships as a static welcome.html, and
+    # once the service worker is installed Workbox's cleanURLs serves /welcome
+    # straight from the precached welcome.html. A brand-new visitor has no
+    # service worker, so the extensionless /welcome reaches the server — where
+    # StaticFiles only knows welcome.html and would 404 ({"detail":"Not Found"}).
+    # Mirror the client-side cleanURLs mapping here so the very first, un-cached
+    # visit resolves too; fall back to the SPA shell if the page isn't shipped
+    # (legacy vanilla client).
+    welcome = _static / "welcome.html"
+    if welcome.exists():
+        return FileResponse(welcome, headers={"Cache-Control": "no-cache"})
     return _render_index(request)
 
 
