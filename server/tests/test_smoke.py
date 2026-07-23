@@ -1598,6 +1598,36 @@ def test_logged_meal_replaces_planned_slot():
     assert day2["totals"]["kcal"] == 600 + 80 + 180
 
 
+def test_admin_wipe_recipes():
+    """DELETE /api/admin/recipes empties the library (for an MCP-populated one)
+    and retires the shared food week; admin-only. Self-restores the seed so the
+    rest of the suite sees a clean state."""
+    login("shelby@test.dev")  # member, not admin
+    assert client.delete("/api/admin/recipes").status_code == 403
+
+    login()  # james, admin
+    assert client.get("/api/food/recipes").json()["count"] > 0
+    res = client.delete("/api/admin/recipes").json()
+    assert res["recipes_deleted"] > 0
+    assert client.get("/api/food/recipes").json()["count"] == 0
+    # shared household week retired — no active plan for members
+    assert client.get("/api/food/week").json()["has_plan"] is False
+
+    # restore recipes + a shared active week for the rest of the suite
+    from app.db import SessionLocal
+    from app.food_seed import _first_week, run_food_seed
+    from app.models import MealRevision
+    with SessionLocal() as db:
+        run_food_seed(db)  # SEED_RECIPES defaults on → re-adds the library
+        if not (db.query(MealRevision)
+                .filter(MealRevision.user_id.is_(None), MealRevision.status == "active").first()):
+            db.add(MealRevision(user_id=None, num=99, status="active",
+                                content=_first_week(), rationale="restored for tests", changes=[]))
+        db.commit()
+    assert client.get("/api/food/recipes").json()["count"] > 0
+    assert client.get("/api/food/week").json()["has_plan"] is True
+
+
 def test_food_week_slot_swap_and_parallel_step():
     """A recipe can be swapped into a given date's dinner on the active food week
     (weekday-keyed, direct edit), and import_recipe carries a `parallel`

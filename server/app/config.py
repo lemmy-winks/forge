@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     coach_tz: str = "Europe/London"
     review_weekday: int = 6  # Sunday
     review_hour: int = 20
+    # Seed the curated recipe library + first food week on boot. Turn OFF to run
+    # an MCP-populated library (the pantry/ingredient reference still seeds).
+    seed_recipes: bool = True
 
     @property
     def allowlist(self) -> dict[str, str]:

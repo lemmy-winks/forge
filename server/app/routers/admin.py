@@ -181,3 +181,19 @@ def demo_delete(user: User = Depends(admin_user), db: Session = Depends(get_db))
     from ..demo import delete_demo
     delete_demo(db)
     return {"exists": False}
+
+
+@router.delete("/recipes")
+def wipe_recipes(user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    """Empty the recipe library — for running an MCP-populated library. Also
+    retires the shared household food week that referenced the seeded recipes so
+    the Food screen is a clean slate ("No food week yet"). Meal logs (which
+    snapshot their own macros) are untouched, as is the pantry/ingredient
+    reference. Pair with SEED_RECIPES=false so a boot never re-seeds them."""
+    from ..models import MealRevision, Recipe
+    recipes = db.query(Recipe).delete(synchronize_session=False)
+    weeks = (db.query(MealRevision)
+             .filter(MealRevision.user_id.is_(None), MealRevision.status == "active")
+             .update({"status": "superseded"}, synchronize_session=False))
+    db.commit()
+    return {"recipes_deleted": recipes, "food_weeks_retired": weeks}

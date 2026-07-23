@@ -706,7 +706,11 @@ def _first_week() -> dict:
 
 
 def run_food_seed(db: Session) -> None:
-    """Insert-missing, same contract as run_seed — safe on every boot."""
+    """Insert-missing, same contract as run_seed — safe on every boot. The
+    pantry/ingredient reference always seeds (MCP recipe imports need it); the
+    curated recipes and the first food week only seed when SEED_RECIPES is on."""
+    from .config import get_settings
+    seed_recipes = get_settings().seed_recipes
     # ingredient reference table
     have = {i.name: i for i in db.query(Ingredient).all()}
     for name, aisle, unit, pack, kcal, prot, carbs, sugar, fib, fat, sat, sodium, pantry in INGREDIENTS:
@@ -720,16 +724,17 @@ def run_food_seed(db: Session) -> None:
                              ("fat_100", fat), ("sodium_100", sodium)):
                 if not getattr(row, col, 0):
                     setattr(row, col, val)
-    # recipe library
-    have_r = {r.slug: r for r in db.query(Recipe).all()}
-    for r in RECIPES:
-        if r["slug"] not in have_r:
-            db.add(Recipe(**r))
-        else:  # same backfill for authored recipe macros; meal_log snapshots stay untouched
-            row = have_r[r["slug"]]
-            for col in ("carbs_g", "sugar_g", "fat_g", "sodium_mg"):
-                if not getattr(row, col, 0):
-                    setattr(row, col, r.get(col, 0))
+    # recipe library (opt-out via SEED_RECIPES for MCP-populated libraries)
+    if seed_recipes:
+        have_r = {r.slug: r for r in db.query(Recipe).all()}
+        for r in RECIPES:
+            if r["slug"] not in have_r:
+                db.add(Recipe(**r))
+            else:  # same backfill for authored recipe macros; meal_log snapshots stay untouched
+                row = have_r[r["slug"]]
+                for col in ("carbs_g", "sugar_g", "fat_g", "sodium_mg"):
+                    if not getattr(row, col, 0):
+                        setattr(row, col, r.get(col, 0))
     db.commit()
 
     # per-user nutrition prefs defaults (JSON column: reassign, never mutate in place)
@@ -740,8 +745,9 @@ def run_food_seed(db: Session) -> None:
             u.prefs = {**prefs, **missing}
     db.commit()
 
-    # the member household's first food week (demo weeks are seeded by demo.py later)
-    if not db.query(MealRevision).filter(MealRevision.user_id.is_(None)).first():
+    # the member household's first food week (demo weeks are seeded by demo.py
+    # later) — references seeded recipe slugs, so it rides the same flag
+    if seed_recipes and not db.query(MealRevision).filter(MealRevision.user_id.is_(None)).first():
         db.add(MealRevision(
             user_id=None, num=1, status="active", content=_first_week(),
             rationale=("First food week — hand-written baseline before the coach takes over "

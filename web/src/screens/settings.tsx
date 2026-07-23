@@ -5,7 +5,7 @@ import {
   type Connections, type EquipmentData, type LabPanelRow, type Me, type NiggleRow, type Progress,
 } from '../api';
 import {
-  applyPalette, applyTheme, Back, Chip, Loading, PALETTES, Shell, storedPalette, storedTheme,
+  applyPalette, applyTheme, Back, Chip, ConfirmSheet, Loading, PALETTES, Shell, storedPalette, storedTheme,
   Title, toast, useApp, type ThemePref,
 } from '../ui';
 
@@ -936,6 +936,7 @@ export function ServerScreen() {
       </div>
 
       <DemoCard />
+      <RecipeLibraryAdminCard />
 
       <h3 className="title" style={{ fontSize: 16, margin: '10px 2px 0' }}>Users</h3>
       {uq.data.map((u) => <UserCard key={u.id} u={u}
@@ -961,6 +962,42 @@ export function ServerScreen() {
         old after a deploy, fully close and reopen the PWA.
       </div>
     </Shell>
+  );
+}
+
+function RecipeLibraryAdminCard() {
+  const qc = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const wipe = async () => {
+    setBusy(true);
+    try {
+      const r = await api<{ recipes_deleted: number }>('/api/admin/recipes', { method: 'DELETE' });
+      qc.invalidateQueries({ queryKey: ['recipes'] });
+      qc.invalidateQueries({ queryKey: ['foodweek'] });
+      toast(`Cleared ${r.recipes_deleted} recipe${r.recipes_deleted === 1 ? '' : 's'}`, true);
+      setConfirming(false);
+    } catch (e: any) { toast(e?.message || 'Failed'); }
+    setBusy(false);
+  };
+  return (
+    <div className="card">
+      <b style={{ fontSize: 15 }}>Recipe library</b>
+      <div className="rsub" style={{ margin: '6px 0 10px' }}>
+        Empties the whole recipe library and retires the shared food week — for running an
+        MCP-populated library. The pantry (ingredients) and your meal logs are kept. Set
+        <b> SEED_RECIPES=false</b> in the compose override too, or a boot re-seeds the defaults.
+      </div>
+      <button className="ghost press" style={{ color: 'var(--warn)' }}
+        onClick={() => setConfirming(true)}>Clear all recipes</button>
+      {confirming && (
+        <ConfirmSheet
+          title="Clear the recipe library?"
+          body="Deletes every recipe and retires the shared food week. Meal logs and the pantry stay. This can't be undone — you'll repopulate via the MCP import tools."
+          confirmLabel="Clear all recipes" danger busy={busy}
+          onConfirm={wipe} onCancel={() => setConfirming(false)} />
+      )}
+    </div>
   );
 }
 
