@@ -32,17 +32,13 @@ from sqlalchemy.orm import Session
 from ..config import get_settings
 from ..db import get_db
 from ..models import OAuthClient, OAuthCode, OAuthToken, User, utcnow
-from ..security import COOKIE, _serializer
+from ..security import COOKIE, _serializer, public_base_url
 
 router = APIRouter(tags=["mcp-oauth"])
 
 CODE_TTL = timedelta(minutes=5)
 ACCESS_TTL = timedelta(days=7)
 REFRESH_TTL = timedelta(days=180)
-
-
-def _base() -> str:
-    return get_settings().base_url.rstrip("/")
 
 
 def _session_user(request: Request, db: Session) -> User | None:
@@ -100,14 +96,15 @@ def user_for_mcp_token(db: Session, token: str) -> User | None:
 
 # ---------------------------------------------------------------- discovery
 
-def _resource_metadata():
-    return {"resource": _base() + "/mcp",
-            "authorization_servers": [_base()],
+def _resource_metadata(request: Request):
+    b = public_base_url(request)  # host-derived so every allowed domain self-describes
+    return {"resource": b + "/mcp",
+            "authorization_servers": [b],
             "bearer_methods_supported": ["header"]}
 
 
-def _server_metadata():
-    b = _base()
+def _server_metadata(request: Request):
+    b = public_base_url(request)
     return {"issuer": b,
             "authorization_endpoint": b + "/mcp/oauth/authorize",
             "token_endpoint": b + "/mcp/oauth/token",
@@ -121,14 +118,14 @@ def _server_metadata():
 # clients probe both the root form and the path-suffixed form (RFC 8414 §3)
 @router.get("/.well-known/oauth-protected-resource")
 @router.get("/.well-known/oauth-protected-resource/mcp")
-def protected_resource():
-    return _resource_metadata()
+def protected_resource(request: Request):
+    return _resource_metadata(request)
 
 
 @router.get("/.well-known/oauth-authorization-server")
 @router.get("/.well-known/oauth-authorization-server/mcp")
-def authorization_server():
-    return _server_metadata()
+def authorization_server(request: Request):
+    return _server_metadata(request)
 
 
 # ---------------------------------------------------------------- registration

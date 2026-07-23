@@ -1,7 +1,7 @@
 from datetime import date as ddate
 from datetime import datetime, timedelta, timezone
 
-from ..config import local_today
+from ..config import get_settings, local_today
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -11,7 +11,8 @@ from ..coach import repair_deep, repair_text
 from ..db import get_db
 from ..fitting import epley_e1rm, est_minutes, fit_day, plate_breakdown, warmup_ramp
 from ..models import (EquipmentProfile, Exercise, LoggedSet, Metric, Niggle, Plan,
-                      PlanRevision, Record, User, WorkoutSeries, WorkoutSession, utcnow)
+                      PlannedItem, PlanRevision, Record, User, WorkoutSeries,
+                      WorkoutSession, utcnow)
 from ..security import current_user
 
 router = APIRouter(prefix="/api", tags=["training"])
@@ -222,6 +223,15 @@ def week(date: str | None = None, user: User = Depends(current_user), db: Sessio
             by_day[str(s.day)] = {"id": s.id, "kind": s.kind, "status": s.status,
                                   "stats": s.stats or {}, "name": s.name}
 
+    items = (db.query(PlannedItem)
+             .filter(PlannedItem.user_id == user.id,
+                     PlannedItem.date >= base,
+                     PlannedItem.date <= base + timedelta(days=6))
+             .order_by(PlannedItem.created_at).all())
+    planned_by_day: dict[str, list[dict]] = {}
+    for it in items:
+        planned_by_day.setdefault(str(it.date), []).append(_plan_item_out(it))
+
     out = []
     for i in range(7):
         d = base + timedelta(days=i)
@@ -229,7 +239,8 @@ def week(date: str | None = None, user: User = Depends(current_user), db: Sessio
         item: dict = {"date": str(d), "day_name": DAY_NAMES[d.weekday()],
                       "is_today": d == actual_today,
                       "kind": (e or {}).get("kind", "rest"), "name": (e or {}).get("name"),
-                      "focus": (e or {}).get("focus", []), "session": by_day.get(str(d))}
+                      "focus": (e or {}).get("focus", []), "session": by_day.get(str(d)),
+                      "planned": planned_by_day.get(str(d), [])}
         if e and e.get("kind") == "strength":
             entries = e.get("exercises", [])
             item["est"] = est_minutes(entries, {x["slug"]: x["sets"] for x in entries}, "full")
@@ -255,6 +266,79 @@ def week(date: str | None = None, user: User = Depends(current_user), db: Sessio
     return {"start": str(base), "today": str(actual_today),
             "rationale": rev.rationale if rev else "", "days": out,
             "dangling": dang_out}
+
+
+# ---------- planned items (forward planning of future weeks) ----------
+
+def _plan_item_out(it: PlannedItem) -> dict:
+    return {"id": it.id, "date": str(it.date), "kind": it.kind, "title": it.title,
+            "notes": it.notes, "plan_day": it.plan_day}
+
+
+class PlanItemIn(BaseModel):
+    date: str
+    kind: str  # workout | meal
+    title: str = ""
+    notes: str = ""
+    # For workouts: weekday key ("0".."6") of an active-plan day to pencil onto
+    # this date — the title defaults to that day's name.
+    plan_day: str | None = None
+
+
+@router.post("/plan-items")
+def create_plan_item(body: PlanItemIn, user: User = Depends(current_user),
+                     db: Session = Depends(get_db)):
+    if body.kind not in ("workout", "meal"):
+        raise HTTPException(status_code=400, detail="kind must be workout or meal")
+    day = parse_date(body.date)
+    title = body.title.strip()
+    plan_day = None
+    if body.kind == "workout" and body.plan_day is not None:
+        rev = active_revision(db, user.id)
+        days = ((rev.content or {}).get("days", {}) or {}) if rev else {}
+        entry = days.get(body.plan_day)
+        if not entry:
+            raise HTTPException(status_code=400, detail="plan_day not in the active plan")
+        plan_day = body.plan_day
+        title = title or entry.get("name") or ""
+    if not title:
+        raise HTTPException(status_code=400, detail="title required")
+    item = PlannedItem(user_id=user.id, date=day, kind=body.kind, title=title[:120],
+                       notes=body.notes.strip(), plan_day=plan_day)
+    db.add(item)
+    db.commit()
+    return _plan_item_out(item)
+
+
+class PlanItemPatch(BaseModel):
+    title: str | None = None
+    notes: str | None = None
+
+
+@router.patch("/plan-items/{pid}")
+def edit_plan_item(pid: str, body: PlanItemPatch, user: User = Depends(current_user),
+                   db: Session = Depends(get_db)):
+    item = db.get(PlannedItem, pid)
+    if not item or item.user_id != user.id:
+        raise HTTPException(status_code=404, detail="planned item not found")
+    if body.title is not None:
+        if not body.title.strip():
+            raise HTTPException(status_code=400, detail="title required")
+        item.title = body.title.strip()[:120]
+    if body.notes is not None:
+        item.notes = body.notes.strip()
+    db.commit()
+    return _plan_item_out(item)
+
+
+@router.delete("/plan-items/{pid}")
+def delete_plan_item(pid: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    item = db.get(PlannedItem, pid)
+    if not item or item.user_id != user.id:
+        raise HTTPException(status_code=404, detail="planned item not found")
+    db.delete(item)
+    db.commit()
+    return {"ok": True}
 
 
 # ---------- sessions & sets ----------
@@ -486,7 +570,7 @@ def session_detail(sid: str, user: User = Depends(current_user), db: Session = D
     out = {"id": session.id, "day": str(session.day), "name": session.name, "kind": session.kind,
            "status": session.status, "stats": session.stats, "notes": session.notes,
            "cooldown_status": session.cooldown_status, "fitted": session.fitted,
-           "exercises": list(grouped.values())}
+           "favorite": bool(session.favorite), "exercises": list(grouped.values())}
     if session.kind == "cardio":
         srow = db.query(WorkoutSeries).filter(WorkoutSeries.session_id == sid).first()
         if srow and srow.data:
@@ -494,6 +578,15 @@ def session_detail(sid: str, user: User = Depends(current_user), db: Session = D
             if srow.data.get("hr"):
                 out["zones"] = _zone_breakdown(user, srow.data["hr"])
     return out
+
+
+@router.get("/map/config")
+def map_config(user: User = Depends(current_user)):
+    """Basemap config for the run-detail route map. The MapTiler key is a
+    publishable, domain-restricted key — handing it to any signed-in client is
+    its normal use. Empty key = clients keep the self-contained SVG trace."""
+    key = get_settings().maptiler_key
+    return {"enabled": bool(key), "key": key}
 
 
 class NotesIn(BaseModel):
@@ -508,6 +601,38 @@ def annotate_session(sid: str, body: NotesIn, user: User = Depends(current_user)
     if not session or session.user_id != user.id:
         raise HTTPException(status_code=404, detail="session not found")
     session.notes = body.notes.strip()
+    db.commit()
+    return {"ok": True}
+
+
+class FavoriteIn(BaseModel):
+    favorite: bool
+
+
+@router.patch("/sessions/{sid}/favorite")
+def set_favorite(sid: str, body: FavoriteIn, user: User = Depends(current_user),
+                 db: Session = Depends(get_db)):
+    """Star (or unstar) a standout session so it can be filtered for in History."""
+    session = db.get(WorkoutSession, sid)
+    if not session or session.user_id != user.id:
+        raise HTTPException(status_code=404, detail="session not found")
+    session.favorite = body.favorite
+    db.commit()
+    return {"ok": True, "favorite": session.favorite}
+
+
+@router.delete("/sessions/{sid}")
+def delete_session(sid: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Discard a session entirely — the unfinished-workout sheet uses this to drop
+    an abandoned run, and History uses it for swipe-to-delete. Removes the logged
+    sets and any cardio series with it; all-time records are left as-is (a PB is a
+    fact about a day, not a live pointer — mirrors edit_set's simplification)."""
+    session = db.get(WorkoutSession, sid)
+    if not session or session.user_id != user.id:
+        raise HTTPException(status_code=404, detail="session not found")
+    db.query(LoggedSet).filter(LoggedSet.session_id == sid).delete()
+    db.query(WorkoutSeries).filter(WorkoutSeries.session_id == sid).delete()
+    db.delete(session)
     db.commit()
     return {"ok": True}
 
@@ -573,14 +698,17 @@ def alternatives(slug: str, user: User = Depends(current_user), db: Session = De
 
 @router.get("/history")
 def history(limit: int = Query(default=30, ge=1, le=100), offset: int = Query(default=0, ge=0),
+            favorites: bool = Query(default=False),
             user: User = Depends(current_user), db: Session = Depends(get_db)):
-    rows = (db.query(WorkoutSession)
-            .filter(WorkoutSession.user_id == user.id,
-                    WorkoutSession.status.in_(["completed", "unplanned"]))
-            .order_by(WorkoutSession.day.desc(), WorkoutSession.started_at.desc())
+    q = (db.query(WorkoutSession)
+         .filter(WorkoutSession.user_id == user.id,
+                 WorkoutSession.status.in_(["completed", "unplanned"])))
+    if favorites:
+        q = q.filter(WorkoutSession.favorite.is_(True))
+    rows = (q.order_by(WorkoutSession.day.desc(), WorkoutSession.started_at.desc())
             .offset(offset).limit(limit).all())
     return [{"id": s.id, "day": str(s.day), "name": s.name, "kind": s.kind,
-             "status": s.status, "stats": s.stats or {}} for s in rows]
+             "status": s.status, "stats": s.stats or {}, "favorite": bool(s.favorite)} for s in rows]
 
 
 def _e1rm_series(db: Session, user_id: str) -> dict:

@@ -407,10 +407,11 @@ def _rpc_result(rid, result: dict) -> JSONResponse:
     return JSONResponse({"jsonrpc": "2.0", "id": rid, "result": result})
 
 
-def _www_auth() -> dict:
+def _www_auth(request: Request) -> dict:
     """401 header pointing at the resource metadata — this is what makes Claude's
     connector UI discover the OAuth flow instead of giving up (RFC 9728 §5.1)."""
-    base = get_settings().base_url.rstrip("/")
+    from ..security import public_base_url
+    base = public_base_url(request)
     return {"WWW-Authenticate":
             f'Bearer resource_metadata="{base}/.well-known/oauth-protected-resource/mcp"'}
 
@@ -425,7 +426,7 @@ async def mcp_endpoint(request: Request, db: Session = Depends(get_db)):
     if not user:
         return JSONResponse({"error": "missing or unknown bearer token — connect via OAuth "
                                       "or use your Forge ingest token"},
-                            status_code=401, headers=_www_auth())
+                            status_code=401, headers=_www_auth(request))
 
     try:
         msg = json.loads(await request.body())

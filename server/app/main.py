@@ -7,7 +7,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import OperationalError
 from starlette.middleware.sessions import SessionMiddleware
@@ -18,6 +19,7 @@ from .db import Base, SessionLocal, engine
 from .notify import push_enabled, send_push
 from .routers import (admin, auth, coach_api, food, ingest, mcp_food, mcp_oauth, misc, push,
                       training, withings)
+from .security import public_base_url
 from .seed import run_seed
 
 # uvicorn only configures its own loggers — without this, forge.* INFO logs
@@ -148,6 +150,7 @@ async def lifespan(_app: FastAPI):
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
 
     _add_missing_columns("exercises", {"benefit": "TEXT DEFAULT ''"})
+    _add_missing_columns("workout_sessions", {"favorite": "BOOLEAN DEFAULT FALSE"})
     # full macro set on the food tables (carbs/sugar/fat/sodium joined the trio)
     _new_macros = {c: "FLOAT DEFAULT 0" for c in ("carbs_g", "sugar_g", "fat_g", "sodium_mg")}
     _add_missing_columns("recipes", {"sugar_g": "FLOAT DEFAULT 0", "sodium_mg": "FLOAT DEFAULT 0"})
@@ -218,7 +221,6 @@ def _html_page(name: str):
     The public domain deliberately lives only in the compose override — tracked
     files carry the token so the repo never names the host."""
     from fastapi import HTTPException
-    from fastapi.responses import HTMLResponse
     try:
         html = (_static / name).read_text()
     except OSError:
@@ -226,15 +228,27 @@ def _html_page(name: str):
     return HTMLResponse(html.replace("__BASE_URL__", get_settings().base_url.rstrip("/")))
 
 
-@app.get("/")
-def index_page():
-    return _html_page("index.html")
+def _render_index(request: Request) -> HTMLResponse:
+    # Serve the SPA shell with the __ORIGIN__ placeholder in its link-preview
+    # (Open Graph / Twitter) tags resolved to the request's own origin, so the
+    # absolute og:image / og:url track whichever allowed domain the link was
+    # shared from (spoof-safe via public_base_url). Read per-request: the shell
+    # is tiny and only navigations hit it. no-cache keeps a shared proxy from
+    # serving one host's absolute URLs to another.
+    html = (_static / "index.html").read_text(encoding="utf-8")
+    html = html.replace("__ORIGIN__", public_base_url(request))
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
-@app.get("/dashboard")
-def dashboard_page():
+@app.get("/", response_class=HTMLResponse)
+def index_page(request: Request):
+    return _render_index(request)
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard_page(request: Request):
     # SPA route: the desktop dashboard lives at /dashboard but is the same bundle.
-    return _html_page("index.html")
+    return _render_index(request)
 
 
 @app.get("/.well-known/security.txt")

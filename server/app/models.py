@@ -1,8 +1,8 @@
 from datetime import date, datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import (JSON, Date, DateTime, Float, ForeignKey, Integer, LargeBinary, String,
-                        Text, UniqueConstraint)
+from sqlalchemy import (JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, LargeBinary,
+                        String, Text, UniqueConstraint)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -138,6 +138,22 @@ class PlanRevision(Base):
     plan: Mapped[Plan] = relationship(back_populates="revisions")
 
 
+class PlannedItem(Base):
+    """User-authored forward planning: a workout or meal pencilled onto a
+    specific calendar date, so future weeks can be sketched before the coach
+    plan covers them. Separate table (not plan content) — the coach plan stays
+    weekday-shaped and create_all provisions this without a migration."""
+    __tablename__ = "planned_items"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    date: Mapped[date] = mapped_column(Date, index=True)
+    kind: Mapped[str] = mapped_column(String(16))  # workout | meal
+    title: Mapped[str] = mapped_column(String(120))
+    notes: Mapped[str] = mapped_column(Text, default="")
+    plan_day: Mapped[str | None] = mapped_column(String(1), nullable=True)  # weekday key "0".."6"
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class WorkoutSession(Base):
     __tablename__ = "workout_sessions"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
@@ -152,6 +168,7 @@ class WorkoutSession(Base):
     fitted: Mapped[dict] = mapped_column(JSON, default=dict)  # snapshot: targets, cooldown list
     cooldown_status: Mapped[str] = mapped_column(String(16), default="")  # done | partial | skipped
     notes: Mapped[str] = mapped_column(Text, default="")
+    favorite: Mapped[bool] = mapped_column(Boolean, default=False, index=True)  # user-starred standout
     stats: Mapped[dict] = mapped_column(JSON, default=dict)  # tonnage, duration_s, cardio stats...
     sets: Mapped[list["LoggedSet"]] = relationship(order_by="LoggedSet.ts")
 

@@ -158,6 +158,24 @@ server {
 Set `BASE_URL=https://forge.yourdomain.com` so session cookies are marked Secure and the
 OAuth redirect matches.
 
+### Serving on more than one domain
+
+Point any number of hostnames at the same instance and list the extra ones in
+`ALLOWED_HOSTS` (comma-separated, alongside `BASE_URL` in the compose environment):
+
+```
+- BASE_URL=https://forge.yourdomain.com
+- ALLOWED_HOSTS=forge.otherdomain.com,fitness.thirddomain.net
+```
+
+Google sign-in then completes on whichever domain it started from — add **each**
+domain's `https://host/auth/callback` to the OAuth client's authorized redirect URIs
+in the Google Cloud Console. Hosts not on the list fall back to `BASE_URL` for the
+OAuth round-trip (so a spoofed Host header can't redirect sign-ins elsewhere).
+Two caveats: Withings stays anchored to `BASE_URL` (their app registration takes one
+callback URL), and each domain is a separate PWA install on your phone with its own
+offline queue and push subscription.
+
 ## Development
 
 Backend:

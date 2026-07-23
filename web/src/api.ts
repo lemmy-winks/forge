@@ -130,9 +130,10 @@ export interface Fitted { name: string; budget: number | null; est: number; cd: 
 export interface StartSessionResp { id: string; fitted: Fitted; resumed: boolean; }
 export interface Pb { kind: string; slug: string; value: number; detail: string; }
 
-export interface HistoryItem { id: string; day: string; name: string; kind: string; status: string; stats: any; }
+export interface HistoryItem { id: string; day: string; name: string; kind: string; status: string; stats: any; favorite?: boolean; }
 export interface SessionDetail {
   id: string; day: string; name: string; kind: string; status: string; stats: any; notes: string;
+  favorite?: boolean;
   cooldown_status: string; fitted: Fitted | Record<string, never>;
   exercises: { slug: string; name: string; substituted_for: string | null;
     sets: { set_no: number; weight: number; reps: number; rpe: number | null }[] }[];
@@ -188,11 +189,17 @@ export interface ChatMsg { who: 'me' | 'coach'; text: string; at?: string; }
 export interface ChatResp { messages: ChatMsg[]; pending: boolean; }
 /** Deep-link context: what the user was looking at when they opened the coach. */
 export interface ChatContext { kind: 'session' | 'exercise' | 'proposal'; id?: string; label: string; }
+/** A workout or meal the user pencilled onto a specific (usually future) date. */
+export interface PlannedItem {
+  id: string; date: string; kind: 'workout' | 'meal'; title: string; notes: string;
+  plan_day: string | null;
+}
 export interface WeekDay {
   date: string; day_name: string; is_today: boolean;
   kind: 'strength' | 'cardio' | 'rest'; name: string | null; focus: string[];
   est?: number; exercise_count?: number; minutes?: number;
   session: { id: string; kind: string; status: string; stats: any; name: string } | null;
+  planned: PlannedItem[];
 }
 export interface WeekResp {
   start: string; today: string; rationale: string; days: WeekDay[];

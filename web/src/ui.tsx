@@ -187,6 +187,27 @@ export function Loading() {
   return <div className="chip">Loading…</div>;
 }
 
+/** Bottom sheet asking the user to confirm a destructive action. `danger` paints
+    the confirm pill warm (the design system's one non-accent colour). */
+export function ConfirmSheet({ title, body, confirmLabel, cancelLabel = 'Cancel', danger, busy,
+  onConfirm, onCancel }: {
+  title: string; body: ReactNode; confirmLabel: string; cancelLabel?: string;
+  danger?: boolean; busy?: boolean; onConfirm: () => void; onCancel: () => void;
+}) {
+  return (
+    <div className="overlay" onClick={() => !busy && onCancel()}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <h3>{title}</h3>
+        <div className="sub" style={{ marginTop: 0 }}>{body}</div>
+        <button className={'cta press' + (danger ? ' danger' : '')} disabled={busy} onClick={onConfirm}>
+          {busy ? 'Working…' : confirmLabel}
+        </button>
+        <button className="ghost press" disabled={busy} onClick={onCancel}>{cancelLabel}</button>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- chat bubbles ---------------- */
 /** Minimal markdown for coach messages: bold, italics, bullets, line breaks.
     The model writes markdown; raw asterisks in a bubble read as a bug. */

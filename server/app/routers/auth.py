@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ..config import get_settings
 from ..db import get_db
 from ..models import User
-from ..security import clear_session, current_user, set_session
+from ..security import clear_session, current_user, public_base_url, set_session
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -42,14 +42,14 @@ def mode(db: Session = Depends(get_db)):
 
 
 @router.post("/demo")
-def demo_login(db: Session = Depends(get_db)):
+def demo_login(request: Request, db: Session = Depends(get_db)):
     """Open the demo account (Bruce). Enabled the moment the admin creates it —
     the session is scoped to demo data only, like any other user's."""
     user = db.query(User).filter(User.role == "demo").first()
     if not user:
         raise HTTPException(status_code=404, detail="demo not enabled")
     resp = JSONResponse({"ok": True, "name": user.name})
-    set_session(resp, user.id)
+    set_session(resp, user.id, request)
     return resp
 
 
@@ -58,7 +58,7 @@ class DevLogin(BaseModel):
 
 
 @router.post("/dev")
-def dev_login(body: DevLogin, db: Session = Depends(get_db)):
+def dev_login(body: DevLogin, request: Request, db: Session = Depends(get_db)):
     s = get_settings()
     if not s.dev_login_enabled:
         raise HTTPException(status_code=403, detail="dev sign-in disabled")
@@ -68,7 +68,7 @@ def dev_login(body: DevLogin, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=403, detail="not on the list")
     resp = JSONResponse({"ok": True, "name": user.name})
-    set_session(resp, user.id)
+    set_session(resp, user.id, request)
     return resp
 
 
@@ -84,7 +84,9 @@ async def login(request: Request):
     nxt = _safe_next(request.query_params.get("next", "/"))
     if nxt != "/":
         request.session["post_login_next"] = nxt  # e.g. the MCP OAuth consent page
-    redirect_uri = get_settings().base_url.rstrip("/") + "/auth/callback"
+    # Host-derived so sign-in completes on whichever allowed domain it started on;
+    # every allowed host's /auth/callback must be registered with the Google client.
+    redirect_uri = public_base_url(request) + "/auth/callback"
     return await _google().authorize_redirect(request, redirect_uri)
 
 
@@ -99,7 +101,7 @@ async def callback(request: Request, db: Session = Depends(get_db)):
     if not user:
         return RedirectResponse("/?denied=" + email)
     resp = RedirectResponse(_safe_next(request.session.pop("post_login_next", "/")))
-    set_session(resp, user.id)
+    set_session(resp, user.id, request)
     return resp
 
 

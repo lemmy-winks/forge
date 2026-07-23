@@ -274,6 +274,45 @@ def test_week_snaps_to_monday_and_pages():
     assert fw["start"] == MONDAY and "today" in fw
 
 
+def test_planned_items_future_week():
+    login()
+    next_mon = "2026-07-27"
+    meal = client.post("/api/plan-items", json={
+        "date": "2026-07-28", "kind": "meal", "title": "Chili prep", "notes": "double batch"}).json()
+    wo = client.post("/api/plan-items", json={
+        "date": next_mon, "kind": "workout", "plan_day": "0"}).json()
+    assert wo["title"] == "Lower A", "workout title comes from the plan day"
+
+    w = client.get(f"/api/week?date={next_mon}").json()
+    assert [i["id"] for i in w["days"][0]["planned"]] == [wo["id"]]
+    assert w["days"][1]["planned"][0]["notes"] == "double batch"
+    assert all(d["planned"] == [] for d in w["days"][2:])
+
+    # validation: unknown kind, plan_day outside the active plan, empty title
+    assert client.post("/api/plan-items",
+                       json={"date": next_mon, "kind": "snack", "title": "x"}).status_code == 400
+    assert client.post("/api/plan-items",
+                       json={"date": next_mon, "kind": "workout", "plan_day": "9"}).status_code == 400
+    assert client.post("/api/plan-items",
+                       json={"date": next_mon, "kind": "meal", "title": "  "}).status_code == 400
+
+    r = client.patch(f"/api/plan-items/{meal['id']}", json={"notes": "triple batch"})
+    assert r.json()["notes"] == "triple batch"
+
+    # segregation: Shelby sees nothing and can't touch James's items
+    login("shelby@test.dev")
+    ws = client.get(f"/api/week?date={next_mon}").json()
+    assert all(d["planned"] == [] for d in ws["days"])
+    assert client.delete(f"/api/plan-items/{meal['id']}").status_code == 404
+    assert client.patch(f"/api/plan-items/{meal['id']}", json={"title": "hijack"}).status_code == 404
+
+    login()
+    assert client.delete(f"/api/plan-items/{meal['id']}").json()["ok"] is True
+    assert client.delete(f"/api/plan-items/{wo['id']}").json()["ok"] is True
+    w = client.get(f"/api/week?date={next_mon}").json()
+    assert all(d["planned"] == [] for d in w["days"])
+
+
 def test_history_pagination():
     login()
     full = client.get("/api/history").json()
@@ -752,6 +791,29 @@ def test_user_segregation():
     squat = next(e for e in t["exercises"] if e["slug"] == "back-squat")
     assert squat["weight"] < 60, "Shelby's seeded plan is scaled independently"
     assert not any(c.get("why") for c in t["cooldown"]), "James's niggle must not leak"
+
+
+def test_map_config():
+    # signed-in only — the key is publishable but not anonymous
+    fresh = TestClient(app)
+    assert fresh.get("/api/map/config").status_code == 401
+
+    login("shelby@test.dev")
+    assert client.get("/api/map/config").json() == {"enabled": False, "key": ""}
+
+    # admin stores the key in-app; it applies live, and any member gets it in
+    # full (it ships to the browser to fetch tiles — masking would be theater)
+    login()
+    r = client.put("/api/admin/settings", json={"values": {"maptiler_key": "mt-test-key"}})
+    assert r.status_code == 200
+    assert r.json()["maptiler_key"] == {"set": True, "value": "mt-test-key", "source": "app"}
+    login("shelby@test.dev")
+    assert client.get("/api/map/config").json() == {"enabled": True, "key": "mt-test-key"}
+
+    # clearing reverts to the env default (empty) — clients fall back to the SVG trace
+    login()
+    client.put("/api/admin/settings", json={"values": {"maptiler_key": ""}})
+    assert client.get("/api/map/config").json()["enabled"] is False
 
 
 def test_admin_settings_and_user_management():
@@ -1577,3 +1639,69 @@ def test_weekly_note_repair_and_voice():
         db.close()
     wk = client.get("/api/week").json()
     assert "—" in wk["rationale"] and "\\u" not in wk["rationale"]
+
+def test_favorite_star_and_filter():
+    """Star a session, confirm it in the detail + history payloads, and that the
+    favorites filter narrows History to starred sessions."""
+    login()
+    r = client.post("/api/sessions", json={"date": MONDAY, "budget": 40}).json()
+    sid = r["id"]
+    client.post(f"/api/sessions/{sid}/sets",
+                json={"slug": "back-squat", "set_no": 1, "weight": 60, "reps": 5})
+    client.post(f"/api/sessions/{sid}/complete", json={"cooldown_status": "skipped"})
+
+    assert client.get(f"/api/sessions/{sid}").json()["favorite"] is False
+    row = next(h for h in client.get("/api/history").json() if h["id"] == sid)
+    assert row["favorite"] is False
+
+    r = client.patch(f"/api/sessions/{sid}/favorite", json={"favorite": True})
+    assert r.status_code == 200 and r.json()["favorite"] is True
+    assert client.get(f"/api/sessions/{sid}").json()["favorite"] is True
+
+    fav = client.get("/api/history?favorites=true").json()
+    assert any(h["id"] == sid for h in fav) and all(h["favorite"] for h in fav)
+
+    client.patch(f"/api/sessions/{sid}/favorite", json={"favorite": False})
+    assert all(h["id"] != sid for h in client.get("/api/history?favorites=true").json())
+
+
+def test_delete_session():
+    """Discard/delete drops the session and its sets; it vanishes from History."""
+    login()
+    r = client.post("/api/sessions", json={"date": MONDAY, "budget": 40}).json()
+    sid = r["id"]
+    client.post(f"/api/sessions/{sid}/sets",
+                json={"slug": "back-squat", "set_no": 1, "weight": 60, "reps": 5})
+    client.post(f"/api/sessions/{sid}/complete", json={"cooldown_status": "skipped"})
+    assert any(h["id"] == sid for h in client.get("/api/history").json())
+
+    assert client.delete(f"/api/sessions/{sid}").status_code == 200
+    assert all(h["id"] != sid for h in client.get("/api/history").json())
+    assert client.get(f"/api/sessions/{sid}").status_code == 404
+
+
+def test_discard_dangling_session():
+    """The unfinished-workout sheet discards an abandoned session via DELETE,
+    clearing the /api/week reminder."""
+    login()
+    past_monday = "2026-07-06"  # strength day, before today
+    r = client.post("/api/sessions", json={"date": past_monday})
+    sid = r.json()["id"]
+    client.post(f"/api/sessions/{sid}/sets",
+                json={"slug": "back-squat", "set_no": 1, "weight": 60, "reps": 5})
+    assert client.get("/api/week").json()["dangling"]["id"] == sid
+
+    assert client.delete(f"/api/sessions/{sid}").status_code == 200
+    assert client.get("/api/week").json()["dangling"] is None
+
+
+def test_favorite_and_delete_scoped_to_owner():
+    """Neither favoriting nor deleting reaches another user's session (404)."""
+    login("james@test.dev")
+    sid = client.post("/api/sessions", json={"date": MONDAY, "budget": 40}).json()["id"]
+    login("shelby@test.dev")
+    assert client.patch(f"/api/sessions/{sid}/favorite", json={"favorite": True}).status_code == 404
+    assert client.delete(f"/api/sessions/{sid}").status_code == 404
+    # clean up James's leftover active session
+    login("james@test.dev")
+    client.delete(f"/api/sessions/{sid}")
