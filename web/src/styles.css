@@ -454,7 +454,9 @@ button.fpill{ border:none; font:inherit; cursor:pointer; }
 .ingname{ flex:1 1 auto; min-width:0; overflow-wrap:anywhere; }
 .ingnote{ display:block; margin-top:2px; font-size:11.5px; line-height:1.35;
           color:var(--volt); overflow-wrap:anywhere; }
-.ingamt{ flex:0 0 auto; max-width:46%; text-align:right; overflow-wrap:anywhere; }
+.ingamt{ flex:0 0 auto; max-width:46%; overflow-wrap:anywhere; display:flex;
+         flex-direction:column; align-items:flex-end; gap:1px; text-align:right; }
+.ingtag{ font-size:9.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); }
 /* cook-mode background timers — persist across steps, run in parallel */
 .timerstrip{ display:flex; gap:8px; overflow-x:auto; padding:2px 0 4px; -webkit-overflow-scrolling:touch; }
 .timerpill{ flex:0 0 auto; display:flex; flex-direction:column; gap:1px; text-align:left;

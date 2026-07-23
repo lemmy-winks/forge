@@ -680,8 +680,8 @@ export function useRecipe(slug: string) {
  *  The freeform `disp` is only trustworthy at the authored count, so once scaled
  *  we fall back to the numeric qty·unit. */
 function scaledAmount(i: RecipeIngredient, base: number, servings: number): string {
-  if (i.pantry) return 'pantry';
-  if (servings === base || !i.qty || base <= 0) return i.disp || (i.qty ? `${i.qty} ${i.unit}` : '');
+  if (!i.qty) return i.disp || '';  // no quantity to show (e.g. "to taste")
+  if (servings === base || base <= 0) return i.disp || `${i.qty} ${i.unit}`;
   const v = (i.qty * servings) / base;
   if (i.unit === 'x') {
     const n = Math.round(v * 2) / 2;
@@ -832,7 +832,10 @@ export function RecipeScreen() {
               {i.name}
               {i.note && i.note !== 'pantry' && <span className="ingnote">{i.note}</span>}
             </span>
-            <span className="sub num ingamt">{scaledAmount(i, r.serves, servings)}</span>
+            <span className="ingamt">
+              <span className="sub num">{scaledAmount(i, r.serves, servings)}</span>
+              {i.pantry && <span className="ingtag">pantry</span>}
+            </span>
           </div>
         ))}
       </div>
