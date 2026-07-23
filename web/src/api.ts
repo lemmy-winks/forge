@@ -272,6 +272,12 @@ export interface RecipeFull extends RecipeCard {
   source: string; source_url: string;
   images: string[]; rating: number; rating_count: number;
 }
+/** One row of the library browser (GET /api/food/recipes). `complete: false`
+ *  = parked import — browsable, never proposed by the coach. */
+export interface RecipeListItem extends RecipeCard {
+  tags: string[]; source: string; complete: boolean;
+}
+export interface RecipeList { count: number; recipes: RecipeListItem[]; }
 /** Full-history series for one body/engine metric (Progress drill-down). */
 export interface MetricHistory { type: string; unit: string; points: SeriesPoint[]; }
 

@@ -8,7 +8,7 @@ import { flushQueue } from './queue';
 import { AuthScreen, DeniedScreen } from './screens/auth';
 import { CoachScreen } from './screens/coach';
 import { DetailScreen, HistoryScreen, MetricScreen, ProgressScreen, RecordsScreen } from './screens/data';
-import { CookScreen, FoodDayScreen, FoodWeekScreen, RecipeScreen, flushFoodQueue } from './screens/food';
+import { CookScreen, FoodDayScreen, FoodWeekScreen, RecipeLibraryScreen, RecipeScreen, flushFoodQueue } from './screens/food';
 import { LearnScreen } from './screens/learn';
 import { OnboardingFlow } from './screens/onboarding';
 import { CooldownScreen, LogScreen, SummaryScreen, SwapScreen } from './screens/session';
@@ -113,6 +113,7 @@ function AppInner({ me }: { me: Me }) {
   const [dayDate, setDayDate] = useState<string | null>(null);
   const [foodSlug, setFoodSlug] = useState('');
   const [foodDate, setFoodDate] = useState<string | null>(null);
+  const [foodFrom, setFoodFrom] = useState<Screen>('food');
   const [budget, setBudget] = useState<number | null>(null);
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [chatContext, setChatContext] = useState<AppCtxType['chatContext']>(null);
@@ -126,10 +127,11 @@ function AppInner({ me }: { me: Me }) {
     if (extra && 'dayDate' in extra) setDayDate(extra.dayDate ?? null);
     if (extra?.foodSlug !== undefined) setFoodSlug(extra.foodSlug);
     if (extra && 'foodDate' in extra) setFoodDate(extra.foodDate ?? null);
+    if (extra?.foodFrom !== undefined) setFoodFrom(extra.foodFrom);
     if (extra && 'chatContext' in extra) setChatContext(extra.chatContext ?? null);
     setScreen(s);
     if (s === 'coach') setTab('coach');
-    if (s === 'food' || s === 'food-week' || s === 'recipe' || s === 'cook') setTab('food');
+    if (s === 'food' || s === 'food-week' || s === 'recipes' || s === 'recipe' || s === 'cook') setTab('food');
   }, []);
 
   const openTab = useCallback((t: Tab) => { setTab(t); setScreen(t); }, []);
@@ -244,16 +246,17 @@ function AppInner({ me }: { me: Me }) {
   }, []);
 
   const ctx = useMemo<AppCtxType>(() => ({
-    me, screen, tab, learnSlug, learnFrom, detailId, lift, dayDate, foodSlug, foodDate,
+    me, screen, tab, learnSlug, learnFrom, detailId, lift, dayDate, foodSlug, foodDate, foodFrom,
     chatContext, setChatContext,
     go, openTab, budget, setBudget, log, logDispatch, startSession, resumeSession, finishSession, summary, signOut,
-  }), [me, screen, tab, learnSlug, learnFrom, detailId, lift, dayDate, foodSlug, foodDate,
+  }), [me, screen, tab, learnSlug, learnFrom, detailId, lift, dayDate, foodSlug, foodDate, foodFrom,
        chatContext, go, openTab, budget, log, startSession, resumeSession, finishSession, summary, signOut]);
 
   const SCREENS: Record<Screen, () => JSX.Element> = {
     today: PlanScreen, day: DayScreen, learn: LearnScreen, log: LogScreen, swap: SwapScreen,
     cooldown: CooldownScreen, summary: SummaryScreen,
-    food: FoodDayScreen, 'food-week': FoodWeekScreen, recipe: RecipeScreen, cook: CookScreen,
+    food: FoodDayScreen, 'food-week': FoodWeekScreen, recipes: RecipeLibraryScreen,
+    recipe: RecipeScreen, cook: CookScreen,
     history: HistoryScreen, detail: DetailScreen, progress: ProgressScreen, records: RecordsScreen,
     metric: MetricScreen,
     coach: CoachScreen, settings: SettingsScreen, 'set-conn': ConnectionsScreen,

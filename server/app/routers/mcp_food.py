@@ -28,7 +28,7 @@ from ..media import store_images
 from ..models import MACRO_FIELDS, Ingredient, MealLog, Recipe, User
 from ..security import user_for_ingest_token
 from .mcp_oauth import user_for_mcp_token
-from .food import SLOT_ORDER, recipe_card, targets_for
+from .food import SLOT_ORDER, query_recipes, recipe_card, targets_for
 from .training import parse_date
 
 log = logging.getLogger("forge.mcp")
@@ -50,6 +50,15 @@ INSTRUCTIONS = (
 _MACRO_PROPS = {k: {"type": "number", "description": ("kilocalories" if k == "kcal" else
                                                       "milligrams" if k.endswith("_mg") else "grams")}
                 for k in MACRO_FIELDS}
+
+# Ingredient-table columns mirror MACRO_FIELDS, per 100 g/ml: kcal→kcal_100,
+# protein_g→protein_100, sodium_mg→sodium_100.
+ING_MACROS = tuple(k.removesuffix("_g").removesuffix("_mg") + "_100" for k in MACRO_FIELDS)
+AISLES = ("produce", "protein", "dairy", "cupboard", "frozen")
+_ING_MACRO_PROPS = {k: {"type": "number",
+                        "description": ("kcal" if k == "kcal_100" else "mg" if k == "sodium_100" else "grams")
+                                       + " per 100 g/ml (per item when unit is 'x')"}
+                    for k in ING_MACROS}
 
 
 class ToolError(Exception):
@@ -119,9 +128,11 @@ TOOLS: list[dict] = [
             "cook it's done ('until the onions are translucent, ~5 min') — NEVER copy "
             "source prose verbatim. source_url is required and kept as attribution. "
             "Re-importing the same slug or source_url updates the existing entry. "
-            "Ingredients unknown to Forge's pantry reference, or difficulty above "
-            "medium, park the recipe as incomplete (never proposed by the coach) — "
-            "it's still browsable."),
+            "Ingredients unknown to Forge's pantry reference park the recipe as "
+            "incomplete (never proposed by the coach, still browsable) UNLESS the "
+            "ingredient entry carries per-100g reference macros (kcal_100 at minimum "
+            "— look them up from the source or a nutrition database), which adds it "
+            "to the canonical reference. Difficulty above medium also parks."),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -140,7 +151,11 @@ TOOLS: list[dict] = [
                     "properties": {"name": {"type": "string"}, "qty": {"type": "number"},
                                    "unit": {"type": "string", "description": "g | ml | x"},
                                    "disp": {"type": "string", "description": "Human amount, e.g. '1 tin'"},
-                                   "note": {"type": "string"}},
+                                   "note": {"type": "string"},
+                                   **_ING_MACRO_PROPS,
+                                   "aisle": {"type": "string", "enum": list(AISLES)},
+                                   "pantry": {"type": "boolean",
+                                              "description": "Staple that never hits a shopping list"}},
                     "required": ["name"]}},
                 "steps": {"type": "array", "items": {
                     "type": "object",
@@ -292,9 +307,28 @@ def _tool_import_recipe(db: Session, user: User, a: dict) -> dict:
     warnings: list[str] = []
     names = [i.get("name", "") for i in ingredients]
     known = {n for (n,) in db.query(Ingredient.name).filter(Ingredient.name.in_(names)).all()}
-    unknown = [n for n in names if n not in known]
+    # an unknown ingredient joins the canonical reference iff the import supplies
+    # per-100g macros for it (kcal_100 is the gate) — otherwise it parks the recipe
+    created: list[str] = []
+    unknown: list[str] = []
+    for i in ingredients:
+        n = i.get("name", "")
+        if not n or n in known:
+            continue
+        if i.get("kcal_100") is None:
+            unknown.append(n)
+            continue
+        db.add(Ingredient(
+            name=n[:80],
+            aisle=i.get("aisle") if i.get("aisle") in AISLES else "cupboard",
+            unit=i.get("unit") if i.get("unit") in ("g", "ml", "x") else "g",
+            pantry=1 if i.get("pantry") else 0,
+            **{c: round(float(i.get(c) or 0), 1) for c in ING_MACROS}))
+        known.add(n)
+        created.append(n)
     if unknown:
-        warnings.append(f"unknown ingredients (recipe parked as incomplete): {', '.join(unknown)}")
+        warnings.append("unknown ingredients (recipe parked as incomplete — re-import with "
+                        f"per-100g macros to add them): {', '.join(unknown)}")
     if difficulty == "hard":
         warnings.append("difficulty 'hard' is above the library ceiling — parked as incomplete")
     if not a.get("kcal"):
@@ -355,22 +389,16 @@ def _tool_import_recipe(db: Session, user: User, a: dict) -> dict:
     db.commit()
     out = {"slug": r.slug, "updated": updated, "complete": bool(complete),
            "images_stored": len(images), "app_path": f"/api/food/recipes/{r.slug}"}
+    if created:
+        out["ingredients_added"] = created
     if warnings:
         out["warnings"] = warnings
     return out
 
 
 def _tool_search_recipes(db: Session, user: User, a: dict) -> dict:
-    q = db.query(Recipe)
-    if a.get("kind"):
-        q = q.filter(Recipe.kind == a["kind"])
-    if not a.get("include_incomplete"):
-        q = q.filter(Recipe.complete == 1)
-    rows = q.order_by(Recipe.name).all()
-    term = (a.get("query") or "").lower().strip()
-    if term:
-        rows = [r for r in rows
-                if term in r.name.lower() or any(term in t.lower() for t in (r.tags or []))]
+    rows = query_recipes(db, a.get("kind"), a.get("query") or "",
+                         bool(a.get("include_incomplete")))
     return {"count": len(rows),
             "recipes": [{**recipe_card(r), "tags": r.tags or [], "source": r.source,
                          "source_url": r.source_url, "complete": bool(r.complete)} for r in rows]}

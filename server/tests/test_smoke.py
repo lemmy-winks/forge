@@ -1475,6 +1475,58 @@ def test_mcp_recipe_import_and_search():
                             {"query": "mystery", "include_incomplete": True})["structuredContent"]
     assert with_parked["count"] == 1
 
+
+def test_mcp_import_creates_ingredients_and_library_lists_all():
+    """An unknown ingredient carrying per-100g reference macros joins the
+    canonical table (the import completes); a macro-less unknown still parks.
+    The app's /api/food/recipes library endpoint lists both, badged by
+    `complete`, with search + kind filter."""
+    login()
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+
+    res = _mcp_tool(tok, "import_recipe", {
+        "name": "Unicorn Shank Stew", "source_url": "https://example.com/unicorn-stew",
+        "kcal": 410, "protein_g": 38, "tags": ["stew"],
+        "ingredients": [{"name": "unicorn shank", "qty": 250, "unit": "g", "aisle": "protein",
+                         "kcal_100": 120, "protein_100": 21.5, "fat_100": 3.2}],
+        "steps": [{"title": "Braise", "detail": "Until it shreds with a fork, ~2 h"}],
+    })["structuredContent"]
+    assert res["complete"] is True
+    assert res["ingredients_added"] == ["unicorn shank"]
+
+    # now canonical: a second recipe uses it with no macro data and still completes
+    res2 = _mcp_tool(tok, "import_recipe", {
+        "name": "Unicorn Skewers", "source_url": "https://example.com/unicorn-skewers",
+        "kcal": 300, "protein_g": 30,
+        "ingredients": [{"name": "unicorn shank", "qty": 150, "unit": "g"}],
+        "steps": [{"title": "Grill", "detail": "Until charred at the edges, ~8 min"}],
+    })["structuredContent"]
+    assert res2["complete"] is True and "ingredients_added" not in res2
+
+    # recipe detail joins the newly created reference row for its aisle
+    detail = client.get("/api/food/recipes/unicorn-shank-stew").json()
+    assert detail["ingredients"][0]["aisle"] == "protein"
+
+    # a macro-less unknown still parks, and the warning points at the fix
+    park = _mcp_tool(tok, "import_recipe", {
+        "name": "Gryphon Surprise", "source_url": "https://example.com/gryphon",
+        "kcal": 350, "protein_g": 25,
+        "ingredients": [{"name": "gryphon egg"}],
+        "steps": [{"title": "Poach", "detail": "Until the white is set through"}],
+    })["structuredContent"]
+    assert park["complete"] is False
+    assert any("per-100g" in w for w in park["warnings"])
+
+    # the library endpoint: everything, parked included, badged by `complete`
+    lib = client.get("/api/food/recipes").json()
+    by_slug = {r["slug"]: r for r in lib["recipes"]}
+    assert by_slug["unicorn-shank-stew"]["complete"] is True
+    assert by_slug["gryphon-surprise"]["complete"] is False
+    hits = client.get("/api/food/recipes?q=unicorn&kind=dinner").json()
+    assert {r["slug"] for r in hits["recipes"]} == {"unicorn-shank-stew", "unicorn-skewers"}
+    assert client.get("/api/food/recipes?q=unicorn&kind=breakfast").json()["count"] == 0
+
+
 def test_restart_with_new_budget_refits():
     """Shortening the workout after it was already started must stick: a second
     POST /api/sessions with a different budget re-fits the active session's

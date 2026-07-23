@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   addDaysISO, api, ApiError, fmtT, MACRO_KEYS, todayISO, weekStartISO,
   type FoodDay, type FoodProposalResp, type FoodPropSlot, type FoodSlot, type FoodWeek,
-  type Macros, type RecipeFull,
+  type Macros, type RecipeFull, type RecipeList,
 } from '../api';
 import { PlateFig } from '../platefig';
 import { Back, Chip, Loading, Shell, Title, toast, useApp } from '../ui';
@@ -255,8 +255,12 @@ export function FoodDayScreen() {
     <Shell>
       <div className="row" style={{ alignItems: 'baseline' }}>
         <Title kick={`${day.day_name} · ${day.date}${day.is_today ? ' · today' : ''}`}>Food</Title>
-        <button className="press" style={{ fontSize: 13, color: 'var(--volt)', fontWeight: 700 }}
-          onClick={() => go('food-week')}>Week ›</button>
+        <span style={{ display: 'flex', gap: 14 }}>
+          <button className="press" style={{ fontSize: 13, color: 'var(--volt)', fontWeight: 700 }}
+            onClick={() => go('recipes')}>Recipes ›</button>
+          <button className="press" style={{ fontSize: 13, color: 'var(--volt)', fontWeight: 700 }}
+            onClick={() => go('food-week')}>Week ›</button>
+        </span>
       </div>
 
       <FoodProposalBanner onOpen={() => setPropOpen(true)} />
@@ -297,7 +301,7 @@ export function FoodDayScreen() {
           <button key={s.slot} className={'mealrow press' + (s.out ? ' dimrow' : '')}
             onClick={() => {
               if (s.recipe && !s.leftover && (s.slot === 'dinner' || (s.recipe.minutes ?? 0) > 5)) {
-                go('recipe', { foodSlug: s.recipe.slug, foodDate: day.date });
+                go('recipe', { foodSlug: s.recipe.slug, foodDate: day.date, foodFrom: 'food' });
               } else if (!passive) {
                 tick(s, day.date);
               }
@@ -468,6 +472,67 @@ export function FoodWeekScreen() {
   );
 }
 
+/* ---------------- recipe library (browse + search) ---------------- */
+const KINDS = ['dinner', 'lunch', 'breakfast', 'snack'] as const;
+
+export function RecipeLibraryScreen() {
+  const { go } = useApp();
+  const [q, setQ] = useState('');
+  const [kind, setKind] = useState<string | null>(null);
+  const lib = useQuery<RecipeList>({
+    queryKey: ['recipes'],
+    queryFn: () => api('/api/food/recipes'),
+    staleTime: 60_000,
+  });
+  if (!lib.data) return <Shell><Loading /></Shell>;
+
+  // household-sized library: fetch once, filter as-you-type client-side
+  const term = q.trim().toLowerCase();
+  const rows = lib.data.recipes.filter((r) =>
+    (!kind || r.kind === kind) &&
+    (!term || r.name.toLowerCase().includes(term) || r.tags.some((t) => t.toLowerCase().includes(term))));
+
+  return (
+    <Shell>
+      <Back label="Food" onClick={() => go('food')} />
+      <Title kick={`${lib.data.count} recipes · seed + imports`}>Library</Title>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or tag…"
+        style={{ background: 'var(--raised)', border: 0, borderRadius: 12, padding: '10px 13px', width: '100%' }} />
+      <div className="fchips">
+        {KINDS.map((k) => (
+          <button key={k} className={'fchip press' + (kind === k ? '' : ' dim')}
+            onClick={() => setKind(kind === k ? null : k)}>{k}</button>
+        ))}
+      </div>
+      {rows.map((r) => (
+        <button key={r.slug} className="mealrow press"
+          onClick={() => go('recipe', { foodSlug: r.slug, foodFrom: 'recipes' })}>
+          {r.image ? (
+            <img src={r.image} alt="" style={{ width: 42, height: 42, borderRadius: 10, objectFit: 'cover', flex: 'none' }} />
+          ) : (
+            <PlateFig id={r.platefig} />
+          )}
+          <span className="mname">
+            <b>{r.name}</b>
+            <span className="sub num" style={{ margin: 0, display: 'block' }}>
+              {r.kind} · {r.minutes} min · {r.kcal} kcal · P {r.protein_g} · fib {r.fiber_g}
+            </span>
+          </span>
+          <span className="rsub num">
+            {!r.complete ? <span style={{ color: 'var(--warn)', fontWeight: 700 }}>parked</span>
+              : (r.rating ?? 0) > 0 ? <><span style={{ color: 'var(--volt)' }}>★</span> {(r.rating ?? 0).toFixed(1)}</>
+              : null}
+          </span>
+          <span className="chev">›</span>
+        </button>
+      ))}
+      {!rows.length && <div className="sub" style={{ textAlign: 'center' }}>No recipes match.</div>}
+      <Chip>Imported recipes land here. Parked ones are missing pantry reference data —
+        still cookable, never proposed by the coach.</Chip>
+    </Shell>
+  );
+}
+
 /* ---------------- recipe detail ---------------- */
 export function useRecipe(slug: string) {
   return useQuery<RecipeFull>({
@@ -479,7 +544,8 @@ export function useRecipe(slug: string) {
 }
 
 export function RecipeScreen() {
-  const { go, foodSlug, foodDate } = useApp();
+  const { go, foodSlug, foodDate, foodFrom } = useApp();
+  const fromLib = foodFrom === 'recipes';
   const qc = useQueryClient();
   const q = useRecipe(foodSlug);
   const r = q.data;
@@ -502,7 +568,7 @@ export function RecipeScreen() {
 
   return (
     <Shell>
-      <Back label="Food" onClick={() => go('food')} />
+      <Back label={fromLib ? 'Library' : 'Food'} onClick={() => go(fromLib ? 'recipes' : 'food')} />
       <Title kick={`${r.kind}${r.batch ? ' · cook once, eat twice' : ''}`}>{r.name}</Title>
       <div className="fchips">
         <span className="fchip dim num">{r.minutes} min</span>

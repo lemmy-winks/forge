@@ -15,7 +15,7 @@ export function toast(text: string, volt = false) {
 export type Tab = 'today' | 'food' | 'history' | 'progress' | 'coach';
 export type Screen =
   | 'today' | 'day' | 'learn' | 'log' | 'swap' | 'cooldown' | 'summary'
-  | 'food' | 'food-week' | 'recipe' | 'cook'
+  | 'food' | 'food-week' | 'recipes' | 'recipe' | 'cook'
   | 'history' | 'detail' | 'progress' | 'records' | 'metric' | 'coach'
   | 'settings' | 'set-conn' | 'set-equip' | 'set-niggles' | 'set-labs' | 'library' | 'set-notif'
   | 'set-coach' | 'set-units' | 'set-server' | 'set-food' | 'set-accent';
@@ -44,9 +44,10 @@ export interface AppCtxType {
   learnSlug: string; learnFrom: Screen; detailId: string; lift: string;
   dayDate: string | null;
   foodSlug: string; foodDate: string | null;
+  foodFrom: Screen; // where the recipe detail's Back returns to ('food' | 'recipes')
   chatContext: ChatContext | null;
   setChatContext: (c: ChatContext | null) => void;
-  go: (s: Screen, extra?: Partial<Pick<AppCtxType, 'learnSlug' | 'learnFrom' | 'detailId' | 'lift' | 'dayDate' | 'foodSlug' | 'foodDate' | 'chatContext'>>) => void;
+  go: (s: Screen, extra?: Partial<Pick<AppCtxType, 'learnSlug' | 'learnFrom' | 'detailId' | 'lift' | 'dayDate' | 'foodSlug' | 'foodDate' | 'foodFrom' | 'chatContext'>>) => void;
   openTab: (t: Tab) => void;
   budget: number | null;
   setBudget: (n: number) => void;

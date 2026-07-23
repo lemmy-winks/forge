@@ -172,6 +172,34 @@ def reject_food_proposal(rid: str, user: User = Depends(current_user), db: Sessi
     return {"ok": True}
 
 
+def query_recipes(db: Session, kind: str | None, term: str, include_incomplete: bool) -> list[Recipe]:
+    """One search path for the app's library screen and the MCP search tool:
+    kind filter in SQL, then a case-insensitive name/tag match in Python (the
+    library is household-sized — no index games needed)."""
+    q = db.query(Recipe)
+    if kind:
+        q = q.filter(Recipe.kind == kind)
+    if not include_incomplete:
+        q = q.filter(Recipe.complete == 1)
+    rows = q.order_by(Recipe.name).all()
+    term = (term or "").lower().strip()
+    if term:
+        rows = [r for r in rows
+                if term in r.name.lower() or any(term in t.lower() for t in (r.tags or []))]
+    return rows
+
+
+@router.get("/recipes")
+def recipe_list(q: str = "", kind: str | None = None,
+                user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """The whole library, parked imports included — the UI badges incomplete
+    entries ("browsable, never proposable") instead of hiding them."""
+    rows = query_recipes(db, kind, q, include_incomplete=True)
+    return {"count": len(rows),
+            "recipes": [{**recipe_card(r), "tags": r.tags or [], "source": r.source,
+                         "complete": bool(r.complete)} for r in rows]}
+
+
 @router.get("/recipes/{slug}")
 def recipe_detail(slug: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
     r = db.query(Recipe).filter(Recipe.slug == slug).first()
