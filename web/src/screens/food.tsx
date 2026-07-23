@@ -576,7 +576,6 @@ const KINDS = ['dinner', 'lunch', 'breakfast', 'snack'] as const;
 
 export function RecipeLibraryScreen() {
   const { go, foodReplaceDate } = useApp();
-  const qc = useQueryClient();
   const replace = !!foodReplaceDate;
   const [q, setQ] = useState('');
   const [kind, setKind] = useState<string | null>(null);
@@ -585,43 +584,39 @@ export function RecipeLibraryScreen() {
     queryFn: () => api('/api/food/recipes'),
     staleTime: 60_000,
   });
-  const swap = useMutation({
-    mutationFn: (slug: string) => api<{ recipe?: { name: string } }>('/api/food/week/slot', {
-      method: 'PATCH', body: { date: foodReplaceDate, recipe: slug, slot: 'dinner' },
-    }),
-    onSuccess: (d) => {
-      qc.invalidateQueries({ queryKey: ['foodweek'] });
-      toast(`Dinner swapped to ${d.recipe?.name || 'your pick'}`, true);
-      go('food', { foodDate: foodReplaceDate, foodReplaceDate: null });
-    },
-    onError: (e) => toast(e instanceof ApiError && e.network
-      ? 'Need a connection to swap' : String((e as Error).message)),
-  });
   if (!lib.data) return <Shell><Loading /></Shell>;
 
+  const isToday = foodReplaceDate === todayISO();
   const replDay = foodReplaceDate
-    ? new Date(foodReplaceDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long' })
+    ? (isToday ? 'tonight'
+      : new Date(foodReplaceDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long' }))
     : '';
   // household-sized library: fetch once, filter as-you-type client-side. In
-  // replace mode only dinners can fill a dinner slot.
+  // "cook something else" mode we offer complete dinners to swap in for one day.
   const term = q.trim().toLowerCase();
   const rows = lib.data.recipes.filter((r) =>
-    (replace ? r.kind === 'dinner' : (!kind || r.kind === kind)) &&
+    (replace ? (r.kind === 'dinner' && r.complete) : (!kind || r.kind === kind)) &&
     (!term || r.name.toLowerCase().includes(term) || r.tags.some((t) => t.toLowerCase().includes(term))));
 
+  // Replace mode is a ONE-DAY action: open the recipe scoped to that date, so
+  // cooking or logging it records it for that day only (replacing the planned
+  // dinner via the day view), never the recurring weekday template.
   const pick = (slug: string) =>
-    replace ? swap.mutate(slug) : go('recipe', { foodSlug: slug, foodFrom: 'recipes' });
+    replace
+      ? go('recipe', { foodSlug: slug, foodDate: foodReplaceDate, foodFrom: 'food', foodReplaceDate: null })
+      : go('recipe', { foodSlug: slug, foodFrom: 'recipes' });
 
   return (
     <Shell>
       <Back label="Food" onClick={() => go('food',
         replace ? { foodDate: foodReplaceDate, foodReplaceDate: null } : {})} />
-      <Title kick={replace ? `replace ${replDay} dinner` : `${lib.data.count} recipes · seed + imports`}>
+      <Title kick={replace ? `instead of ${replDay}'s plan` : `${lib.data.count} recipes · seed + imports`}>
         {replace ? 'Cook something else' : 'Library'}
       </Title>
       {replace && (
         <div className="sub" style={{ margin: '-2px 2px 4px' }}>
-          Pick any dinner — it swaps in for {replDay} on your food week.
+          Pick a dinner to cook {isToday ? 'tonight' : `for ${replDay}`} — cooking or logging it
+          swaps it in for that day. Your weekly plan stays as it is.
         </div>
       )}
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or tag…"
@@ -635,7 +630,7 @@ export function RecipeLibraryScreen() {
         </div>
       )}
       {rows.map((r) => (
-        <button key={r.slug} className="mealrow press" disabled={swap.isPending}
+        <button key={r.slug} className="mealrow press"
           onClick={() => pick(r.slug)}>
           {r.image ? (
             <img src={r.image} alt="" style={{ width: 42, height: 42, borderRadius: 10, objectFit: 'cover', flex: 'none' }} />
@@ -649,7 +644,7 @@ export function RecipeLibraryScreen() {
             </span>
           </span>
           <span className="rsub num">
-            {replace ? <span style={{ color: 'var(--volt)', fontWeight: 700 }}>pick</span>
+            {replace ? ((r.rating ?? 0) > 0 ? <><span style={{ color: 'var(--volt)' }}>★</span> {(r.rating ?? 0).toFixed(1)}</> : null)
               : !r.complete ? <span style={{ color: 'var(--warn)', fontWeight: 700 }}>parked</span>
               : (r.rating ?? 0) > 0 ? <><span style={{ color: 'var(--volt)' }}>★</span> {(r.rating ?? 0).toFixed(1)}</>
               : null}
@@ -954,16 +949,21 @@ export function CookScreen() {
       qc.invalidateQueries({ queryKey: ['foodweek'] });
     } catch { toast('Offline — tick it from the day view when back online'); }
     setPlated(true);
-    toast(`Plated in ${cookedMin} min — dinner logged`, true);
+    toast(`Plated in ${cookedMin} min — ${r.kind} logged`, true);
   };
 
   if (plated) {
     return (
       <Shell>
         <Title kick={`Cook mode · ${r.name}`}>Plated. Logged.</Title>
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0' }}>
-          <PlateFig id={r.platefig} size={140} />
-        </div>
+        {r.images?.length ? (
+          <img src={r.images[0]} alt={r.name}
+            style={{ width: '100%', borderRadius: 14, aspectRatio: '16 / 10', objectFit: 'cover' }} />
+        ) : (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0' }}>
+            <PlateFig id={r.platefig} size={140} />
+          </div>
+        )}
         <div className="card" style={{ padding: '4px 15px' }}>
           {r.batch > 0 && (
             <div className="mealrow" style={{ borderTop: 'none' }}>
@@ -975,7 +975,7 @@ export function CookScreen() {
           )}
           <div className="mealrow">
             <span className="mtick done">✓</span>
-            <span className="mname"><b>Dinner logged — your plate</b>
+            <span className="mname"><b>{SLOT_LABEL[r.kind] || 'Meal'} logged — your plate</b>
               <span className="sub" style={{ margin: 0, display: 'block' }}>
                 Everyone else ticks their own — their plate, their targets</span></span>
           </div>
@@ -1080,7 +1080,7 @@ export function CookScreen() {
           </button>
         )}
         <button className="cta press" style={{ flex: 1.5 }} onClick={() => (last ? finish() : setIdx(idx + 1))}>
-          {last ? 'Plate & log dinner' : `${steps[idx + 1].title} ›`}
+          {last ? `Plate & log ${r.kind}` : `${steps[idx + 1].title} ›`}
         </button>
       </div>
     </Shell>
