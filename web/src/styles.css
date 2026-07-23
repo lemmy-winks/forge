@@ -428,10 +428,15 @@ button.fpill{ border:none; font:inherit; cursor:pointer; }
 .warnbanner b{ flex:1; font-weight:600; }
 
 /* ---- Food tab (beta track, Phase 7): meters, meal rows, cook mode ---- */
-.meter{ padding:8px 0; }
-.meter + .meter{ border-top:1px solid var(--hair); }
-.meter .mval{ font-weight:300; font-size:15.5px; color:var(--mut); }
-.meter .mval b{ font-weight:700; color:var(--volt); font-style:normal; }
+/* compact macro grid — 8 macros in two dense rows of four */
+.macrogrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:11px 12px; }
+.mcell{ min-width:0; }
+.mcl{ font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--mut);
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mcv{ font-size:14px; line-height:1.1; margin:2px 0 5px; white-space:nowrap; }
+.mcv b{ font-weight:700; color:var(--volt); }
+.mcv b.warn{ color:var(--warn); }
+.mcv span{ color:var(--mut); font-weight:300; }
 .mtrack{ height:5px; border-radius:3px; background:var(--sunken); margin-top:6px; overflow:hidden; }
 .mtrack i{ display:block; height:100%; border-radius:3px; background:var(--volt); opacity:.9;
            transition:width .35s ease; }

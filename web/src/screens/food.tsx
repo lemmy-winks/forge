@@ -175,18 +175,16 @@ function slotName(s: FoodSlot): string {
   return s.note || 'Unplanned';
 }
 
-/* ---------------- meters ---------------- */
-function Meter({ label, val, target, cap, unit = ' g' }:
-  { label: string; val: number; target: number; cap?: boolean; unit?: string }) {
+/* ---------------- macro cells (compact grid) ---------------- */
+function MacroCell({ label, val, target, cap }:
+  { label: string; val: number; target: number; cap?: boolean }) {
   const pct = Math.min(100, Math.round((val / Math.max(target, 1)) * 100));
   const over = cap && val > target;
   return (
-    <div className="meter">
-      <div className="row">
-        <span className="sub" style={{ margin: 0 }}>{label}</span>
-        <span className="mval num"><b className={over ? 'warn' : ''}>{Math.round(val * 10) / 10}</b>
-          {' / '}{cap ? '≤' : ''}{target}{unit}</span>
-      </div>
+    <div className="mcell">
+      <div className="mcl">{label}</div>
+      <div className="mcv num"><b className={over ? 'warn' : ''}>{Math.round(val)}</b>
+        <span>/{cap ? '≤' : ''}{target}</span></div>
       <div className="mtrack"><i style={{ width: pct + '%', background: over ? 'var(--warn)' : undefined }} /></div>
     </div>
   );
@@ -285,17 +283,18 @@ export function FoodDayScreen() {
       )}
 
       {w.has_plan && (
-        <div className="card">
-          <Meter label="Protein" val={day.totals.protein_g} target={t.protein_g} />
-          <Meter label="Fiber" val={day.totals.fiber_g} target={t.fiber_g} />
-          <Meter label="Sat fat · cap" val={day.totals.satfat_g} target={t.satfat_g} cap />
-          <Meter label="Calories" val={day.totals.kcal} target={t.kcal} unit="" />
-          <div style={{ borderTop: '1px solid var(--hair)', margin: '8px 0' }} />
-          <Meter label="Carbs" val={day.totals.carbs_g} target={t.carbs_g} />
-          <Meter label="Sugar · cap" val={day.totals.sugar_g} target={t.sugar_g} cap />
-          <Meter label="Fat" val={day.totals.fat_g} target={t.fat_g} />
-          <Meter label="Sodium · cap" val={day.totals.sodium_mg} target={t.sodium_mg} cap unit=" mg" />
-          {onPlanLine && <div className="sub up" style={{ marginTop: 8 }}>{onPlanLine}</div>}
+        <div className="card" style={{ padding: '13px 15px' }}>
+          <div className="macrogrid">
+            <MacroCell label="Protein" val={day.totals.protein_g} target={t.protein_g} />
+            <MacroCell label="Fiber" val={day.totals.fiber_g} target={t.fiber_g} />
+            <MacroCell label="Sat fat" val={day.totals.satfat_g} target={t.satfat_g} cap />
+            <MacroCell label="Calories" val={day.totals.kcal} target={t.kcal} />
+            <MacroCell label="Carbs" val={day.totals.carbs_g} target={t.carbs_g} />
+            <MacroCell label="Sugar" val={day.totals.sugar_g} target={t.sugar_g} cap />
+            <MacroCell label="Fat" val={day.totals.fat_g} target={t.fat_g} />
+            <MacroCell label="Sodium" val={day.totals.sodium_mg} target={t.sodium_mg} cap />
+          </div>
+          {onPlanLine && <div className="sub up" style={{ marginTop: 10 }}>{onPlanLine}</div>}
         </div>
       )}
 
