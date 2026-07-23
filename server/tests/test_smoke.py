@@ -1380,7 +1380,9 @@ def test_mcp_handshake_and_auth():
 
     tools = {t["name"] for t in _mcp(tok, "tools/list").json()["result"]["tools"]}
     assert tools == {"log_food", "get_food_log", "delete_food_log",
-                     "import_recipe", "search_recipes", "get_recipe"}
+                     "import_recipe", "search_recipes", "get_recipe",
+                     "list_ingredients", "bulk_import_ingredients",
+                     "update_ingredient", "delete_ingredient"}
 
 
 def test_mcp_log_food_with_photo_and_venue():
@@ -1525,6 +1527,76 @@ def test_mcp_import_creates_ingredients_and_library_lists_all():
     hits = client.get("/api/food/recipes?q=unicorn&kind=dinner").json()
     assert {r["slug"] for r in hits["recipes"]} == {"unicorn-shank-stew", "unicorn-skewers"}
     assert client.get("/api/food/recipes?q=unicorn&kind=breakfast").json()["count"] == 0
+
+
+def test_mcp_pantry_tools():
+    """The shared pantry (ingredient reference) is maintainable over MCP: the
+    trusted-source defaults are queryable, bulk import upserts by name, update
+    patches one item, delete reports recipe usage — and every write is walled
+    off from the demo seat while reads stay open."""
+    login()
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+
+    # trusted-source defaults are present and filterable
+    seeded = _mcp_tool(tok, "list_ingredients", {"query": "chicken breast"})["structuredContent"]
+    assert any(i["name"] == "chicken breast" for i in seeded["ingredients"])
+    proteins = _mcp_tool(tok, "list_ingredients", {"aisle": "protein"})["structuredContent"]
+    assert proteins["count"] > 0 and all(i["aisle"] == "protein" for i in proteins["ingredients"])
+
+    # bulk import: one new item, one in-place update (only the field supplied changes)
+    res = _mcp_tool(tok, "bulk_import_ingredients", {"ingredients": [
+        {"name": "seitan", "aisle": "protein", "unit": "g", "pack": "200 g", "kcal_100": 370,
+         "protein_100": 75, "carbs_100": 14, "fat_100": 1.9, "satfat_100": 0.3},
+        {"name": "chicken breast", "kcal_100": 108},
+    ]})["structuredContent"]
+    assert res["created"] == ["seitan"] and res["updated"] == ["chicken breast"]
+    row = next(i for i in _mcp_tool(tok, "list_ingredients", {"query": "seitan"})
+               ["structuredContent"]["ingredients"] if i["name"] == "seitan")
+    assert row["protein_100"] == 75 and row["pantry"] is False
+
+    # the new canonical ingredient now lets a macro-less recipe import complete
+    imp = _mcp_tool(tok, "import_recipe", {
+        "name": "Seitan Skewers", "source_url": "https://example.com/seitan-skewers",
+        "kcal": 400, "protein_g": 60,
+        "ingredients": [{"name": "seitan", "qty": 200, "unit": "g"}],
+        "steps": [{"title": "Grill", "detail": "Until charred at the edges, ~10 min"}],
+    })["structuredContent"]
+    assert imp["complete"] is True
+
+    # overwrite=false leaves an existing item untouched
+    skip = _mcp_tool(tok, "bulk_import_ingredients", {"overwrite": False, "ingredients": [
+        {"name": "seitan", "kcal_100": 999}]})["structuredContent"]
+    assert skip["skipped"] == ["seitan"] and skip["updated"] == []
+    assert next(i for i in _mcp_tool(tok, "list_ingredients", {"query": "seitan"})
+                ["structuredContent"]["ingredients"] if i["name"] == "seitan")["kcal_100"] == 370
+
+    # update patches only the passed field, leaves the rest
+    upd = _mcp_tool(tok, "update_ingredient", {"name": "seitan", "pantry": True})["structuredContent"]
+    assert upd["ingredient"]["pantry"] is True and upd["ingredient"]["protein_100"] == 75
+    assert _mcp_tool(tok, "update_ingredient", {"name": "nope"})["isError"] is True
+
+    # delete flags recipes that still reference it, then it's gone
+    gone = _mcp_tool(tok, "delete_ingredient", {"name": "seitan"})["structuredContent"]
+    assert gone["deleted"] is True and gone["recipes_referencing"] >= 1
+    assert _mcp_tool(tok, "delete_ingredient", {"name": "seitan"})["isError"] is True
+
+    # the demo seat can read the shared reference but never write it
+    client.post("/api/admin/demo")
+    from app.db import SessionLocal
+    from app.models import User as UserModel
+    from app.routers.mcp_food import HANDLERS
+    with SessionLocal() as db:
+        demo = db.query(UserModel).filter(UserModel.role == "demo").first()
+        assert demo is not None
+        assert HANDLERS["list_ingredients"](db, demo, {})["count"] > 0
+        for tool, args in (("bulk_import_ingredients", {"ingredients": [{"name": "x", "kcal_100": 1}]}),
+                           ("update_ingredient", {"name": "chicken breast", "kcal_100": 1}),
+                           ("delete_ingredient", {"name": "chicken breast"})):
+            try:
+                HANDLERS[tool](db, demo, args)
+                assert False, f"{tool} should reject the demo seat"
+            except Exception as e:
+                assert "demo seat cannot write" in str(e)
 
 
 def test_restart_with_new_budget_refits():

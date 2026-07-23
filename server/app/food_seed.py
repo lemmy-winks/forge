@@ -26,6 +26,9 @@ NUTRITION_PREF_DEFAULTS = {
 
 # name, aisle, unit, typical pack, then per-100 (or per-item when unit is 'x'):
 # kcal, protein, carbs, sugar, fiber, fat, satfat, sodium (mg), pantry
+# Values are per-100g/ml from a trusted source (USDA FoodData Central / McCance &
+# Widdowson), hand-checked. This is the default pantry — insert-missing on every
+# boot; the MCP pantry tools maintain it further at runtime.
 INGREDIENTS = [
     # produce
     ("chicken thighs, skinless", "protein", "g", "650 g tray", 121, 20, 0, 0, 0, 4.7, 1.1, 95, 0),
@@ -87,6 +90,56 @@ INGREDIENTS = [
     ("smoked paprika", "cupboard", "g", "jar", 282, 14, 54, 10, 35, 13, 0.9, 68, 1),
     ("cumin", "cupboard", "g", "jar", 375, 18, 44, 2.3, 10.5, 22, 1.5, 168, 1),
     ("chilli flakes", "cupboard", "g", "jar", 282, 12, 50, 10, 27, 14, 1, 30, 1),
+    # --- expanded defaults: common staples so fewer imports park incomplete ---
+    # protein
+    ("beef mince 5%", "protein", "g", "500 g pack", 137, 21, 0, 0, 0, 5, 2.3, 75, 0),
+    ("pork loin steaks", "protein", "x", "2 × 150 g", 143, 21, 0, 0, 0, 6, 2.1, 55, 0),
+    ("firm tofu", "protein", "g", "280 g block", 121, 13, 1.2, 0.6, 0.9, 7, 1, 12, 0),
+    ("tempeh", "protein", "g", "200 g block", 192, 20, 8, 0, 5, 11, 2.2, 9, 0),
+    ("bacon medallions", "protein", "g", "200 g pack", 143, 24, 0.6, 0.6, 0, 5, 1.8, 1900, 0),
+    # dairy
+    ("cottage cheese", "dairy", "g", "300 g tub", 98, 11, 3.4, 3.1, 0, 4.3, 1.7, 330, 0),
+    ("mozzarella light", "dairy", "g", "125 g ball", 178, 19, 1.5, 1, 0, 11, 7, 380, 0),
+    ("cheddar", "dairy", "g", "block", 416, 25, 0.1, 0.1, 0, 35, 21, 720, 0),
+    ("milk, semi-skimmed", "dairy", "ml", "2 L", 47, 3.4, 4.8, 4.7, 0, 1.7, 1.1, 44, 0),
+    ("creme fraiche, half-fat", "dairy", "g", "300 ml tub", 165, 2.7, 4.3, 3.6, 0, 15, 10, 40, 0),
+    ("butter", "dairy", "g", "250 g block", 717, 0.9, 0.1, 0.1, 0, 81, 51, 580, 1),
+    # produce
+    ("carrots", "produce", "g", "1 kg bag", 41, 0.9, 9.6, 4.7, 2.8, 0.2, 0, 69, 0),
+    ("brown onions", "produce", "x", "net of 5", 40, 1.1, 9.3, 4.2, 1.7, 0.1, 0, 4, 0),
+    ("celery", "produce", "x", "head", 14, 0.7, 3, 1.8, 1.6, 0.2, 0, 80, 0),
+    ("mushrooms", "produce", "g", "300 g pack", 22, 3.1, 3.3, 2, 1, 0.3, 0.1, 5, 0),
+    ("kale", "produce", "g", "200 g bag", 49, 4.3, 8.8, 2.3, 3.6, 0.9, 0.1, 38, 0),
+    ("green beans", "produce", "g", "220 g pack", 31, 1.8, 7, 3.3, 2.7, 0.2, 0, 6, 0),
+    ("cauliflower", "produce", "x", "head", 25, 1.9, 5, 1.9, 2, 0.3, 0.1, 30, 0),
+    ("aubergine", "produce", "x", "each", 25, 1, 6, 3.5, 3, 0.2, 0, 2, 0),
+    ("cucumber", "produce", "x", "each", 15, 0.7, 3.6, 1.7, 0.5, 0.1, 0, 2, 0),
+    ("oranges", "produce", "x", "5-pack", 47, 0.9, 11.8, 9.4, 2.4, 0.1, 0, 0, 0),
+    # cupboard
+    ("white rice", "cupboard", "g", "1 kg bag", 360, 7, 79, 0.1, 1.3, 0.6, 0.2, 1, 1),
+    ("quinoa", "cupboard", "g", "500 g bag", 368, 14, 64, 0, 7, 6, 0.7, 5, 1),
+    ("couscous", "cupboard", "g", "500 g bag", 376, 13, 77, 0, 5, 0.6, 0.1, 10, 1),
+    ("plain flour", "cupboard", "g", "1.5 kg bag", 341, 10, 71, 1.5, 3, 1.2, 0.2, 2, 1),
+    ("wholemeal flour", "cupboard", "g", "1.5 kg bag", 340, 12, 64, 2, 9, 2.2, 0.3, 3, 1),
+    ("tortilla wraps", "cupboard", "x", "8-pack", 297, 8, 50, 2.5, 3, 7, 2.9, 620, 0),
+    ("green lentils, dry", "cupboard", "g", "500 g bag", 336, 24, 50, 2, 11, 1.5, 0.2, 6, 1),
+    ("cannellini beans", "cupboard", "x", "400 g tin", 88, 5.5, 14.5, 0.5, 5.4, 0.5, 0.1, 220, 0),
+    ("butter beans", "cupboard", "x", "400 g tin", 82, 5, 13, 0.8, 4.7, 0.5, 0.1, 240, 0),
+    ("coconut milk, light", "cupboard", "ml", "400 ml tin", 73, 0.7, 2, 1.6, 0, 7, 6, 15, 0),
+    ("tahini", "cupboard", "g", "270 g jar", 595, 17, 21, 0.5, 9, 54, 7.6, 35, 1),
+    ("honey", "cupboard", "g", "340 g jar", 334, 0.4, 82, 82, 0, 0, 0, 4, 1),
+    ("maple syrup", "cupboard", "ml", "bottle", 260, 0, 67, 60, 0, 0.1, 0, 12, 1),
+    ("dark chocolate 70%", "cupboard", "g", "100 g bar", 598, 7.8, 46, 37, 11, 43, 25, 20, 1),
+    ("tomato purée", "cupboard", "g", "tube", 81, 4.3, 15, 9, 3, 0.5, 0.1, 400, 1),
+    ("dijon mustard", "cupboard", "g", "jar", 143, 8, 5, 2, 4, 10, 0.6, 2200, 1),
+    ("balsamic vinegar", "cupboard", "ml", "bottle", 88, 0.5, 17, 15, 0, 0, 0, 23, 1),
+    ("cashews", "cupboard", "g", "200 g bag", 553, 18, 30, 6, 3.3, 44, 8, 12, 1),
+    ("walnuts", "cupboard", "g", "200 g bag", 654, 15, 14, 2.6, 6.7, 65, 6.1, 2, 1),
+    # frozen
+    ("peas, frozen", "frozen", "g", "900 g bag", 81, 5.4, 14, 6, 5, 0.4, 0.1, 5, 1),
+    ("sweetcorn, frozen", "frozen", "g", "900 g bag", 86, 3.3, 19, 3.2, 2.7, 1.2, 0.2, 15, 1),
+    ("edamame, frozen", "frozen", "g", "500 g bag", 121, 12, 9, 2.2, 5, 5, 0.6, 6, 1),
+    ("spinach, frozen", "frozen", "g", "900 g bag", 29, 3.6, 3, 0.4, 2.4, 0.5, 0.1, 80, 1),
 ]
 
 # Every dinner: HelloFresh-card structure — why-it's-here, quantified ingredients

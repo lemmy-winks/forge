@@ -1,6 +1,8 @@
 """External MCP endpoint (food surface) — lets outside automations log what was
-eaten on the spot (orders out: venue, cost, macros, photos) and import recipes
-into the shared library (source URL, imagery, ratings, done-when steps).
+eaten on the spot (orders out: venue, cost, macros, photos), import recipes into
+the shared library (source URL, imagery, ratings, done-when steps), and maintain
+the shared pantry: the canonical per-100g ingredient reference that recipe
+imports draw on (bulk import, list, update, delete).
 
 Deliberately hand-rolled: a stateless Streamable-HTTP MCP server is one POST
 endpoint speaking JSON-RPC (initialize / tools list / tools call), which keeps
@@ -44,7 +46,9 @@ INSTRUCTIONS = (
     "import_recipe adds to the shared recipe library: macros are PER SERVING and "
     "cross-checked against the source where possible; steps must be REWRITTEN in Forge's "
     "done-when voice (each step states the cue that tells you it's done) — never paste "
-    "source prose verbatim; always keep source_url attribution."
+    "source prose verbatim; always keep source_url attribution. The pantry tools "
+    "(list/bulk_import/update/delete_ingredients) maintain the shared per-100g ingredient "
+    "reference; keep it stocked so recipe imports don't park as incomplete."
 )
 
 _MACRO_PROPS = {k: {"type": "number", "description": ("kilocalories" if k == "kcal" else
@@ -59,6 +63,45 @@ _ING_MACRO_PROPS = {k: {"type": "number",
                         "description": ("kcal" if k == "kcal_100" else "mg" if k == "sodium_100" else "grams")
                                        + " per 100 g/ml (per item when unit is 'x')"}
                     for k in ING_MACROS}
+UNITS = ("g", "ml", "x")
+# One ingredient's reference fields — shared by import_recipe (inline creation)
+# and the dedicated pantry tools. Values are per 100 g/ml from a trusted
+# nutrition source (USDA FoodData Central / McCance & Widdowson).
+_ING_ITEM_PROPS = {
+    "name": {"type": "string", "description": "Canonical ingredient name — this is the identity (re-import updates in place)"},
+    "aisle": {"type": "string", "enum": list(AISLES)},
+    "unit": {"type": "string", "enum": list(UNITS), "description": "g | ml | per-item (x)"},
+    "pack": {"type": "string", "description": "Typical shop pack, e.g. '400 g tin'"},
+    "pantry": {"type": "boolean", "description": "Staple that never lands on a shopping list"},
+    **_ING_MACRO_PROPS,
+}
+
+
+def _ingredient_dict(i: Ingredient) -> dict:
+    return {"name": i.name, "aisle": i.aisle, "unit": i.unit, "pack": i.pack,
+            "pantry": bool(i.pantry), **{c: getattr(i, c) for c in ING_MACROS}}
+
+
+def _apply_ingredient_fields(row: Ingredient, d: dict) -> None:
+    """Set only the reference fields present in `d` — safe for partial updates
+    (an omitted field is left untouched; a new row falls to the model defaults)."""
+    if d.get("aisle") in AISLES:
+        row.aisle = d["aisle"]
+    if d.get("unit") in UNITS:
+        row.unit = d["unit"]
+    if "pack" in d:
+        row.pack = (d.get("pack") or "")[:40]
+    if "pantry" in d:
+        row.pantry = 1 if d.get("pantry") else 0
+    for c in ING_MACROS:
+        if d.get(c) is not None:
+            setattr(row, c, round(float(d[c]), 1))
+
+
+def _new_ingredient(name: str, d: dict) -> Ingredient:
+    row = Ingredient(name=name[:80])
+    _apply_ingredient_fields(row, d)
+    return row
 
 
 class ToolError(Exception):
@@ -198,6 +241,60 @@ TOOLS: list[dict] = [
             "required": ["slug"],
         },
     },
+    {
+        "name": "list_ingredients",
+        "description": (
+            "Browse the shared pantry — Forge's canonical ingredient reference (per-100g "
+            "macros, aisle, pantry-staple flag). Recipe imports draw on it; an ingredient "
+            "missing here parks a recipe as incomplete. Call before bulk_import_ingredients "
+            "to see what's already stocked."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Case-insensitive name substring"},
+                "aisle": {"type": "string", "enum": list(AISLES)},
+                "pantry_only": {"type": "boolean", "description": "Only staples that skip the shopping list"},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 500, "default": 200},
+            },
+        },
+    },
+    {
+        "name": "bulk_import_ingredients",
+        "description": (
+            "Add or refresh many pantry items at once. Each item's `name` is its identity; "
+            "an existing name is updated in place (only the fields you supply change) unless "
+            "overwrite=false, which skips it. Supply per-100g macros from a trusted source "
+            "(USDA FoodData Central / McCance & Widdowson) so imports that use the ingredient "
+            "can complete. Household-shared, like the recipe library."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "ingredients": {"type": "array", "items": {
+                    "type": "object", "properties": _ING_ITEM_PROPS, "required": ["name"]}},
+                "overwrite": {"type": "boolean", "default": True,
+                              "description": "Update existing names in place (false = skip them)"},
+            },
+            "required": ["ingredients"],
+        },
+    },
+    {
+        "name": "update_ingredient",
+        "description": "Patch one pantry item by name — only the fields you pass change. Errors if the name isn't stocked (use bulk_import_ingredients to add).",
+        "inputSchema": {
+            "type": "object",
+            "properties": _ING_ITEM_PROPS,
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "delete_ingredient",
+        "description": "Remove a pantry item by name. Reports how many recipes still reference it (they fall back to a plain 'cupboard' aisle at read time).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        },
+    },
 ]
 
 
@@ -318,12 +415,7 @@ def _tool_import_recipe(db: Session, user: User, a: dict) -> dict:
         if i.get("kcal_100") is None:
             unknown.append(n)
             continue
-        db.add(Ingredient(
-            name=n[:80],
-            aisle=i.get("aisle") if i.get("aisle") in AISLES else "cupboard",
-            unit=i.get("unit") if i.get("unit") in ("g", "ml", "x") else "g",
-            pantry=1 if i.get("pantry") else 0,
-            **{c: round(float(i.get(c) or 0), 1) for c in ING_MACROS}))
+        db.add(_new_ingredient(n, i))
         known.add(n)
         created.append(n)
     if unknown:
@@ -414,6 +506,83 @@ def _tool_get_recipe(db: Session, user: User, a: dict) -> dict:
             "source_url": r.source_url, "complete": bool(r.complete)}
 
 
+def _reject_demo_pantry(user: User) -> None:
+    if user.role == "demo":
+        raise ToolError("the demo seat cannot write the shared pantry reference")
+
+
+def _tool_list_ingredients(db: Session, user: User, a: dict) -> dict:
+    q = db.query(Ingredient)
+    if a.get("aisle") in AISLES:
+        q = q.filter(Ingredient.aisle == a["aisle"])
+    if a.get("pantry_only"):
+        q = q.filter(Ingredient.pantry == 1)
+    rows = q.order_by(Ingredient.aisle, Ingredient.name).all()
+    term = (a.get("query") or "").lower().strip()
+    if term:
+        rows = [r for r in rows if term in r.name.lower()]
+    limit = min(max(int(a.get("limit") or 200), 1), 500)
+    return {"count": len(rows), "ingredients": [_ingredient_dict(r) for r in rows[:limit]]}
+
+
+def _tool_bulk_import_ingredients(db: Session, user: User, a: dict) -> dict:
+    _reject_demo_pantry(user)
+    items = a.get("ingredients") or []
+    if not items:
+        raise ToolError("ingredients must be a non-empty array")
+    overwrite = a.get("overwrite", True)
+    wanted = [(x.get("name") or "").strip()[:80] for x in items]
+    have = {i.name: i for i in
+            db.query(Ingredient).filter(Ingredient.name.in_([n for n in wanted if n])).all()}
+    created: list[str] = []
+    updated: list[str] = []
+    skipped: list[str] = []
+    for x in items:
+        n = (x.get("name") or "").strip()[:80]
+        if not n:
+            skipped.append("(unnamed)")
+            continue
+        row = have.get(n)
+        if row:
+            if not overwrite:
+                skipped.append(n)
+                continue
+            _apply_ingredient_fields(row, x)
+            updated.append(n)
+        else:
+            row = _new_ingredient(n, x)
+            db.add(row)
+            have[n] = row  # dedupe repeats within one payload
+            created.append(n)
+    db.commit()
+    return {"count": len(created) + len(updated),
+            "created": created, "updated": updated, "skipped": skipped}
+
+
+def _tool_update_ingredient(db: Session, user: User, a: dict) -> dict:
+    _reject_demo_pantry(user)
+    name = (a.get("name") or "").strip()
+    row = db.query(Ingredient).filter(Ingredient.name == name).first()
+    if not row:
+        raise ToolError(f"no pantry item named '{name}' — add it with bulk_import_ingredients")
+    _apply_ingredient_fields(row, a)
+    db.commit()
+    return {"ok": True, "ingredient": _ingredient_dict(row)}
+
+
+def _tool_delete_ingredient(db: Session, user: User, a: dict) -> dict:
+    _reject_demo_pantry(user)
+    name = (a.get("name") or "").strip()
+    row = db.query(Ingredient).filter(Ingredient.name == name).first()
+    if not row:
+        raise ToolError(f"no pantry item named '{name}'")
+    refs = sum(1 for r in db.query(Recipe.ingredients).all()
+               if any((ing or {}).get("name") == name for ing in (r[0] or [])))
+    db.delete(row)
+    db.commit()
+    return {"deleted": True, "recipes_referencing": refs}
+
+
 HANDLERS = {
     "log_food": _tool_log_food,
     "get_food_log": _tool_get_food_log,
@@ -421,6 +590,10 @@ HANDLERS = {
     "import_recipe": _tool_import_recipe,
     "search_recipes": _tool_search_recipes,
     "get_recipe": _tool_get_recipe,
+    "list_ingredients": _tool_list_ingredients,
+    "bulk_import_ingredients": _tool_bulk_import_ingredients,
+    "update_ingredient": _tool_update_ingredient,
+    "delete_ingredient": _tool_delete_ingredient,
 }
 
 
