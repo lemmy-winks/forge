@@ -18,7 +18,7 @@ export type Screen =
   | 'food' | 'food-week' | 'recipes' | 'recipe' | 'cook'
   | 'history' | 'detail' | 'progress' | 'records' | 'metric' | 'coach'
   | 'settings' | 'set-conn' | 'set-equip' | 'set-niggles' | 'set-labs' | 'library' | 'set-notif'
-  | 'set-coach' | 'set-units' | 'set-server' | 'set-food' | 'set-accent';
+  | 'set-coach' | 'set-units' | 'set-server' | 'set-food' | 'set-appearance' | 'set-about';
 
 export interface LoggedSetLocal { weight: number; reps: number; rpe: number | null; } // weight in kg
 /** unit = display unit for this lift; target weights stay kg, LogState.w is display-unit. */

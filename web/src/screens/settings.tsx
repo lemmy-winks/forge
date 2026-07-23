@@ -15,13 +15,11 @@ export function SettingsScreen() {
   const qc = useQueryClient();
   const connQ = useQuery<Connections>({ queryKey: ['connections'], queryFn: () => api('/api/connections') });
   const theme: ThemePref = me.prefs?.theme || storedTheme();
-  const pickTheme = (v: string) => {
-    applyTheme(v as ThemePref);
-    qc.setQueryData<Me>(['me'], (old) => old && { ...old, prefs: { ...old.prefs, theme: v } });
-    api('/api/prefs', { method: 'PATCH', body: { prefs: { theme: v } } }).catch(() => toast('Offline — not saved'));
-  };
+  const themeName = theme === 'light' ? 'Light' : theme === 'system' ? 'Auto' : 'Dark';
   const palette = me.prefs?.palette || storedPalette();
   const palName = (PALETTES.find(([id]) => id === palette) || PALETTES[0])[1];
+  const sex = me.prefs?.sex === 'm' ? 'Male' : me.prefs?.sex === 'f' ? 'Female' : null;
+  const aboutSub = [sex, me.prefs?.birth_year].filter(Boolean).join(' · ') || 'sex & birth year';
   const nigQ = useQuery<NiggleRow[]>({ queryKey: ['niggles'], queryFn: () => api('/api/niggles') });
   const activeN = (nigQ.data || []).filter((n) => n.status === 'active').length;
   const exportData = async () => {
@@ -33,6 +31,8 @@ export function SettingsScreen() {
     a.click();
   };
   const rows: [string, string, () => void][] = [
+    ['Appearance', `${themeName} · ${palName}`, () => go('set-appearance')],
+    ['About you', aboutSub, () => go('set-about')],
     ['Nutrition', 'targets, cook nights, budgets', () => go('set-food')],
     ['Units', 'loads, body, labs', () => go('set-units')],
     ['Connections', connQ.data ? (connQ.data.apple_health.last_push ? 'Apple Health ✓' : 'Apple Health — not seen yet') : '…', () => go('set-conn')],
@@ -59,19 +59,6 @@ export function SettingsScreen() {
             border: '1px solid var(--hair)', color: 'var(--volt)', fontWeight: 700 }}>ADMIN</span>
         )}
       </div>
-      <AboutYouCard />
-      <div className="card">
-        <div className="lab" style={{ marginBottom: 8 }}>Appearance</div>
-        <UnitSeg value={theme} onPick={pickTheme}
-          options={[['dark', 'Dark'], ['light', 'Light'], ['system', 'Auto']]} />
-        <button className="press" onClick={() => go('set-accent')}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                   marginTop: 10, fontSize: 13, color: 'var(--mut)' }}>
-          Accent color
-          <span style={{ marginLeft: 'auto', color: 'var(--volt)', fontWeight: 650 }}>{palName}</span>
-          <span className="chev">›</span>
-        </button>
-      </div>
       {rows.map(([label, sub, onClick]) => (
         <button key={label} className="lrow press" onClick={onClick}>
           <b>{label}</b><span className="rsub">{sub}</span><span className="chev">›</span>
@@ -83,12 +70,18 @@ export function SettingsScreen() {
   );
 }
 
-/* ---------------- accent color ---------------- */
-export function AccentScreen() {
+/* ---------------- appearance (theme + accent) ---------------- */
+export function AppearanceScreen() {
   const { me, go } = useApp();
   const qc = useQueryClient();
+  const theme: ThemePref = me.prefs?.theme || storedTheme();
   const palette = me.prefs?.palette || storedPalette();
-  const pick = (v: string) => {
+  const pickTheme = (v: string) => {
+    applyTheme(v as ThemePref);
+    qc.setQueryData<Me>(['me'], (old) => old && { ...old, prefs: { ...old.prefs, theme: v } });
+    api('/api/prefs', { method: 'PATCH', body: { prefs: { theme: v } } }).catch(() => toast('Offline — not saved'));
+  };
+  const pickPalette = (v: string) => {
     applyPalette(v);
     qc.setQueryData<Me>(['me'], (old) => old && { ...old, prefs: { ...old.prefs, palette: v } });
     api('/api/prefs', { method: 'PATCH', body: { prefs: { palette: v } } }).catch(() => toast('Offline — not saved'));
@@ -96,11 +89,17 @@ export function AccentScreen() {
   return (
     <Shell>
       <Back label="Settings" onClick={() => go('settings')} />
-      <Title kick="appearance">Accent color</Title>
+      <Title kick="settings">Appearance</Title>
       <div className="card">
+        <div className="lab" style={{ marginBottom: 8 }}>Theme</div>
+        <UnitSeg value={theme} onPick={pickTheme}
+          options={[['dark', 'Dark'], ['light', 'Light'], ['system', 'Auto']]} />
+      </div>
+      <div className="card">
+        <div className="lab" style={{ marginBottom: 8 }}>Accent color</div>
         <div className="palrow">
           {PALETTES.map(([id, name, [dk, lt]]) => (
-            <button key={id} className={palette === id ? 'sel' : ''} onClick={() => pick(id)}>
+            <button key={id} className={palette === id ? 'sel' : ''} onClick={() => pickPalette(id)}>
               <span className="pdot"
                 style={{ background: `linear-gradient(135deg, ${dk} 50%, ${lt} 50%)` }} />
               {name}
@@ -116,10 +115,11 @@ export function AccentScreen() {
   );
 }
 
-/** Sex + birth year — used only to pick the right reference bands on the
-    Progress metric screens. Optional; generic adult bands apply until set. */
-function AboutYouCard() {
-  const { me } = useApp();
+/* ---------------- about you (sex + birth year) ----------------
+   Used only to pick the right reference bands on the Progress metric screens.
+   Optional; generic adult bands apply until set. Collected in onboarding too. */
+export function AboutYouScreen() {
+  const { me, go } = useApp();
   const qc = useQueryClient();
   const yearRef = useRef<HTMLInputElement>(null);
   const save = (patch: Record<string, any>) => {
@@ -134,19 +134,21 @@ function AboutYouCard() {
     toast('Saved — reference ranges now use your age', true);
   };
   return (
-    <div className="card">
-      <div className="lab" style={{ marginBottom: 8 }}>About you · tunes healthy ranges</div>
-      <UnitSeg value={me.prefs?.sex || ''} options={[['m', 'Male'], ['f', 'Female']]}
-        onPick={(v) => save({ sex: v })} />
-      <div className="btnrow" style={{ marginTop: 8, alignItems: 'flex-end' }}>
-        <div className="field" style={{ flex: 1 }}><label>Birth year</label>
+    <Shell>
+      <Back label="Settings" onClick={() => go('settings')} />
+      <Title kick="settings">About you</Title>
+      <div className="card">
+        <div className="lab" style={{ marginBottom: 8 }}>Sex</div>
+        <UnitSeg value={me.prefs?.sex || ''} options={[['m', 'Male'], ['f', 'Female']]}
+          onPick={(v) => save({ sex: v })} />
+        <div className="field" style={{ marginTop: 12 }}><label>Birth year</label>
           <input ref={yearRef} inputMode="numeric" placeholder="1988"
             defaultValue={me.prefs?.birth_year || ''} onBlur={saveYear}
             onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} /></div>
+        <div className="sub" style={{ marginTop: 10 }}>Only used to pick age- and sex-appropriate
+          reference bands on the Progress charts — never shared, never sent anywhere.</div>
       </div>
-      <div className="sub">Only used to pick age- and sex-appropriate reference bands on the
-        Progress charts — never shared, never sent anywhere.</div>
-    </div>
+    </Shell>
   );
 }
 

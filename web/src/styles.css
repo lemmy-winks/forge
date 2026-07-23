@@ -448,9 +448,23 @@ button.fpill{ border:none; font:inherit; cursor:pointer; }
                     letter-spacing:.06em; }
 .mealrow .dcol .dd{ display:block; font-size:16px; }
 
-.ingrow{ display:flex; align-items:baseline; gap:8px; border-top:1px solid var(--hair);
+.ingrow{ display:flex; align-items:baseline; gap:10px; border-top:1px solid var(--hair);
          padding:9px 2px; font-size:14px; }
 .ingrow:first-child{ border-top:0; }
+.ingname{ flex:1 1 auto; min-width:0; overflow-wrap:anywhere; }
+.ingnote{ display:block; margin-top:2px; font-size:11.5px; line-height:1.35;
+          color:var(--volt); overflow-wrap:anywhere; }
+.ingamt{ flex:0 0 auto; max-width:46%; text-align:right; overflow-wrap:anywhere; }
+/* cook-mode background timers — persist across steps, run in parallel */
+.timerstrip{ display:flex; gap:8px; overflow-x:auto; padding:2px 0 4px; -webkit-overflow-scrolling:touch; }
+.timerpill{ flex:0 0 auto; display:flex; flex-direction:column; gap:1px; text-align:left;
+            background:var(--raised); border-radius:12px; padding:7px 12px; min-width:104px; }
+.timerpill.cur{ outline:2px solid var(--volt); }
+.timerpill.done{ opacity:.6; }
+.timerpill .tp-title{ font-size:11.5px; color:var(--mut); max-width:150px; overflow:hidden;
+                      text-overflow:ellipsis; white-space:nowrap; }
+.timerpill .tp-time{ font-size:16px; font-weight:700; color:var(--volt); }
+.timerpill.done .tp-time{ color:var(--mut); }
 .steprow{ display:flex; gap:10px; border-top:1px solid var(--hair); padding:10px 2px; font-size:14px; }
 .steprow:first-child{ border-top:0; }
 .steprow .n{ color:var(--volt); font-weight:700; width:16px; flex:none; }

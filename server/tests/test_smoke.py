@@ -1529,6 +1529,46 @@ def test_mcp_import_creates_ingredients_and_library_lists_all():
     assert client.get("/api/food/recipes?q=unicorn&kind=breakfast").json()["count"] == 0
 
 
+def test_food_week_slot_swap_and_parallel_step():
+    """A recipe can be swapped into a given date's dinner on the active food week
+    (weekday-keyed, direct edit), and import_recipe carries a `parallel`
+    background-step flag through to the app."""
+    login()
+    tok = client.post("/api/connections/rotate-token").json()["token"]
+
+    # import a dinner with a background (parallel) step — parallel implies timer
+    imp = _mcp_tool(tok, "import_recipe", {
+        "name": "Slow Ragu", "source_url": "https://example.com/slow-ragu", "kind": "dinner",
+        "kcal": 620, "protein_g": 40, "why": "Low effort, big batch",
+        "ingredients": [{"name": "beef mince 5%", "qty": 500, "unit": "g"}],
+        "steps": [
+            {"title": "Simmer the ragu", "detail": "Until it thickens and darkens, ~90 min",
+             "minutes": 90, "parallel": True},
+            {"title": "Cook the pasta", "detail": "Until al dente, ~10 min", "minutes": 10, "timer": True},
+        ]})["structuredContent"]
+    assert imp["complete"] is True
+    got = _mcp_tool(tok, "get_recipe", {"slug": imp["slug"]})["structuredContent"]
+    assert got["steps"][0]["parallel"] is True and got["steps"][0]["timer"] is True
+
+    # swap it into a Wednesday dinner on the member household's active week
+    wed = "2026-07-29"  # a Wednesday
+    res = client.patch("/api/food/week/slot", json={"date": wed, "recipe": imp["slug"]}).json()
+    assert res["ok"] is True and res["day_name"] == "Wednesday" and res["slot"] == "dinner"
+
+    # reflected in the week view for that date
+    week = client.get(f"/api/food/week?date={wed}").json()
+    day = next(d for d in week["days"] if d["date"] == wed)
+    dinner = next(s for s in day["slots"] if s["slot"] == "dinner")
+    assert dinner["recipe"]["slug"] == imp["slug"]
+
+    # a non-dinner recipe is refused for the dinner slot
+    bad = client.patch("/api/food/week/slot",
+                       json={"date": wed, "recipe": "almonds-30", "slot": "dinner"})
+    assert bad.status_code == 400
+    assert client.patch("/api/food/week/slot",
+                        json={"date": wed, "recipe": "nope"}).status_code == 404
+
+
 def test_mcp_pantry_tools():
     """The shared pantry (ingredient reference) is maintainable over MCP: the
     trusted-source defaults are queryable, bulk import upserts by name, update

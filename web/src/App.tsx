@@ -13,7 +13,7 @@ import { LearnScreen } from './screens/learn';
 import { OnboardingFlow } from './screens/onboarding';
 import { CooldownScreen, LogScreen, SummaryScreen, SwapScreen } from './screens/session';
 import {
-  AccentScreen, CoachSettingsScreen, ConnectionsScreen, EquipmentScreen, LabsScreen, LibraryScreen,
+  AboutYouScreen, AppearanceScreen, CoachSettingsScreen, ConnectionsScreen, EquipmentScreen, LabsScreen, LibraryScreen,
   NigglesScreen, NotifScreen, NutritionScreen, ServerScreen, SettingsScreen, UnitsScreen,
 } from './screens/settings';
 import { DayScreen, PlanScreen } from './screens/today';
@@ -263,7 +263,7 @@ function AppInner({ me }: { me: Me }) {
     'set-equip': EquipmentScreen, 'set-niggles': NigglesScreen, 'set-labs': LabsScreen,
     library: LibraryScreen, 'set-notif': NotifScreen, 'set-coach': CoachSettingsScreen,
     'set-units': UnitsScreen, 'set-server': ServerScreen, 'set-food': NutritionScreen,
-    'set-accent': AccentScreen,
+    'set-appearance': AppearanceScreen, 'set-about': AboutYouScreen,
   };
   const Cur = SCREENS[screen];
   const curKey = screen === 'day' ? 'day:' + (dayDate || 'today')

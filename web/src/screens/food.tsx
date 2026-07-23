@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   addDaysISO, api, ApiError, fmtT, MACRO_KEYS, todayISO, weekStartISO,
   type FoodDay, type FoodProposalResp, type FoodPropSlot, type FoodSlot, type FoodWeek,
-  type Macros, type RecipeFull, type RecipeList,
+  type Macros, type RecipeFull, type RecipeIngredient, type RecipeList,
 } from '../api';
 import { PlateFig } from '../platefig';
 import { Back, Chip, Loading, Shell, Title, toast, useApp } from '../ui';
@@ -356,34 +356,94 @@ export function FoodDayScreen() {
 }
 
 /* ---------------- week menu ---------------- */
+const FOOD_WEEKS_AHEAD = 4;
+
 export function FoodWeekScreen() {
   const { go } = useApp();
   const [weekStart, setWeekStart] = useState<string | null>(null);
+  const curMonday = weekStartISO(todayISO());
+  const start = weekStart || curMonday;
+  // three panes — viewed week plus both neighbours — so a swipe drags real content
   const wq = useFoodWeek(weekStart);
-  const w = wq.data;
+  const wqPrev = useFoodWeek(addDaysISO(start, -7));
+  const wqNext = useFoodWeek(addDaysISO(start, 7));
   const [noteOpen, setNoteOpen] = useState(false);
   const [propOpen, setPropOpen] = useState(false);
-  if (!w) return <Shell><Loading /></Shell>;
+  const trackRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; y: number; dx: number; mode: 'h' | 'v' | null } | null>(null);
+  const anim = useRef(false);
+  const w = wq.data;
 
-  const curMonday = weekStartISO(todayISO());
-  const isCurrent = (weekStart || curMonday) === curMonday;
+  const isCurrent = start === curMonday;
+  const maxStart = addDaysISO(curMonday, 7 * FOOD_WEEKS_AHEAD);
+  const canNext = start < maxStart;
   const shiftWeek = (n: number) => {
-    const next = addDaysISO(weekStart || curMonday, n * 7);
+    const next = addDaysISO(start, n * 7);
+    if (next > maxStart) return;
     setWeekStart(next === curMonday ? null : next);
   };
 
-  const planned = w.days.map((d) => {
-    const sums = { protein_g: 0, fiber_g: 0, satfat_g: 0 };
-    d.slots.forEach((s) => {
-      if (s.recipe) {
-        sums.protein_g += s.recipe.protein_g; sums.fiber_g += s.recipe.fiber_g; sums.satfat_g += s.recipe.satfat_g;
-      }
-    });
-    return sums;
-  });
-  const avg = (k: keyof (typeof planned)[number]) =>
-    Math.round(planned.reduce((a, p) => a + p[k], 0) / (planned.length || 1));
-  const t = w.targets;
+  /* finger-tracked prev/cur/next week track — mirrors the Plan screen: the track
+     sits at translateX(-100%); a horizontal drag moves it 1:1, release settles
+     back or slides one pane over and commits the week change in the same frame. */
+  const setTrack = (px: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    el.style.transition = 'none';
+    el.style.transform = `translateX(calc(-100% + ${px}px))`;
+  };
+  const settle = (dir: -1 | 0 | 1) => {
+    const el = trackRef.current;
+    if (!el || (dir !== 0 && anim.current)) return;
+    if (dir !== 0 && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      el.style.transition = 'none';
+      el.style.transform = 'translateX(-100%)';
+      shiftWeek(dir);
+      return;
+    }
+    anim.current = dir !== 0;
+    el.style.transition = 'transform .28s cubic-bezier(.22,.9,.3,1)';
+    el.style.transform = `translateX(${dir === 1 ? -200 : dir === -1 ? 0 : -100}%)`;
+    if (dir === 0) return;
+    window.setTimeout(() => {
+      el.style.transition = 'none';
+      el.style.transform = 'translateX(-100%)';
+      shiftWeek(dir);
+      anim.current = false;
+    }, 290);
+  };
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (anim.current) return;
+    drag.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, dx: 0, mode: null };
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.touches[0].clientX - d.x;
+    const dy = e.touches[0].clientY - d.y;
+    if (!d.mode) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      d.mode = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'h' : 'v';
+    }
+    if (d.mode !== 'h') return;
+    d.dx = dx < 0 && !canNext ? dx / 3 : dx;  // rubber-band past the forward cap
+    setTrack(d.dx);
+  };
+  const onTouchEnd = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || d.mode !== 'h') return;
+    const width = trackRef.current?.parentElement?.clientWidth || 390;
+    if (Math.abs(d.dx) < Math.min(110, width * 0.28)) return settle(0);
+    const dir = d.dx < 0 ? 1 : -1;
+    settle(dir === 1 && !canNext ? 0 : dir);
+  };
+  const onTouchCancel = () => {
+    if (drag.current?.mode === 'h') settle(0);
+    drag.current = null;
+  };
+
+  if (!w) return <Shell><Loading /></Shell>;
 
   const bls = (d: FoodDay): string =>
     d.slots.filter((s) => s.slot !== 'dinner')
@@ -391,25 +451,103 @@ export function FoodWeekScreen() {
         : s.recipe ? s.recipe.name.split(' —')[0].split(',')[0].toLowerCase() : '—'}`)
       .join(' · ');
 
+  /** One week of content — stats, coach note, day rows. Rendered three times
+      (prev/cur/next) into the sliding track. */
+  const pane = (wk: FoodWeek | undefined, pos: 'prev' | 'cur' | 'next') => {
+    if (!wk) return <div className="wpane" key={pos}><Loading /></div>;
+    const planned = wk.days.map((d) => {
+      const sums = { protein_g: 0, fiber_g: 0, satfat_g: 0 };
+      d.slots.forEach((s) => {
+        if (s.recipe) { sums.protein_g += s.recipe.protein_g; sums.fiber_g += s.recipe.fiber_g; sums.satfat_g += s.recipe.satfat_g; }
+      });
+      return sums;
+    });
+    const avg = (k: keyof (typeof planned)[number]) =>
+      Math.round(planned.reduce((a, p) => a + p[k], 0) / (planned.length || 1));
+    const t = wk.targets;
+    return (
+      <div className="wpane" key={pos}>
+        <div className="statchips">
+          <div className="statchip"><div className="k">Planned protein</div>
+            <div className="v num">{avg('protein_g')}g<span className="sub" style={{ margin: 0 }}>/day</span></div></div>
+          <div className="statchip"><div className="k">Planned fiber</div>
+            <div className="v num">{avg('fiber_g')}g<span className="sub" style={{ margin: 0 }}>/day</span></div></div>
+          <div className="statchip"><div className="k">Sat fat · cap {t.satfat_g}</div>
+            <div className="v num">{avg('satfat_g')}g<span className="sub" style={{ margin: 0 }}>/day</span></div></div>
+        </div>
+        <div className="sub" style={{ margin: '-2px 2px 0' }}>
+          Planned recipes only — order-out lunches and the night out add on top.
+        </div>
+        {wk.rationale && (
+          <button className="coachnote press" onClick={() => setNoteOpen(!noteOpen)}>
+            <span className="kick" style={{ fontSize: 11 }}>This week</span>
+            <div className={noteOpen ? '' : 'clamp'} style={{ marginTop: 3 }}>{wk.rationale}</div>
+            <div className="more">{noteOpen ? 'less' : 'more'}</div>
+          </button>
+        )}
+        {wk.days.map((d) => {
+          const dinner = d.slots.find((s) => s.slot === 'dinner');
+          const allLogged = d.slots.filter((s) => s.recipe).length > 0 &&
+            d.slots.filter((s) => s.recipe).every((s) => s.logged);
+          const fig = dinner?.out ? 'out' : (dinner?.recipe?.platefig || 'plate');
+          return (
+            <button key={d.date} className={'mealrow press' + (dinner?.out ? ' dimrow' : '')}
+              onClick={() => go('food', { foodDate: d.is_today ? null : d.date })}>
+              <span className="dcol num">
+                <span className="dn">{d.day_name.slice(0, 3)}</span>
+                <span className="dd disp">{+d.date.slice(8)}</span>
+              </span>
+              <PlateFig id={fig} dim={!!dinner?.leftover} />
+              <span className="mname">
+                <b>{dinner ? slotName(dinner) : 'No dinner planned'}</b>
+                <span className="sub" style={{ margin: 0, display: 'block' }}>{bls(d)}</span>
+              </span>
+              <span className="rsub num" style={allLogged ? { color: 'var(--volt)', fontWeight: 700 } : undefined}>
+                {allLogged ? '✓ on plan'
+                  : dinner?.out ? 'out'
+                  : dinner?.leftover ? '↻ batch'
+                  : dinner?.recipe ? `${dinner.recipe.minutes} min` : ''}
+              </span>
+              <span className="chev">›</span>
+            </button>
+          );
+        })}
+        <Chip>The coach proposes each week on Sundays alongside training — the shopping list
+          lands later in Phase 8.</Chip>
+      </div>
+    );
+  };
+
   return (
     <Shell>
       <Back label="Food" onClick={() => go('food')} />
-      <div className="row" style={{ alignItems: 'center' }}>
-        <Title kick={isCurrent ? 'This week' : `Week of ${w.start}`}>Food week</Title>
-        <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {!isCurrent && (
-            <button className="press" style={{ fontSize: 12, color: 'var(--volt)', fontWeight: 700 }}
-              onClick={() => setWeekStart(null)}>this week</button>
-          )}
-          <button className="ghost press" aria-label="Previous week"
-            style={{ width: 34, padding: '6px 0' }} onClick={() => shiftWeek(-1)}>‹</button>
-          <button className="ghost press" aria-label="Next week"
-            disabled={(weekStart || curMonday) >= addDaysISO(curMonday, 7)}
-            style={{ width: 34, padding: '6px 0' }} onClick={() => shiftWeek(1)}>›</button>
-        </span>
+      <div className="swipeweeks" onTouchStart={onTouchStart} onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd} onTouchCancel={onTouchCancel}>
+        <div className="row" style={{ alignItems: 'center' }}>
+          <Title kick={isCurrent ? 'This week' : `Week of ${w.start}`}>Food week</Title>
+          <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {!isCurrent && (
+              <button className="press" style={{ fontSize: 12, color: 'var(--volt)', fontWeight: 700 }}
+                onClick={() => setWeekStart(null)}>this week</button>
+            )}
+            <button className="ghost press" aria-label="Previous week"
+              style={{ width: 34, padding: '6px 0' }} onClick={() => settle(-1)}>‹</button>
+            <button className="ghost press" aria-label="Next week" disabled={!canNext}
+              style={{ width: 34, padding: '6px 0' }} onClick={() => settle(1)}>›</button>
+          </span>
+        </div>
+
+        <FoodProposalBanner onOpen={() => setPropOpen(true)} />
+
+        <div className="wclip">
+          <div className="wtrack" ref={trackRef} style={{ transform: 'translateX(-100%)' }}>
+            {pane(wqPrev.data, 'prev')}
+            {pane(w, 'cur')}
+            {pane(wqNext.data, 'next')}
+          </div>
+        </div>
       </div>
 
-      <FoodProposalBanner onOpen={() => setPropOpen(true)} />
       {propOpen && (
         <div className="overlay" onClick={() => setPropOpen(false)}>
           <div className="sheet" style={{ maxHeight: '78vh', overflowY: 'auto' }}
@@ -418,56 +556,6 @@ export function FoodWeekScreen() {
           </div>
         </div>
       )}
-
-      <div className="statchips">
-        <div className="statchip"><div className="k">Planned protein</div>
-          <div className="v num">{avg('protein_g')}g<span className="sub" style={{ margin: 0 }}>/day</span></div></div>
-        <div className="statchip"><div className="k">Planned fiber</div>
-          <div className="v num">{avg('fiber_g')}g<span className="sub" style={{ margin: 0 }}>/day</span></div></div>
-        <div className="statchip"><div className="k">Sat fat · cap {t.satfat_g}</div>
-          <div className="v num">{avg('satfat_g')}g<span className="sub" style={{ margin: 0 }}>/day</span></div></div>
-      </div>
-      <div className="sub" style={{ margin: '-2px 2px 0' }}>
-        Planned recipes only — order-out lunches and the night out add on top.
-      </div>
-
-      {w.rationale && (
-        <button className="coachnote press" onClick={() => setNoteOpen(!noteOpen)}>
-          <span className="kick" style={{ fontSize: 11 }}>This week</span>
-          <div className={noteOpen ? '' : 'clamp'} style={{ marginTop: 3 }}>{w.rationale}</div>
-          <div className="more">{noteOpen ? 'less' : 'more'}</div>
-        </button>
-      )}
-
-      {w.days.map((d) => {
-        const dinner = d.slots.find((s) => s.slot === 'dinner');
-        const allLogged = d.slots.filter((s) => s.recipe).length > 0 &&
-          d.slots.filter((s) => s.recipe).every((s) => s.logged);
-        const fig = dinner?.out ? 'out' : (dinner?.recipe?.platefig || 'plate');
-        return (
-          <button key={d.date} className={'mealrow press' + (dinner?.out ? ' dimrow' : '')}
-            onClick={() => go('food', { foodDate: d.is_today ? null : d.date })}>
-            <span className="dcol num">
-              <span className="dn">{d.day_name.slice(0, 3)}</span>
-              <span className="dd disp">{+d.date.slice(8)}</span>
-            </span>
-            <PlateFig id={fig} dim={!!dinner?.leftover} />
-            <span className="mname">
-              <b>{dinner ? slotName(dinner) : 'No dinner planned'}</b>
-              <span className="sub" style={{ margin: 0, display: 'block' }}>{bls(d)}</span>
-            </span>
-            <span className="rsub num" style={allLogged ? { color: 'var(--volt)', fontWeight: 700 } : undefined}>
-              {allLogged ? '✓ on plan'
-                : dinner?.out ? 'out'
-                : dinner?.leftover ? '↻ batch'
-                : dinner?.recipe ? `${dinner.recipe.minutes} min` : ''}
-            </span>
-            <span className="chev">›</span>
-          </button>
-        );
-      })}
-      <Chip>The coach proposes each week on Sundays alongside training — the shopping list
-        lands later in Phase 8.</Chip>
     </Shell>
   );
 }
@@ -543,12 +631,72 @@ export function useRecipe(slug: string) {
   });
 }
 
+/** Ingredient amount scaled to `servings` of a recipe authored for `base`.
+ *  The freeform `disp` is only trustworthy at the authored count, so once scaled
+ *  we fall back to the numeric qty·unit. */
+function scaledAmount(i: RecipeIngredient, base: number, servings: number): string {
+  if (i.pantry) return 'pantry';
+  if (servings === base || !i.qty || base <= 0) return i.disp || (i.qty ? `${i.qty} ${i.unit}` : '');
+  const v = (i.qty * servings) / base;
+  if (i.unit === 'x') {
+    const n = Math.round(v * 2) / 2;
+    return '×' + (Number.isInteger(n) ? n : n.toFixed(1));
+  }
+  const n = v >= 100 ? Math.round(v / 5) * 5 : Math.round(v * 10) / 10;
+  return `${n} ${i.unit}`;
+}
+
+/** Pick a night to pencil this recipe into — writes that weekday's slot on the
+ *  active food week (household-shared for members, own scope for the demo). */
+function PlanDaySheet({ recipe, onClose }: { recipe: RecipeFull; onClose: () => void }) {
+  const qc = useQueryClient();
+  const wq = useFoodWeek(null);
+  const slot = recipe.kind === 'dinner' ? 'dinner' : recipe.kind;
+  const set = useMutation({
+    mutationFn: (date: string) => api('/api/food/week/slot', {
+      method: 'PATCH', body: { date, recipe: recipe.slug, slot },
+    }),
+    onSuccess: (_d, date) => {
+      qc.invalidateQueries({ queryKey: ['foodweek'] });
+      const dn = wq.data?.days.find((x) => x.date === date)?.day_name || 'that day';
+      toast(`${recipe.name} set for ${dn}`, true);
+      onClose();
+    },
+    onError: (e) => toast(e instanceof ApiError && e.network
+      ? 'Need a connection to plan' : String((e as Error).message)),
+  });
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" style={{ maxHeight: '78vh', overflowY: 'auto' }}
+        onClick={(e) => e.stopPropagation()}>
+        <h3>Plan {recipe.name}</h3>
+        <div className="sub" style={{ marginTop: 0 }}>
+          Pick a night — it becomes that weekday's {slot} on your food week (every week, until the coach reworks it).
+        </div>
+        {!wq.data ? <Loading /> : wq.data.days.map((d) => {
+          const cur = d.slots.find((s) => s.slot === slot);
+          return (
+            <button key={d.date} className="lrow press" disabled={set.isPending}
+              onClick={() => set.mutate(d.date)}>
+              <b>{d.day_name}{d.is_today ? ' · today' : ''}</b>
+              <span className="rsub">{cur?.recipe ? `now: ${cur.recipe.name}` : cur?.out ? 'night out' : 'empty'}</span>
+              <span className="chev">›</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function RecipeScreen() {
   const { go, foodSlug, foodDate, foodFrom } = useApp();
   const fromLib = foodFrom === 'recipes';
   const qc = useQueryClient();
   const q = useRecipe(foodSlug);
   const r = q.data;
+  const [servingsOverride, setServingsOverride] = useState<number | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
 
   const logMut = useMutation({
     mutationFn: () => api('/api/food/log', {
@@ -565,6 +713,7 @@ export function RecipeScreen() {
   });
 
   if (!r) return <Shell><Loading /></Shell>;
+  const servings = servingsOverride ?? r.serves;
 
   return (
     <Shell>
@@ -612,16 +761,33 @@ export function RecipeScreen() {
       )}
 
       <div className="sect">Ingredients{r.batch ? ' · 2 nights' : ''}</div>
+      {r.serves > 1 && (
+        <div className="card" style={{ padding: '12px 15px' }}>
+          <div className="row" style={{ alignItems: 'baseline' }}>
+            <span className="sub" style={{ margin: 0 }}>Scale the batch</span>
+            <span className="num" style={{ fontWeight: 700 }}>
+              serves {servings}
+              {servings !== r.serves && <span className="sub" style={{ margin: 0 }}> · authored {r.serves}</span>}
+            </span>
+          </div>
+          <input type="range" min={1} max={r.serves} step={1} value={servings}
+            style={{ marginTop: 8 }}
+            onChange={(e) => setServingsOverride(+e.target.value)} />
+          <div className="sub" style={{ margin: 0 }}>
+            {servings === r.serves
+              ? 'Cooking for fewer? Drag it down — amounts scale, per-plate macros stay the same.'
+              : `Amounts scaled to ${servings} ${servings === 1 ? 'serving' : 'servings'}. Per-plate macros unchanged.`}
+          </div>
+        </div>
+      )}
       <div className="card" style={{ padding: '4px 15px' }}>
         {r.ingredients.map((i) => (
           <div key={i.name} className="ingrow">
-            <span className={i.pantry ? 'dimrow' : ''} style={{ flex: 1 }}>
+            <span className={'ingname' + (i.pantry ? ' dimrow' : '')}>
               {i.name}
-              {i.note && i.note !== 'pantry' && <span className="fchip" style={{ marginLeft: 6, fontSize: 10.5, padding: '2px 8px' }}>{i.note}</span>}
+              {i.note && i.note !== 'pantry' && <span className="ingnote">{i.note}</span>}
             </span>
-            <span className="sub num" style={{ margin: 0, whiteSpace: 'nowrap' }}>
-              {i.pantry ? 'pantry' : i.disp}
-            </span>
+            <span className="sub num ingamt">{scaledAmount(i, r.serves, servings)}</span>
           </div>
         ))}
       </div>
@@ -637,6 +803,7 @@ export function RecipeScreen() {
                   <b style={{ fontWeight: 650 }}>{s.title}</b>
                   <span className="sub num" style={{ margin: 0, marginLeft: 6, display: 'inline' }}>
                     {s.minutes ? `· ${s.minutes} min` : ''}{s.timer ? ' · timer' : ''}
+                    {s.parallel ? ' · background' : ''}
                   </span>
                   <span className="sub" style={{ margin: '2px 0 0', display: 'block' }}>{s.detail}</span>
                   {s.image && (
@@ -657,6 +824,10 @@ export function RecipeScreen() {
         </a>
       )}
 
+      <button className="ghost press" onClick={() => setPlanOpen(true)}>
+        {r.kind === 'dinner' ? 'Plan into a dinner' : 'Plan into a day'} →
+      </button>
+
       {r.steps.length > 1 ? (
         <>
           <button className="cta press" onClick={() => go('cook')}>
@@ -672,6 +843,7 @@ export function RecipeScreen() {
           Log it · {r.kcal} kcal
         </button>
       )}
+      {planOpen && <PlanDaySheet recipe={r} onClose={() => setPlanOpen(false)} />}
     </Shell>
   );
 }
@@ -686,40 +858,42 @@ export function CookScreen() {
   const r = q.data;
   const [idx, setIdx] = useState(0);
   const [plated, setPlated] = useState(false);
-  const [remain, setRemain] = useState<number | null>(null); // seconds left on this step's timer
-  const [total, setTotal] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
+  // Background timers keyed by step index. They keep running — and stay visible
+  // in the strip — as you move to other steps, so a simmer can cook while you
+  // prep the next thing in parallel. Absolute end time survives step changes.
+  const [timers, setTimers] = useState<Record<number, { total: number; end: number; done: boolean }>>({});
+  const [now, setNow] = useState(() => Date.now());
   const t0 = useRef(Date.now());
 
-  // reset any running timer when the step changes
   useEffect(() => {
-    clearInterval(timerRef.current);
-    setRemain(null); setTotal(0);
-  }, [idx]);
-  useEffect(() => () => clearInterval(timerRef.current), []);
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
+  }, []);
+  // chime each timer exactly once as it crosses zero
+  useEffect(() => {
+    const due = Object.entries(timers).filter(([, t]) => !t.done && t.end <= now);
+    if (!due.length) return;
+    setTimers((prev) => {
+      const next = { ...prev };
+      for (const [k] of due) next[+k] = { ...next[+k], done: true };
+      return next;
+    });
+    for (const [k] of due) toast(`${r?.steps[+k]?.title || 'Timer'} — time's up`, true);
+    if (navigator.vibrate) navigator.vibrate([160, 90, 160]);
+  }, [now, timers, r]);
 
   if (!r) return <Shell><Loading /></Shell>;
   const steps = r.steps;
   const step = steps[Math.min(idx, steps.length - 1)];
   const last = idx >= steps.length - 1;
-
-  const startTimer = () => {
-    const secs = (step.minutes || 1) * 60;
-    setTotal(secs); setRemain(secs);
-    clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setRemain((prev) => {
-        if (prev === null) return prev;
-        if (prev <= 1) {
-          clearInterval(timerRef.current);
-          toast(`${step.title} — time's up`, true);
-          if (navigator.vibrate) navigator.vibrate([160, 90, 160]);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+  const remainOf = (i: number): number | null => {
+    const t = timers[i];
+    return t ? Math.max(0, Math.round((t.end - now) / 1000)) : null;
   };
+  const startTimer = (i: number) =>
+    setTimers((t) => ({ ...t, [i]: { total: (steps[i].minutes || 1) * 60,
+      end: Date.now() + (steps[i].minutes || 1) * 60 * 1000, done: false } }));
+  const running = steps.map((s, i) => ({ s, i })).filter(({ i }) => timers[i]);
 
   const finish = async () => {
     const cookedMin = Math.max(1, Math.round((Date.now() - t0.current) / 60000));
@@ -794,38 +968,62 @@ export function CookScreen() {
         <span className="steplab">Step {idx + 1} of {steps.length}</span>
       </div>
 
+      {running.length > 0 && (
+        <div className="timerstrip">
+          {running.map(({ s, i }) => {
+            const t = timers[i];
+            return (
+              <button key={i} className={'timerpill press' + (t.done ? ' done' : '') + (i === idx ? ' cur' : '')}
+                onClick={() => setIdx(i)}>
+                <span className="tp-title">{i + 1}. {s.title}</span>
+                <span className="tp-time num">{t.done ? 'done ✓' : fmtT(remainOf(i)!)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <h2 className="title" style={{ fontSize: 24 }}>{step.title}</h2>
+      {step.parallel && (
+        <div className="chip"><span className="dot" /> Background step — start it, then move on while it cooks.</div>
+      )}
       <div className="bigsub">{step.detail}</div>
       {step.image && (
         <img src={step.image} alt=""
           style={{ width: '100%', maxWidth: 280, borderRadius: 12, margin: '4px auto', display: 'block' }} />
       )}
 
-      {step.timer && (
-        <div className="ringcook">
-          <svg viewBox="0 0 140 140" width="158" height="158">
-            <circle cx="70" cy="70" r="56" fill="none" stroke="var(--sunken)" strokeWidth="7" />
-            {remain !== null && total > 0 && (
-              <circle cx="70" cy="70" r="56" fill="none" stroke="var(--volt)" strokeWidth="7"
-                strokeLinecap="round" transform="rotate(-90 70 70)"
-                strokeDasharray={`${(remain / total) * RING_C} ${RING_C}`} />
+      {step.timer && (() => {
+        const rem = remainOf(idx);
+        const tot = timers[idx]?.total || (step.minutes || 1) * 60;
+        return (
+          <div className="ringcook">
+            <svg viewBox="0 0 140 140" width="158" height="158">
+              <circle cx="70" cy="70" r="56" fill="none" stroke="var(--sunken)" strokeWidth="7" />
+              {rem !== null && tot > 0 && (
+                <circle cx="70" cy="70" r="56" fill="none" stroke="var(--volt)" strokeWidth="7"
+                  strokeLinecap="round" transform="rotate(-90 70 70)"
+                  strokeDasharray={`${(rem / tot) * RING_C} ${RING_C}`} />
+              )}
+              <text x="70" y="74" textAnchor="middle" className="ringnum num">
+                {rem !== null ? fmtT(rem) : fmtT((step.minutes || 1) * 60)}
+              </text>
+              <text x="70" y="92" textAnchor="middle" className="ringcap">
+                {rem !== null ? (rem === 0 ? 'done' : `of ${step.minutes}:00`) : `${step.minutes} min`}
+              </text>
+            </svg>
+            {rem === null ? (
+              <button className="ghost press" style={{ maxWidth: 240 }} onClick={() => startTimer(idx)}>
+                Start the {step.minutes}-minute timer
+              </button>
+            ) : step.parallel ? (
+              <div className="sub">Running in the background — carry on to the next step; it'll chime here (and in the strip above) when it's done.</div>
+            ) : (
+              <div className="sub">A local timer, same as your rest ring — it chimes here, no push.</div>
             )}
-            <text x="70" y="74" textAnchor="middle" className="ringnum num">
-              {remain !== null ? fmtT(remain) : fmtT((step.minutes || 1) * 60)}
-            </text>
-            <text x="70" y="92" textAnchor="middle" className="ringcap">
-              {remain !== null ? (remain === 0 ? 'done' : `of ${step.minutes}:00`) : `${step.minutes} min`}
-            </text>
-          </svg>
-          {remain === null ? (
-            <button className="ghost press" style={{ maxWidth: 220 }} onClick={startTimer}>
-              Start the {step.minutes}-minute timer
-            </button>
-          ) : (
-            <div className="sub">A local timer, same as your rest ring — it chimes here, no push.</div>
-          )}
-        </div>
-      )}
+          </div>
+        );
+      })()}
 
       <div className="btnrow" style={{ marginTop: 'auto' }}>
         {idx > 0 && (

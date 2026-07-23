@@ -342,7 +342,7 @@ class Recipe(Base):
     satfat_g: Mapped[float] = mapped_column(Float, default=0)
     sodium_mg: Mapped[float] = mapped_column(Float, default=0)
     why: Mapped[str] = mapped_column(Text, default="")  # "why it's in your week" one-liner
-    steps: Mapped[list] = mapped_column(JSON, default=list)  # [{title, minutes, detail, timer}] — done-when style
+    steps: Mapped[list] = mapped_column(JSON, default=list)  # [{title, minutes, detail, timer, parallel}] — done-when style; parallel = background step (start timer, move on)
     ingredients: Mapped[list] = mapped_column(JSON, default=list)  # [{name, qty, unit, disp, note}]
     tags: Mapped[list] = mapped_column(JSON, default=list)
     platefig: Mapped[str] = mapped_column(String(32), default="plate")  # plate-art composition id

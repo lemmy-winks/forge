@@ -263,7 +263,11 @@ export interface FoodProposalResp {
     recipes: Record<string, RecipeCard>;
   } | null;
 }
-export interface RecipeStep { title: string; minutes?: number; detail: string; timer?: boolean; image?: string; }
+export interface RecipeStep {
+  title: string; minutes?: number; detail: string; timer?: boolean; image?: string;
+  /** background step: start its timer and carry on with later steps in parallel */
+  parallel?: boolean;
+}
 export interface RecipeIngredient {
   name: string; qty: number; unit: string; disp: string; note?: string; aisle: string; pantry: boolean;
 }

@@ -172,6 +172,53 @@ def reject_food_proposal(rid: str, user: User = Depends(current_user), db: Sessi
     return {"ok": True}
 
 
+class PlanSlotIn(BaseModel):
+    date: str
+    recipe: str
+    slot: str = "dinner"
+
+
+@router.patch("/week/slot")
+def plan_week_slot(body: PlanSlotIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Pencil a recipe into a given date's slot on the active food week. The week
+    is a weekday-keyed template, so this sets that weekday's slot (dinner by
+    default) for every week the revision covers — a direct user edit, no coach
+    proposal. Household-shared for members; the demo edits only its own scoped
+    week. Never touches the shared recipe library, so the demo may use it."""
+    if body.slot not in SLOT_ORDER:
+        raise HTTPException(status_code=400, detail=f"slot must be one of {SLOT_ORDER}")
+    r = db.query(Recipe).filter(Recipe.slug == body.recipe).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="unknown recipe")
+    if body.slot == "dinner" and r.kind != "dinner":
+        raise HTTPException(status_code=400,
+                            detail=f"{r.slug} is a {r.kind} recipe — a dinner needs a dinner recipe")
+    d = parse_date(body.date)
+    wd = str(d.weekday())
+    scope = food_scope(user)
+    rev = active_meal_revision(db, user)
+    if not rev:  # no active week yet — start one so the swap has somewhere to land
+        base_q = db.query(MealRevision)
+        base_q = base_q.filter(MealRevision.user_id == scope) if scope \
+            else base_q.filter(MealRevision.user_id.is_(None))
+        last = base_q.order_by(MealRevision.num.desc()).first()
+        rev = MealRevision(user_id=scope, num=(last.num + 1 if last else 1),
+                           status="active", content={"days": {}}, rationale="", changes=[])
+        db.add(rev)
+    content = dict(rev.content or {})
+    days = dict(content.get("days") or {})
+    day = dict(days.get(wd) or {})
+    slots = dict(day.get("slots") or {})
+    slots[body.slot] = {"recipe": r.slug, "why": (r.why or "").strip() or "Added from the recipe library"}
+    day["slots"] = slots
+    days[wd] = day
+    content["days"] = days
+    rev.content = content  # reassign so SQLAlchemy tracks the JSON mutation
+    db.commit()
+    return {"ok": True, "date": str(d), "day_name": DAY_NAMES[d.weekday()],
+            "slot": body.slot, "recipe": recipe_card(r)}
+
+
 def query_recipes(db: Session, kind: str | None, term: str, include_incomplete: bool) -> list[Recipe]:
     """One search path for the app's library screen and the MCP search tool:
     kind filter in SQL, then a case-insensitive name/tag match in Python (the

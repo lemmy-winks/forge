@@ -74,8 +74,14 @@ function SkipSheet({ title, consequences, later, onStay, onSkip }: {
 /* ---------------- step 1: welcome + units ---------------- */
 function BasicsStep({ me, onNext }: { me: Me; onNext: () => void }) {
   const [units, setUnits] = useState(me.units || 'kg');
+  const [sex, setSex] = useState<string>((me.prefs as any)?.sex || '');
+  const [birthYear, setBirthYear] = useState<string>(String((me.prefs as any)?.birth_year || ''));
   const next = () => {
-    api('/api/prefs', { method: 'PATCH', body: { units } }).catch(() => {});
+    const prefs: Record<string, any> = {};
+    if (sex) prefs.sex = sex;
+    const y = parseInt(birthYear, 10);
+    if (y >= 1930 && y <= 2015) prefs.birth_year = y;
+    api('/api/prefs', { method: 'PATCH', body: { units, prefs } }).catch(() => {});
     onNext();
   };
   return (
@@ -87,7 +93,7 @@ function BasicsStep({ me, onNext }: { me: Me; onNext: () => void }) {
         is permanent, everything can be changed later in Settings.
       </p>
       <div className="card">
-        <div className="kick" style={{ fontSize: 11, marginBottom: 8 }}>One question: how do you talk about your body weight?</div>
+        <div className="kick" style={{ fontSize: 11, marginBottom: 8 }}>How do you talk about your body weight?</div>
         <div className="seg">
           <button className={units === 'kg' ? 'sel' : ''} onClick={() => setUnits('kg')}>in kilograms</button>
           <button className={units === 'lb' ? 'sel' : ''} onClick={() => setUnits('lb')}>in pounds</button>
@@ -96,6 +102,19 @@ function BasicsStep({ me, onNext }: { me: Me; onNext: () => void }) {
           Your weight will show as <b style={{ color: 'var(--ink)' }}>
           {units === 'kg' ? 'e.g. 82.1 kg' : 'e.g. 181 lb'}</b>. (Barbell weights are a separate
           setting — the gym's plates don't care how you weigh yourself.)
+        </div>
+      </div>
+      <div className="card">
+        <div className="kick" style={{ fontSize: 11, marginBottom: 8 }}>A little about you — so Progress charts use age- and sex-appropriate healthy ranges</div>
+        <div className="seg">
+          <button className={sex === 'm' ? 'sel' : ''} onClick={() => setSex('m')}>Male</button>
+          <button className={sex === 'f' ? 'sel' : ''} onClick={() => setSex('f')}>Female</button>
+        </div>
+        <div className="field" style={{ marginTop: 10 }}><label>Birth year</label>
+          <input inputMode="numeric" placeholder="1988" value={birthYear}
+            onChange={(e) => setBirthYear(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))} /></div>
+        <div className="sub" style={{ marginTop: 8 }}>
+          Optional — used only to pick reference bands, never shared. Change it any time in Settings → About you.
         </div>
       </div>
       <div style={{ marginTop: 'auto' }}>

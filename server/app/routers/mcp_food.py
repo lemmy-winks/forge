@@ -206,6 +206,9 @@ TOOLS: list[dict] = [
                                    "description": "Done-when voice, your own words"},
                                    "minutes": {"type": "integer"},
                                    "timer": {"type": "boolean", "description": "Show a countdown for `minutes` in cook mode"},
+                                   "parallel": {"type": "boolean", "description": "Background step: the cook starts its "
+                                                "timer and moves on to later steps while it runs (e.g. a simmer or a "
+                                                "bake that cooks unattended). Implies timer."},
                                    "image": {"type": "string", "description": "Step photo URL or data: URI"}},
                     "required": ["title", "detail"]}},
                 "tags": {"type": "array", "items": {"type": "string"}},
@@ -435,8 +438,10 @@ def _tool_import_recipe(db: Session, user: User, a: dict) -> dict:
         step = {"title": s["title"], "detail": s["detail"]}
         if s.get("minutes") is not None:
             step["minutes"] = s["minutes"]
-        if s.get("timer"):
-            step["timer"] = True
+        if s.get("timer") or s.get("parallel"):
+            step["timer"] = True  # a background step always needs its countdown
+        if s.get("parallel"):
+            step["parallel"] = True
         if s.get("image"):
             ref, warn = store_images(db, None, [s["image"]])
             if ref:
